@@ -480,8 +480,8 @@ const Store=(function(){
   var _db=null;
   var DB_NAME='SixMinuteLog';
   var DB_VER=3;
-  var COLLECTIONS=['clients','matters','entries','contacts','invoices','emailtemplates'];
-  var COLL_SET={clients:1,matters:1,entries:1,contacts:1,invoices:1,emailtemplates:1};
+  var COLLECTIONS=['clients','matters','entries','contacts','invoices'];
+  var COLL_SET={clients:1,matters:1,entries:1,contacts:1,invoices:1};
   // Keys stored in the meta store (everything that isn't a collection array)
   var META_KEYS=['user','prefs','descpresets','mailpresets','itmode'];
 
@@ -657,10 +657,6 @@ var ST={
   ],
   // Mail presets for emailing exported CSV (bl-mailpresets)
   mailPresets:[],
-  // Email block templates (IDB: emailtemplates)
-  emailTemplates:[],
-  // Email template editor state
-  etf:{},  // {editId, name, description, types:[], blocks:[], defaultSubject:'', expanded_id}
   modal:null,editId:null,helpTab:'start',settingsTab:'export',
   tsFilter:'all',anFilter:'month',
   // Timesheet extra filters/sort
@@ -888,7 +884,6 @@ function save(){
     Store.setMeta('prefs',ST.prefs);
     Store.setMeta('descpresets',ST.descPresets);
     Store.setMeta('mailpresets',ST.mailPresets);
-    Store.saveAll('emailtemplates',ST.emailTemplates);
     Store.setMeta('itmode',{itMode:ST.itMode,firmProfile:ST.firmProfile});
   },400);
 }
@@ -1109,8 +1104,8 @@ function vTimesheet(){
     +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
     +(role!=='billing_staff'?'<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>':'')
     +(role!=='billing_staff'&&fe.filter(function(e){return !e.finalized;}).length>0?'<button class="btn btn-gr" onclick="A.finalizeEntries()" title="Group identical entries by day with rounded total hours">Finalize Entries</button>':'')
-    +(fe.length>0&&role==='attorney'?'<button class="btn btn-gh" onclick="A.emailEntriesApproval()" style="gap:5px" title="Email visible entries to a partner for approval">'+IC.mail+' Email for Approval</button>':'')
-    +(fe.length>0&&role==='partner'?'<button class="btn btn-gh" onclick="A.emailEntriesSummary()" style="gap:5px" title="Email billing summary to staff or partners">'+IC.mail+' Email Summary</button>':'')
+    +(fe.length>0&&role==='attorney'?'<button class="btn btn-gh" onclick="A.emailEntries(\'partner_approval\')" style="gap:5px" title="Email visible entries to a partner for approval">'+IC.mail+' Email for Approval</button>':'')
+    +(fe.length>0&&role==='partner'?'<button class="btn btn-gh" onclick="A.emailEntries(\'billing_staff\')" style="gap:5px" title="Email billing summary to staff or partners">'+IC.mail+' Email Summary</button>':'')
     +'</div></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
     +'<select onchange="A.setTsF(this.value)" style="'+selectStyle+'">'+fopts+'</select>'
@@ -1771,7 +1766,7 @@ function vApprovals(){
       +'<td style="color:var(--ink3);font-size:12px">'+$d(inv.invoiceDate)+'</td>'
       +'<td><div class="tda">'
         +'<button class="btn btn-dk" onclick="A.invOpenReview('+inv.id+')" style="padding:5px 10px;font-size:12px;gap:4px">'+IC.shield+' Review</button>'
-        +'<button class="btn-ic" title="Email Invoice to Client" onclick="A.invEmailClient('+inv.id+')">'+IC.mail+'</button>'
+        +'<button class="btn-ic" title="Email Invoice to Client" onclick="A.emailInvoice('+inv.id+')">'+IC.mail+'</button>'
         +'<button class="btn-ic" title="Preview" onclick="A.invPrint('+inv.id+')">'+IC.print+'</button>'
       +'</div></td>'
       +'</tr>';
@@ -1819,13 +1814,13 @@ function vInvoices(){
     var stCls={draft:'s-pending',review:'s-pending',approved:'s-approved',sent:'s-approved'}[inv.status]||'s-pending';
     var stLbl={draft:'Draft',review:'In Review',approved:'Approved',sent:'Sent'}[inv.status]||inv.status;
     var btns='<div class="tda">'
-      +'<button class="btn-ic" title="Email Invoice to Client" onclick="A.invEmailClient('+inv.id+')">'+IC.mail+'</button>'
+      +'<button class="btn-ic" title="Email Invoice to Client" onclick="A.emailInvoice('+inv.id+')">'+IC.mail+'</button>'
       +'<button class="btn-ic" title="Preview/Print" onclick="A.invPrint('+inv.id+')">'+IC.print+'</button>'
       // Partners can review any non-sent invoice
       +(role==='partner'&&inv.status!=='sent'?'<button class="btn btn-dk" style="padding:4px 10px;font-size:12px" onclick="A.invOpenReview('+inv.id+')">'+IC.shield+' Review</button>':'')
       // Non-partners can send draft invoices for review
       +(role!=='partner'&&inv.status==='draft'?'<button class="btn btn-bl" style="padding:4px 10px;font-size:12px" onclick="A.invSendForReview('+inv.id+')">'+IC.send+' Send for Review</button>':'')
-      +(role!=='partner'&&(inv.status==='draft'||inv.status==='review')?'<button class="btn btn-gh" style="padding:4px 10px;font-size:12px" onclick="A.invEmailApproval('+inv.id+')" title="Email billing entries to a partner for approval">'+IC.mail+' Email for Approval</button>':'')
+      +(role!=='partner'&&(inv.status==='draft'||inv.status==='review')?'<button class="btn btn-gh" style="padding:4px 10px;font-size:12px" onclick="A.emailEntries(\'partner_approval\')" title="Email billing entries to a partner for approval">'+IC.mail+' Email for Approval</button>':'')
       +(inv.status==='approved'&&role!=='partner'?'<button class="btn btn-gr" style="padding:4px 10px;font-size:12px" onclick="A.invMarkSent('+inv.id+')">'+IC.send+' Mark Sent</button>':'')
       +'<button class="btn-ic" title="Edit" onclick="A.invEdit('+inv.id+')">'+IC.edit+'</button>'
       +'<button class="btn-ic" title="Delete" onclick="A.invDel('+inv.id+')" style="color:var(--red)">'+IC.trash+'</button>'
@@ -2115,7 +2110,7 @@ function buildInvoiceReview(){
     +'</div>'
     +'<div class="modal-ft">'
     +'<button class="btn btn-gh" onclick="A.closeM()">Cancel</button>'
-    +'<button class="btn btn-gh" style="gap:5px" onclick="A.invEmailDecision()" title="Email review summary to the billing attorney">'+IC.mail+' Email Summary</button>'
+    +'<button class="btn btn-gh" style="gap:5px" onclick="A.emailEntries(\'billing_staff\')" title="Email review summary to the billing attorney">'+IC.mail+' Email Summary</button>'
     +'<button class="btn btn-rd" onclick="A.invRevReject()">Reject</button>'
     +'<button class="btn btn-dk" onclick="A.invRevSave()">'+IC.save+' Save &amp; Close</button>'
     +'<button class="btn btn-gr" onclick="A.invRevApprove()">'+IC.check+' Approve Invoice</button>'
@@ -2235,9 +2230,9 @@ function buildInvoicePrint(){
     +'</div>'
     +'<div class="modal-ft">'
     +(inv.status!=='sent'&&myRole()==='partner'?'<button class="btn btn-dk" onclick="A.invOpenReview('+inv.id+'); A.closeM()">'+IC.shield+' Review</button>':'')
-    +(myRole()!=='partner'&&(inv.status==='draft'||inv.status==='review')?'<button class="btn btn-gh" onclick="A.invEmailApproval('+inv.id+')" style="gap:5px">'+IC.mail+' Email for Approval</button>':'')
+    +(myRole()!=='partner'&&(inv.status==='draft'||inv.status==='review')?'<button class="btn btn-gh" onclick="A.emailEntries(\'partner_approval\')" style="gap:5px">'+IC.mail+' Email for Approval</button>':'')
     +'<button class="btn btn-gh" onclick="A.closeM()">Close</button>'
-    +'<button class="btn btn-gh" onclick="A.invEmailClient('+inv.id+')" style="gap:5px">'+IC.mail+' Email to Client</button>'
+    +'<button class="btn btn-gh" onclick="A.emailInvoice('+inv.id+')" style="gap:5px">'+IC.mail+' Email to Client</button>'
     +'<button class="btn btn-gr" onclick="A.invDoPrint()">'+IC.print+' Print / Save PDF</button>'
     +'</div></div></div>';
 }
@@ -2737,38 +2732,10 @@ function buildSettings(){
     var PRIO_STYLE={high:'color:var(--red)',normal:'color:var(--ink3)',low:'color:var(--ink3)'};
     var PRIO_LABEL={high:'\u25b2 High',normal:'Normal',low:'\u25bc Low'};
     var TYPE_LABELS={invClient:'Invoice → Client',invApproval:'Partner Approval',invDecision:'Review Decision',tsApproval:'Submit for Approval',tsSummary:'Billing Summary',all:'All types'};
-    // ── Email Block Templates ──────────────────────────────────────────────
-    body+='<div class="set-section">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
-      +'<div><h3 style="margin:0">Email Block Templates</h3>'
-      +'<p style="font-size:12px;color:var(--ink3);margin:4px 0 0;line-height:1.5">Build reusable email compositions from blocks. Users select a template when sending — they only see the recipient and subject fields.</p></div>'
-      +'<button class="btn btn-dk" onclick="A.etOpen(null,null)">'+IC.plus+' New Template</button>'
-      +'</div>'
-      +(ST.emailTemplates.length>0
-        ? ST.emailTemplates.map(function(tpl,i){
-          var typeChips=(tpl.types||[]).map(function(t){return '<span class="chip" style="font-size:10px;padding:1px 7px">'+H(TYPE_LABELS[t]||t)+'</span>';}).join(' ');
-          var visB=tpl.blocks.filter(function(b){return !b.hidden;}).length;
-          return '<div class="mail-preset-card">'
-            +'<div class="mp-acts">'
-            +'<button class="btn-ic" onclick="A.etOpen(\''+tpl.id+'\',null)" title="Edit">'+IC.edit+'</button>'
-            +'<button class="btn-ic" onclick="A.etDelete(\''+tpl.id+'\')" title="Delete">'+IC.trash+'</button>'
-            +'</div>'
-            +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">'
-            +'<h4 style="margin:0">'+H(tpl.name)+'</h4>'
-            +(typeChips||'<span class="chip" style="font-size:10px;padding:1px 7px;opacity:.5">No type set</span>')
-            +'</div>'
-            +(tpl.description?'<p style="font-size:11px;color:var(--ink3);margin-bottom:4px">'+H(tpl.description)+'</p>':'')
-            +(tpl.defaultSubject?'<p style="font-size:11px">Subject: '+H(tpl.defaultSubject)+'</p>':'')
-            +'<p style="font-size:11px;color:var(--ink3)">'+visB+' visible block'+(visB!==1?'s':'')+(tpl.blocks.length>visB?' (+'+(tpl.blocks.length-visB)+' hidden)':'')+'</p>'
-            +'</div>';
-        }).join('')
-        : '<div class="empty" style="padding:20px"><p>No email templates yet</p><small>Create a template to enable the block-based email composer when sending invoices and time entries.</small></div>'
-      )
-      +'</div>'
-    // ── Mail / CSV Presets (existing) ──────────────────────────────────────
-    +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
-      +'<h3>CSV Email Presets</h3>'
-      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.6">Simpler presets for sending exported CSV reports via your email client — define recipient, subject and body text.</p>'
+    // ── Mail / CSV Presets ─────────────────────────────────────────────────────
+    body+='<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
+      +'<h3>Email Presets</h3>'
+      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.6">Reusable email compositions — define recipient, subject, body, and signature. Selecting a preset opens your default mail client with everything pre-filled.</p>'
       +(ST.mailPresets.length>0
         ? ST.mailPresets.map(function(mp,i){
           var pri=mp.priority||'normal';
@@ -2793,7 +2760,7 @@ function buildSettings(){
             +'<button class="btn btn-bl" style="margin-top:10px;font-size:12px" onclick="A.sendMailPreset('+i+')">'+IC.mail+' Send via Email</button>'
             +'</div>';
         }).join('')
-        : '<div class="empty" style="padding:20px"><p>No CSV presets yet</p></div>'
+        : '<div class="empty" style="padding:20px"><p>No email presets yet</p></div>'
       )
       +'<button class="btn btn-dk" style="margin-top:12px" onclick="A.openMailPreset(null)">'+IC.plus+' New CSV Preset</button>'
       +'</div>';
@@ -3205,13 +3172,8 @@ function buildMailPreset(){
 }
 
 function buildMailSend(){
-  var fname=exportFilename();
-  return '<div class="ov"><div class="modal modal-sm"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' Send Billing Report</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
+  return '<div class="ov"><div class="modal modal-sm"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' Send Email</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
     +'<div class="modal-bd">'
-    +'<div style="background:var(--bg);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink2);margin-bottom:16px">'
-    +'<strong>File:</strong> <span style="font-family:monospace;color:var(--blue)">'+H(fname)+'</span><br>'
-    +'<span style="font-size:11px;color:var(--ink3)">Export and save the file first, then select a preset to open your email client.</span>'
-    +'</div>'
     +(ST.mailPresets.length>0
       ? '<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Choose a preset</div>'
         +ST.mailPresets.map(function(mp,i){
@@ -3292,991 +3254,6 @@ function buildMailCompose(){
 }
 
 
-// === EMAIL COMPOSE BLOCK SYSTEM ===
-// Block definitions: returns map of btype -> {label,icon,preview,html,text}
-// All fns close over 'd' (ST.emailDraft)
-function ecBlockDefs(d){
-  // d = ST.emailDraft; b = a block object {id,btype,cfg:{},customText}
-  // cfg fields are per-block overrides/toggles set by the user in settings panel
-  var inv=d.inv||{};
-  var cl=d.cl||{};
-  var mt=d.mt||null;
-  var lineItems=d.lineItems||[];
-  var total=d.total||0;
-  var taxAmt=d.taxAmt||0;
-  var grandTotal=d.grandTotal||0;
-  var entries=d.entries||[];
-  var totalH=d.totalH||0;
-  var totalAmt=d.totalAmt||0;
-  var fromUser=d.fromUser||(ST.user?ST.user.name:'');
-  var firmName=d.firmName||inv.firmName||ST.prefs.appName||'Our Firm';
-  var reviewer=d.reviewer||(ST.user?ST.user.name:'Partner');
-  var cutLines=d.cutLines||[];
-  var commentLines=d.commentLines||[];
-  var invComments=d.invComments||[];
-  var approved=d.approved;
-  var isPending=d.isPending;
-  var byAuthor=d.byAuthor||{};
-  var invNum=inv.number||String(inv.id||'');
-
-  // cfg-aware helpers
-  function cv(cfg,key,def){ return (cfg&&cfg[key]!=null)?cfg[key]:def; }
-  function cstr(cfg,key,def){ var v=cv(cfg,key,def); return (v==null||v==='')?def:String(v); }
-
-  function serif(inner){ return '<div style="font-family:Georgia,serif;font-size:13px;color:#222;line-height:1.6">'+inner+'</div>'; }
-  function sans(inner){  return '<div style="font-family:system-ui,sans-serif;font-size:13px;color:#1a1a1a;line-height:1.5">'+inner+'</div>'; }
-
-  // ── Config panels (HTML) for each block type ─────────────────────────────
-  // Returns '' if the block has no configurable options
-  function cfgPanel(b){
-    var c=b.cfg||{};
-    var i=b._idx; // set by caller
-    function fld(key,lbl,type,opts){
-      // type: text | textarea | toggle | select
-      var id='bci-'+i+'-'+key;
-      if(type==='toggle'){
-        var chk=cv(c,key,opts.def!==false)?'checked':'';
-        return '<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;margin-bottom:4px">'
-          +'<input type="checkbox" id="'+id+'" '+chk+' onchange="A.ecSetBlockCfg('+i+',\''+key+'\',this.checked)" style="margin:0">'
-          +H(lbl)+'</label>';
-      }
-      if(type==='select'){
-        var optHtml=opts.choices.map(function(ch){
-          var sel=(cv(c,key,opts.def)===ch.v)?'selected':'';
-          return '<option value="'+H(ch.v)+'" '+sel+'>'+H(ch.l)+'</option>';
-        }).join('');
-        return '<div style="margin-bottom:6px"><label style="display:block;font-size:10px;color:var(--ink3);margin-bottom:2px">'+H(lbl)+'</label>'
-          +'<select id="'+id+'" onchange="A.ecSetBlockCfg('+i+',\''+key+'\',this.value)" style="font-size:11px;padding:2px 4px;border:1px solid var(--brd);border-radius:4px;background:var(--bg)">'+optHtml+'</select></div>';
-      }
-      if(type==='textarea'){
-        return '<div style="margin-bottom:6px"><label style="display:block;font-size:10px;color:var(--ink3);margin-bottom:2px">'+H(lbl)+'</label>'
-          +'<textarea id="'+id+'" rows="2" placeholder="'+H(opts.ph||'')+'" oninput="A.ecSetBlockCfg('+i+',\''+key+'\',this.value)" '
-          +'style="width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);resize:vertical;box-sizing:border-box;font-family:inherit">'+H(cstr(c,key,''))+'</textarea></div>';
-      }
-      // default: text
-      return '<div style="margin-bottom:6px"><label style="display:block;font-size:10px;color:var(--ink3);margin-bottom:2px">'+H(lbl)+'</label>'
-        +'<input type="text" id="'+id+'" value="'+H(cstr(c,key,''))+'" placeholder="'+H(opts&&opts.ph||'')+'" oninput="A.ecSetBlockCfg('+i+',\''+key+'\',this.value)" '
-        +'style="width:100%;font-size:11px;padding:4px 6px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);box-sizing:border-box"></div>';
-    }
-
-    var rows='';
-    if(b.btype==='greeting'){
-      rows+=fld('salutation','Salutation','select',{def:'Dear',choices:[{v:'Dear',l:'Dear'},{v:'Hello',l:'Hello'},{v:'Hi',l:'Hi'},{v:'Good day',l:'Good day'}]});
-      rows+=fld('nameOverride','Name override','text',{ph:'Leave blank to use client name'});
-    } else if(b.btype==='inv_header'){
-      rows+=fld('showDate','Show issue date','toggle',{def:true});
-      rows+=fld('showDue','Show due date','toggle',{def:true});
-      rows+=fld('showClientInfo','Show client email/phone','toggle',{def:true});
-      rows+=fld('showMatter','Show matter','toggle',{def:true});
-    } else if(b.btype==='line_items'){
-      rows+=fld('showDate','Show date column','toggle',{def:true});
-      rows+=fld('showHrs','Show hours column','toggle',{def:true});
-      rows+=fld('showRate','Show rate column','toggle',{def:true});
-      rows+=fld('showDesc','Show description in header','toggle',{def:true});
-      rows+=fld('altHeading','Table heading override','text',{ph:'e.g. Services Rendered'});
-    } else if(b.btype==='totals'){
-      rows+=fld('showSubtotal','Show subtotal row','toggle',{def:true});
-      rows+=fld('showTax','Show tax row','toggle',{def:true});
-      rows+=fld('showPayTerms','Show payment terms','toggle',{def:true});
-      rows+=fld('totalLabel','Total label','text',{ph:'Total Due'});
-    } else if(b.btype==='inv_notes'){
-      rows+=fld('textOverride','Override notes text','textarea',{ph:'Leave blank to use invoice notes'});
-    } else if(b.btype==='signature'){
-      rows+=fld('nameOverride','Firm name override','text',{ph:firmName});
-      rows+=fld('addressOverride','Address override','text',{ph:inv.firmAddress||''});
-      rows+=fld('phoneOverride','Phone override','text',{ph:inv.firmPhone||''});
-      rows+=fld('emailOverride','Email override','text',{ph:inv.firmEmail||''});
-      rows+=fld('closing','Closing line','text',{ph:'Thank you for your business.'});
-    } else if(b.btype==='approval_header'||b.btype==='ts_header'||b.btype==='summary_header'){
-      rows+=fld('titleOverride','Title override','text',{ph:'Leave blank for default'});
-      rows+=fld('fromOverride','From override','text',{ph:fromUser});
-    } else if(b.btype==='action_note'||b.btype==='ts_approval_note'){
-      rows+=fld('textOverride','Note text override','textarea',{ph:'Leave blank for default'});
-      rows+=fld('color','Color','select',{def:'yellow',choices:[{v:'yellow',l:'Yellow (warning)'},{v:'blue',l:'Blue (info)'},{v:'green',l:'Green (success)'}]});
-    } else if(b.btype==='entries_table'){
-      rows+=fld('showDate','Show date column','toggle',{def:true});
-      rows+=fld('showMatter','Show matter column','toggle',{def:true});
-      rows+=fld('showRate','Show rate column','toggle',{def:true});
-      rows+=fld('showStatus','Show status badge','toggle',{def:false});
-    } else if(b.btype==='decision_header'){
-      rows+=fld('titleOverride','Title override','text',{ph:'Leave blank for default'});
-    } else if(b.btype==='decision_closing'){
-      rows+=fld('textOverride','Message override','textarea',{ph:'Leave blank for default'});
-    } else if(b.btype==='ts_stats'){
-      rows+=fld('showEntries','Show entry count','toggle',{def:true});
-      rows+=fld('showHours','Show hours','toggle',{def:true});
-      rows+=fld('showValue','Show dollar value','toggle',{def:true});
-    } else if(b.btype==='spacer'){
-      rows+=fld('size','Size','select',{def:'md',choices:[{v:'sm',l:'Small (8px)'},{v:'md',l:'Medium (18px)'},{v:'lg',l:'Large (36px)'},{v:'xl',l:'Extra large (56px)'}]});
-    } else if(b.btype==='custom_text'){
-      rows+=fld('heading','Optional heading','text',{ph:'e.g. Additional Information'});
-      rows+=fld('italic','Italic style','toggle',{def:false});
-    } else if(b.btype==='inv_summary'){
-      rows+=fld('showInvNum','Show invoice number','toggle',{def:true});
-      rows+=fld('showDue','Show due date','toggle',{def:true});
-    }
-    if(!rows) return '';
-    return '<div style="margin-top:8px;padding:8px 10px;background:var(--bg2);border-radius:5px;border:1px solid var(--brd)">'
-      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:6px">Block Settings</div>'
-      +rows+'</div>';
-  }
-
-  // ── Block rendering (uses cfg) ────────────────────────────────────────────
-  function renderGreeting(b){
-    var c=b.cfg||{};
-    var sal=cstr(c,'salutation','Dear');
-    var name=cstr(c,'nameOverride','')||cl.name||'Client';
-    return serif('<p style="margin:0 0 14px">'+H(sal)+' '+H(name)+',</p>');
-  }
-
-  function renderInvHeader(b){
-    var c=b.cfg||{};
-    return serif('<table style="width:100%;border-collapse:collapse;margin-bottom:16px"><tr>'
-      +'<td style="vertical-align:top"><div style="font-size:18px;font-weight:700">Invoice #'+H(invNum)+'</div>'
-      +(cv(c,'showDate',true)&&inv.invoiceDate?'<div style="font-size:12px;color:#666;margin-top:2px">Issued: '+H(inv.invoiceDate)+'</div>':'')
-      +(cv(c,'showDue',true)&&inv.dueDate?'<div style="font-size:12px;color:#c00;font-weight:600;margin-top:2px">Due: '+H(inv.dueDate)+'</div>':'')
-      +'</td>'
-      +'<td style="text-align:right;vertical-align:top">'
-      +'<div style="font-weight:600">'+H(cl.name||'')+'</div>'
-      +(cv(c,'showClientInfo',true)&&cl.email?'<div style="font-size:12px;color:#888">'+H(cl.email)+'</div>':'')
-      +(cv(c,'showMatter',true)&&mt?'<div style="font-size:12px;color:#888">'+H(mt.name)+'</div>':'')
-      +'</td></tr></table>');
-  }
-
-  function renderLineItems(b){
-    var c=b.cfg||{};
-    var showDate=cv(c,'showDate',true);
-    var showHrs=cv(c,'showHrs',true);
-    var showRate=cv(c,'showRate',true);
-    var heading=cstr(c,'altHeading','')||'Description';
-    var rows=lineItems.map(function(li){
-      return '<tr>'
-        +'<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0">'+H(li.desc)+'</td>'
-        +(showDate?'<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;text-align:center;color:#666;font-size:12px;white-space:nowrap">'+H(li.date)+'</td>':'')
-        +(showHrs?'<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap">'+H(li.hrs)+'h</td>':'')
-        +(showRate?'<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap">'+H(li.rate)+'</td>':'')
-        +'<td style="padding:7px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:600;white-space:nowrap">'+H(li.amt)+'</td>'
-        +'</tr>';
-    }).join('');
-    return serif('<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'
-      +'<thead><tr style="background:#f7f7f7">'
-      +'<th style="padding:7px 8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#888;font-weight:600">'+H(heading)+'</th>'
-      +(showDate?'<th style="padding:7px 8px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#888;font-weight:600">Date</th>':'')
-      +(showHrs?'<th style="padding:7px 8px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#888;font-weight:600">Hrs</th>':'')
-      +(showRate?'<th style="padding:7px 8px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#888;font-weight:600">Rate</th>':'')
-      +'<th style="padding:7px 8px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#888;font-weight:600">Amount</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody></table>');
-  }
-
-  function renderTotals(b){
-    var c=b.cfg||{};
-    var showSub=cv(c,'showSubtotal',true);
-    var showTax=cv(c,'showTax',true);
-    var showPay=cv(c,'showPayTerms',true);
-    var lbl=cstr(c,'totalLabel','')||'Total Due';
-    return serif('<div style="display:flex;justify-content:flex-end;margin:4px 0 14px">'
-      +'<div style="width:220px">'
-      +(showSub&&taxAmt?'<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:#666;border-bottom:1px solid #eee"><span>Subtotal</span><span>$'+(total||0).toFixed(2)+'</span></div>':'')
-      +(showTax&&taxAmt?'<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:#666;border-bottom:1px solid #eee"><span>Tax ('+H(String(inv.taxPct||0))+'%)</span><span>$'+(taxAmt||0).toFixed(2)+'</span></div>':'')
-      +'<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:15px;font-weight:700;border-top:2px solid #222;margin-top:3px"><span>'+H(lbl)+'</span><span>$'+(grandTotal||0).toFixed(2)+'</span></div>'
-      +(showPay&&inv.paymentTerms?'<div style="font-size:11px;color:#888;text-align:right;margin-top:2px">'+H(inv.paymentTerms)+'</div>':'')
-      +'</div></div>');
-  }
-
-  function renderSignature(b){
-    var c=b.cfg||{};
-    var name=cstr(c,'nameOverride','')||firmName;
-    var addr=cstr(c,'addressOverride','')||inv.firmAddress||'';
-    var phone=cstr(c,'phoneOverride','')||inv.firmPhone||'';
-    var email=cstr(c,'emailOverride','')||inv.firmEmail||'';
-    var closing=cstr(c,'closing','')||'Thank you for your business.';
-    return serif('<div style="border-top:1px solid #eee;padding-top:12px;margin-top:4px;font-size:13px">'
-      +(closing?'<p style="margin:0 0 10px;color:#444">'+H(closing)+'</p>':'')
-      +'<div style="font-weight:600">'+H(name)+'</div>'
-      +(addr?'<div style="color:#777;font-size:12px">'+H(addr)+'</div>':'')
-      +(phone?'<div style="color:#777;font-size:12px">'+H(phone)+'</div>':'')
-      +(email?'<div style="color:#777;font-size:12px">'+H(email)+'</div>':'')
-      +'</div>');
-  }
-
-  function renderActionNote(b,defaultText,defaultColor){
-    var c=b.cfg||{};
-    var text=cstr(c,'textOverride','')||defaultText;
-    var col=cstr(c,'color','')||defaultColor||'yellow';
-    var bg=col==='blue'?'#e8f3ff':col==='green'?'#e8f5ee':'#fff8e6';
-    var border=col==='blue'?'#8bbfee':col==='green'?'#a0d8b3':'#f0c040';
-    var color=col==='blue'?'#1a3a6a':col==='green'?'#1a4a2a':'#7a5a00';
-    return sans('<div style="background:'+bg+';border:1px solid '+border+';border-radius:4px;padding:10px 14px;font-size:12px;color:'+color+'">'+H(text)+'</div>');
-  }
-
-  function renderEntriesTable(b){
-    var c=b.cfg||{};
-    var showDate=cv(c,'showDate',true);
-    var showMatter=cv(c,'showMatter',true);
-    var showRate=cv(c,'showRate',true);
-    var showStatus=cv(c,'showStatus',false);
-    var rows=entries.map(function(e){
-      var emt=_lu.ma[e.matterId]||{};
-      var amt=(Number(e.hours)*Number(e.rate)).toFixed(2);
-      var st2=e.status||'approved';
-      var stbg=st2==='pending'?'#fff8e6':st2==='approved'?'#e8f5ee':'#fff0f0';
-      var stco=st2==='pending'?'#7a5a00':st2==='approved'?'#1a4a2a':'#6a1a1a';
-      return '<tr>'
-        +(showDate?'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+H(e.date)+'</td>':'')
-        +(showMatter?'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">'+H(emt.name||'General')+'</td>':'')
-        +'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+H(e.description||'—')+'</td>'
-        +'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:right;white-space:nowrap">'+Number(e.hours).toFixed(2)+'h</td>'
-        +(showRate?'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:right;white-space:nowrap">$'+Number(e.rate).toFixed(2)+'</td>':'')
-        +'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:right;font-weight:600;white-space:nowrap">$'+amt+'</td>'
-        +(showStatus?'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:center"><span style="font-size:10px;padding:2px 6px;border-radius:3px;background:'+stbg+';color:'+stco+';font-weight:600">'+st2+'</span></td>':'')
-        +'</tr>';
-    }).join('');
-    return sans('<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'
-      +'<thead><tr style="background:#f5f7fa">'
-      +(showDate?'<th style="padding:6px 8px;text-align:left;font-size:11px;color:#888;font-weight:600">Date</th>':'')
-      +(showMatter?'<th style="padding:6px 8px;text-align:left;font-size:11px;color:#888;font-weight:600">Matter</th>':'')
-      +'<th style="padding:6px 8px;text-align:left;font-size:11px;color:#888;font-weight:600">Description</th>'
-      +'<th style="padding:6px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Hours</th>'
-      +(showRate?'<th style="padding:6px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Rate</th>':'')
-      +'<th style="padding:6px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Amount</th>'
-      +(showStatus?'<th style="padding:6px 8px;text-align:center;font-size:11px;color:#888;font-weight:600">Status</th>':'')
-      +'</tr></thead><tbody>'+rows+'</tbody>'
-      +'<tfoot><tr>'
-      +(showDate?'<td></td>':'')
-      +(showMatter?'<td></td>':'')
-      +'<td colspan="'+(showRate?2:1)+'" style="padding:6px 8px;text-align:right;font-weight:700;border-top:2px solid #222;font-size:12px">Total</td>'
-      +'<td style="padding:6px 8px;text-align:right;font-weight:700;border-top:2px solid #222;color:#1e3a5f">$'+(totalAmt||0).toFixed(2)+'</td>'
-      +(showStatus?'<td style="border-top:2px solid #222"></td>':'')
-      +'</tr></tfoot></table>');
-  }
-
-  function renderTsStats(b){
-    var c=b.cfg||{};
-    var showE=cv(c,'showEntries',true);
-    var showH=cv(c,'showHours',true);
-    var showV=cv(c,'showValue',true);
-    var cards=[];
-    if(showE) cards.push('<div style="flex:1;min-width:90px;background:#f5f7fa;border-radius:6px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700">'+entries.length+'</div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em">Entries</div></div>');
-    if(showH) cards.push('<div style="flex:1;min-width:90px;background:#f5f7fa;border-radius:6px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700">'+(totalH||0).toFixed(1)+'h</div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em">Hours</div></div>');
-    if(showV) cards.push('<div style="flex:1;min-width:90px;background:#eaf3ff;border-radius:6px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:#1e3a5f">$'+(totalAmt||0).toFixed(2)+'</div><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em">Value</div></div>');
-    return sans('<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+cards.join('')+'</div>');
-  }
-
-  function renderSpacer(b){
-    var c=b.cfg||{};
-    var sz=cstr(c,'size','')||'md';
-    var h=sz==='sm'?8:sz==='lg'?36:sz==='xl'?56:18;
-    return '<div style="height:'+h+'px"></div>';
-  }
-
-  function renderCustomText(b){
-    var c=b.cfg||{};
-    var heading=cstr(c,'heading','');
-    var italic=cv(c,'italic',false);
-    var text=(b.customText||'').trim();
-    if(!text&&!heading) return '';
-    var style='margin:0 0 12px;font-size:13px;line-height:1.65'+(italic?';font-style:italic':'');
-    return serif((heading?'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:6px">'+H(heading)+'</div>':'')
-      +(text?'<p style="'+style+'">'+H(text).replace(/\n/g,'<br>')+'</p>':''));
-  }
-
-  function renderByAuthor(b){
-    var rows=Object.keys(byAuthor).map(function(a){
-      var ad=byAuthor[a];
-      var pct=(totalAmt>0?(ad.amt/totalAmt*100).toFixed(0):'0')+'%';
-      return '<tr><td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;font-weight:600">'+H(a)+'</td>'
-        +'<td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:right">'+ad.count+'</td>'
-        +'<td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:right">'+ad.h.toFixed(2)+'h</td>'
-        +'<td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:600">$'+ad.amt.toFixed(2)+'</td>'
-        +'<td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#888">'+pct+'</td></tr>';
-    }).join('');
-    return sans('<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:8px">By Attorney</div>'
-      +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f5f7fa">'
-      +'<th style="padding:6px 10px;text-align:left;font-size:11px;color:#888;font-weight:600">Attorney</th>'
-      +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Entries</th>'
-      +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Hours</th>'
-      +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Billed</th>'
-      +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">%</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody>'
-      +'<tfoot><tr style="background:#eee"><td style="padding:6px 10px;font-weight:700">Total</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-weight:700">'+(d.entries||[]).length+'</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-weight:700">'+(totalH||0).toFixed(2)+'h</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-weight:700">$'+(totalAmt||0).toFixed(2)+'</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-weight:700">100%</td>'
-      +'</tr></tfoot></table></div>');
-  }
-
-  function renderByClient(b){
-    var bc={};
-    (d.entries||[]).forEach(function(e){
-      var ecl=_lu.cl[e.clientId]||{name:'?'};
-      if(!bc[ecl.name]){bc[ecl.name]={h:0,amt:0,count:0};}
-      bc[ecl.name].h+=Number(e.hours); bc[ecl.name].amt+=Number(e.hours)*Number(e.rate); bc[ecl.name].count++;
-    });
-    var rows=Object.keys(bc).map(function(cn){
-      var cd=bc[cn];
-      return '<tr><td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;font-weight:600">'+H(cn)+'</td>'
-        +'<td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:right">'+cd.count+'</td>'
-        +'<td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:right">'+cd.h.toFixed(2)+'h</td>'
-        +'<td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:600">$'+cd.amt.toFixed(2)+'</td></tr>';
-    }).join('');
-    return sans('<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:8px">By Client</div>'
-      +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f5f7fa">'
-      +'<th style="padding:6px 10px;text-align:left;font-size:11px;color:#888;font-weight:600">Client</th>'
-      +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Entries</th>'
-      +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Hours</th>'
-      +'<th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Billed</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody></table></div>');
-  }
-
-  function renderHdrBanner(b,bg,icon,title,sub){
-    var c=b.cfg||{};
-    var t=cstr(c,'titleOverride','')||title;
-    var f=cstr(c,'fromOverride','')||sub;
-    return sans('<div style="background:'+bg+';color:#fff;border-radius:6px;padding:13px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px">'
-      +'<div style="font-size:22px">'+icon+'</div>'
-      +'<div><div style="font-weight:700;font-size:14px">'+H(t)+'</div>'
-      +(f?'<div style="font-size:12px;opacity:.8">'+H(f)+'</div>':'')
-      +'</div></div>');
-  }
-
-  function renderInvSummary(b){
-    var c=b.cfg||{};
-    return sans('<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
-      +(cv(c,'showInvNum',true)?'<div style="flex:1;min-width:100px;background:#f5f7fa;border-radius:6px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#888">Invoice</div><div style="font-weight:700;font-size:14px">#'+H(invNum)+'</div>'+(inv.invoiceDate?'<div style="font-size:11px;color:#666">'+H(inv.invoiceDate)+'</div>':'')+(cv(c,'showDue',true)&&inv.dueDate?'<div style="font-size:11px;color:#c00;font-weight:600">Due: '+H(inv.dueDate)+'</div>':'')+'</div>':'')
-      +'<div style="flex:1;min-width:100px;background:#f5f7fa;border-radius:6px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#888">Client</div><div style="font-weight:700">'+H(cl.name||'')+'</div>'+(mt?'<div style="font-size:11px;color:#666">'+H(mt.name)+'</div>':'')+'</div>'
-      +'<div style="flex:1;min-width:100px;background:#eaf3ff;border-radius:6px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#888">Total</div><div style="font-weight:700;color:#1e3a5f;font-size:16px">$'+(totalAmt||0).toFixed(2)+'</div><div style="font-size:11px;color:#666">'+(totalH||0).toFixed(2)+'h · '+entries.length+' entries</div></div>'
-      +'</div>');
-  }
-
-  function renderHourCuts(b){
-    if(!cutLines.length) return '';
-    var rows=cutLines.map(function(c2){
-      return '<tr><td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">'+H(c2.label)+'</td>'
-        +'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px">'+c2.orig+'h</td>'
-        +'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px;font-weight:600">'+c2.cut+'h</td>'
-        +'<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px;color:#c00">−'+(Number(c2.orig)-Number(c2.cut)).toFixed(2)+'h</td></tr>';
-    }).join('');
-    return sans('<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:6px">Hour Adjustments</div>'
-      +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f5f7fa">'
-      +'<th style="padding:6px 8px;text-align:left;font-size:11px;color:#888;font-weight:600">Entry</th>'
-      +'<th style="padding:6px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Original</th>'
-      +'<th style="padding:6px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Adjusted</th>'
-      +'<th style="padding:6px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Δ</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody></table></div>');
-  }
-
-  function renderEntryComments(b){
-    if(!commentLines.length) return '';
-    return sans('<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:6px">Entry Comments</div>'
-      +commentLines.map(function(c2){
-        return '<div style="border-left:3px solid #f0c040;padding:7px 10px;margin-bottom:5px;background:#fff8e6;border-radius:0 4px 4px 0;font-size:12px">'
-          +'<div style="font-weight:600;margin-bottom:2px">'+H(c2.label)+'</div>'
-          +'<div style="color:#555">'+H(c2.text)+'</div></div>';
-      }).join('')+'</div>');
-  }
-
-  function renderInvComments(b){
-    if(!invComments.length) return '';
-    return sans('<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:6px">Invoice Notes</div>'
-      +invComments.map(function(c2){
-        return '<div style="border-left:3px solid #ccc;padding:7px 10px;margin-bottom:5px;background:#f9f9f9;border-radius:0 4px 4px 0;font-size:12px">'
-          +'<div style="font-weight:600;color:#888;margin-bottom:2px">'+H(c2.by)+' · '+H(c2.at)+'</div>'
-          +'<div>'+H(c2.text)+'</div></div>';
-      }).join('')+'</div>');
-  }
-
-  function renderDecisionClosing(b){
-    var c=b.cfg||{};
-    var text=cstr(c,'textOverride','')||(approved?'This invoice has been approved and is ready to be sent to the client.':'Please update the entries as noted above and resubmit for final approval.');
-    var bg=approved?'#e8f5ee':'#fff0f0';
-    var border=approved?'#a0d8b3':'#f0a0a0';
-    var color=approved?'#1a4a2a':'#6a1a1a';
-    return sans('<div style="background:'+bg+';border:1px solid '+border+';border-radius:4px;padding:10px 14px;font-size:12px;color:'+color+'">'+H(text)+'</div>');
-  }
-
-  function renderTsEntriesByClient(b){
-    var c=b.cfg||{};
-    var showStatus=cv(c,'showStatus',false);
-    var bc={};
-    entries.forEach(function(e){
-      var ecl=_lu.cl[e.clientId]||{name:'?'};
-      if(!bc[ecl.name]){bc[ecl.name]={e:[],h:0,amt:0};}
-      bc[ecl.name].e.push(e); bc[ecl.name].h+=Number(e.hours); bc[ecl.name].amt+=Number(e.hours)*Number(e.rate);
-    });
-    var sections=Object.keys(bc).map(function(cn){
-      var cg=bc[cn];
-      var rows=cg.e.map(function(e){
-        var emt=_lu.ma[e.matterId]||{};
-        var amt=(Number(e.hours)*Number(e.rate)).toFixed(2);
-        var st2=e.status||'approved';
-        var stbg=st2==='pending'?'#fff8e6':st2==='approved'?'#e8f5ee':'#fff0f0';
-        var stco=st2==='pending'?'#7a5a00':st2==='approved'?'#1a4a2a':'#6a1a1a';
-        return '<tr>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;white-space:nowrap">'+H(e.date)+'</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">'+H(emt.name||'General')+'</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+H(e.description||'—')+'</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:right;white-space:nowrap">'+Number(e.hours).toFixed(2)+'h</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:right;font-weight:600;white-space:nowrap">$'+amt+'</td>'
-          +(showStatus?'<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;text-align:center"><span style="font-size:10px;padding:2px 5px;border-radius:3px;background:'+stbg+';color:'+stco+';font-weight:600">'+st2+'</span></td>':'')
-          +'</tr>';
-      }).join('');
-      return '<div style="margin-bottom:10px">'
-        +'<div style="background:#f5f7fa;padding:6px 10px;border-bottom:2px solid #1e3a5f;display:flex;justify-content:space-between;align-items:center">'
-        +'<span style="font-weight:700;font-size:13px">'+H(cn)+'</span>'
-        +'<span style="font-size:11px;color:#555">'+cg.h.toFixed(2)+'h · $'+cg.amt.toFixed(2)+'</span></div>'
-        +'<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fafafa">'
-        +'<th style="padding:5px 8px;text-align:left;font-size:11px;color:#888;font-weight:600">Date</th>'
-        +'<th style="padding:5px 8px;text-align:left;font-size:11px;color:#888;font-weight:600">Matter</th>'
-        +'<th style="padding:5px 8px;text-align:left;font-size:11px;color:#888;font-weight:600">Description</th>'
-        +'<th style="padding:5px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Hours</th>'
-        +'<th style="padding:5px 8px;text-align:right;font-size:11px;color:#888;font-weight:600">Amount</th>'
-        +(showStatus?'<th style="padding:5px 8px;text-align:center;font-size:11px;color:#888;font-weight:600">Status</th>':'')
-        +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
-    }).join('');
-    return sans(sections);
-  }
-
-  function renderSummaryHeader(b){
-    var c=b.cfg||{};
-    var name=cstr(c,'titleOverride','')||firmName;
-    var from=cstr(c,'fromOverride','')||fromUser;
-    return sans('<div style="background:#2d2d2d;color:#fff;border-radius:6px;padding:13px 18px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">'
-      +'<div><div style="font-weight:700;font-size:14px">'+H(name)+' — Billing Summary</div>'
-      +(from?'<div style="font-size:12px;opacity:.8">Prepared by '+H(from)+'</div>':'')+'</div>'
-      +'<div style="text-align:right"><div style="font-size:20px;font-weight:700">$'+(totalAmt||0).toFixed(2)+'</div>'
-      +'<div style="font-size:11px;opacity:.7">'+(totalH||0).toFixed(2)+'h · '+(d.entries||[]).length+' entries</div></div></div>');
-  }
-
-  // ── Master block-type map ─────────────────────────────────────────────────
-  return {
-    greeting:{
-      label:'Greeting', icon:'👋',
-      preview:'Salutation + client name',
-      renderHtml:renderGreeting,
-      cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};return cstr(c,'salutation','Dear')+' '+(cstr(c,'nameOverride','')||cl.name||'Client')+',';}
-    },
-    inv_header:{
-      label:'Invoice Header', icon:'📄',
-      preview:'#'+invNum+' · '+(inv.invoiceDate||'')+(inv.dueDate?' · Due: '+inv.dueDate:''),
-      renderHtml:renderInvHeader, cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};return 'Invoice #'+invNum+(cv(c,'showDate',true)&&inv.invoiceDate?'\nDate: '+inv.invoiceDate:'')+(cv(c,'showDue',true)&&inv.dueDate?'\nDue: '+inv.dueDate:'')+(cl.name?'\nClient: '+cl.name:'')+(cv(c,'showMatter',true)&&mt?'\nMatter: '+mt.name:'');}
-    },
-    line_items:{
-      label:'Line Items Table', icon:'📋',
-      preview:lineItems.length+' items · $'+(total||0).toFixed(2),
-      renderHtml:renderLineItems, cfgPanel:cfgPanel,
-      textFn:function(b){return lineItems.map(function(li){return li.date+'  '+li.desc+'  '+li.hrs+'h @ '+li.rate+' = '+li.amt;}).join('\n');}
-    },
-    totals:{
-      label:'Totals', icon:'💰',
-      preview:'Total Due: $'+(grandTotal||0).toFixed(2),
-      renderHtml:renderTotals, cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};return (cv(c,'showSubtotal',true)&&taxAmt?'Subtotal: $'+(total||0).toFixed(2)+'\n':'')+(cv(c,'showTax',true)&&taxAmt?'Tax: $'+taxAmt.toFixed(2)+'\n':'')+(cstr(c,'totalLabel','')||'Total Due')+': $'+(grandTotal||0).toFixed(2)+(cv(c,'showPayTerms',true)&&inv.paymentTerms?'\nPayment Terms: '+inv.paymentTerms:'');}
-    },
-    inv_notes:{
-      label:'Invoice Notes', icon:'📝',
-      preview:inv.notes?(inv.notes.substring(0,40)+'…'):'(no notes)',
-      renderHtml:function(b){var c=b.cfg||{};var t=cstr(c,'textOverride','')||inv.notes||'';return t?serif('<div style="background:#f9f9f9;border-left:3px solid #ddd;padding:9px 12px;font-size:12px;color:#555;margin-bottom:10px">'+H(t)+'</div>'):'';},
-      cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};var t=cstr(c,'textOverride','')||inv.notes||'';return t?'Notes: '+t:'';}
-    },
-    signature:{
-      label:'Firm Signature', icon:'✍️',
-      preview:firmName+(inv.firmPhone?' · '+inv.firmPhone:''),
-      renderHtml:renderSignature, cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};return (cstr(c,'closing','')||'Thank you for your business.')+'\n'+(cstr(c,'nameOverride','')||firmName)+(cstr(c,'addressOverride','')||inv.firmAddress?'\n'+(cstr(c,'addressOverride','')||inv.firmAddress):'')+(cstr(c,'phoneOverride','')||inv.firmPhone?'\n'+(cstr(c,'phoneOverride','')||inv.firmPhone):'')+(cstr(c,'emailOverride','')||inv.firmEmail?'\n'+(cstr(c,'emailOverride','')||inv.firmEmail):'');}
-    },
-    approval_header:{
-      label:'Approval Header', icon:'🔔',
-      preview:'Action Required: Invoice #'+invNum,
-      renderHtml:function(b){return renderHdrBanner(b,'#1e3a5f','📋','Action Required: Invoice Approval','Submitted by '+(b.cfg&&b.cfg.fromOverride||fromUser));},
-      cfgPanel:cfgPanel,
-      textFn:function(b){return 'ACTION REQUIRED: Invoice Approval\nSubmitted by: '+(b.cfg&&b.cfg.fromOverride||fromUser);}
-    },
-    inv_summary:{
-      label:'Invoice Summary Cards', icon:'📊',
-      preview:'#'+invNum+' · '+H(cl.name||'')+(mt?' / '+H(mt.name):''),
-      renderHtml:renderInvSummary, cfgPanel:cfgPanel,
-      textFn:function(b){return 'Invoice #'+invNum+' | Client: '+(cl.name||'')+(mt?' | Matter: '+mt.name:'')+'\nTotal: $'+(totalAmt||0).toFixed(2)+' ('+(totalH||0).toFixed(2)+'h)';}
-    },
-    entries_table:{
-      label:'Entries Table', icon:'🗃️',
-      preview:entries.length+' entries · '+(totalH||0).toFixed(1)+'h',
-      renderHtml:renderEntriesTable, cfgPanel:cfgPanel,
-      textFn:function(b){return entries.map(function(e){var emt=ST.matters.find(function(m){return m.id==e.matterId;})||{};return e.date+'  '+(emt.name||'General')+'  '+Number(e.hours).toFixed(2)+'h = $'+(Number(e.hours)*Number(e.rate)).toFixed(2)+(e.description?'  '+e.description:'');}).join('\n');}
-    },
-    action_note:{
-      label:'Action Note', icon:'⚠️',
-      preview:'Please log in to review and approve',
-      renderHtml:function(b){return renderActionNote(b,'Please log in to review the entries and approve or request changes before the invoice is sent to the client.','yellow');},
-      cfgPanel:cfgPanel,
-      textFn:function(b){return (b.cfg&&b.cfg.textOverride)||'Please log in to review and approve the entries.';}
-    },
-    decision_header:{
-      label:'Decision Banner', icon:approved?'✅':'🔄',
-      preview:(approved?'APPROVED':'CHANGES REQUESTED')+' — #'+invNum,
-      renderHtml:function(b){var c=b.cfg||{};var t=cstr(c,'titleOverride','')||(approved?'APPROVED':'CHANGES REQUESTED');return sans('<div style="background:'+(approved?'#1a6b3a':'#8b1a1a')+';color:#fff;border-radius:6px;padding:13px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px"><div style="font-size:24px">'+(approved?'✅':'🔄')+'</div><div><div style="font-weight:700;font-size:14px">Invoice #'+H(invNum)+' — '+H(t)+'</div><div style="font-size:12px;opacity:.8">Reviewed by '+H(reviewer)+'</div></div></div>');},
-      cfgPanel:cfgPanel,
-      textFn:function(b){return 'Invoice #'+invNum+' — '+(approved?'APPROVED':'CHANGES REQUESTED')+'\nReviewed by: '+reviewer;}
-    },
-    hour_cuts:{
-      label:'Hour Adjustments', icon:'✂️',
-      preview:cutLines.length?cutLines.length+' adjustment'+(cutLines.length!==1?'s':''):'(none)',
-      renderHtml:renderHourCuts, cfgPanel:cfgPanel,
-      textFn:function(b){return cutLines.length?'--- Hour Adjustments ---\n'+cutLines.map(function(c2){return c2.label+': '+c2.orig+'h → '+c2.cut+'h';}).join('\n'):'';}
-    },
-    entry_comments:{
-      label:'Entry Comments', icon:'💬',
-      preview:commentLines.length?commentLines.length+' comment'+(commentLines.length!==1?'s':''):'(none)',
-      renderHtml:renderEntryComments, cfgPanel:cfgPanel,
-      textFn:function(b){return commentLines.length?'--- Entry Comments ---\n'+commentLines.map(function(c2){return c2.label+': '+c2.text;}).join('\n'):'';}
-    },
-    inv_comments:{
-      label:'Invoice Notes Thread', icon:'🗒️',
-      preview:invComments.length?invComments.length+' note'+(invComments.length!==1?'s':''):'(none)',
-      renderHtml:renderInvComments, cfgPanel:cfgPanel,
-      textFn:function(b){return invComments.length?'--- Invoice Notes ---\n'+invComments.map(function(c2){return c2.by+' ('+c2.at+'): '+c2.text;}).join('\n'):'';}
-    },
-    decision_closing:{
-      label:'Closing Statement', icon:'🤝',
-      preview:approved?'Invoice approved, ready to send.':'Please update and resubmit.',
-      renderHtml:renderDecisionClosing, cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};return cstr(c,'textOverride','')||(approved?'This invoice is approved and ready to send to the client.':'Please update entries and resubmit for approval.');}
-    },
-    ts_header:{
-      label:isPending?'Approval Request Header':'Summary Header', icon:'⏱',
-      preview:(isPending?'Approval Request':'Billing Entries')+' from '+H(fromUser),
-      renderHtml:function(b){return renderHdrBanner(b,'#1e3a5f','⏱',(b.cfg&&b.cfg.titleOverride)||(isPending?'Approval Request':'Billing Entries Summary'),'Submitted by '+(b.cfg&&b.cfg.fromOverride||fromUser));},
-      cfgPanel:cfgPanel,
-      textFn:function(b){return (isPending?'APPROVAL REQUEST':'BILLING SUMMARY')+'\nSubmitted by: '+(b.cfg&&b.cfg.fromOverride||fromUser);}
-    },
-    ts_stats:{
-      label:'Stats Summary', icon:'📊',
-      preview:entries.length+' entries · '+(totalH||0).toFixed(1)+'h · $'+(totalAmt||0).toFixed(2),
-      renderHtml:renderTsStats, cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};var parts=[];if(cv(c,'showEntries',true))parts.push('Entries: '+entries.length);if(cv(c,'showHours',true))parts.push('Hours: '+(totalH||0).toFixed(2)+'h');if(cv(c,'showValue',true))parts.push('Total: $'+(totalAmt||0).toFixed(2));return parts.join(' | ');}
-    },
-    ts_entries:{
-      label:'Entries by Client', icon:'📋',
-      preview:entries.length+' entries grouped by client',
-      renderHtml:renderTsEntriesByClient, cfgPanel:cfgPanel,
-      textFn:function(b){var bc={};entries.forEach(function(e){var ecl=ST.clients.find(function(c){return c.id==e.clientId;})||{name:'?'};if(!bc[ecl.name])bc[ecl.name]=[];bc[ecl.name].push(e);});return Object.keys(bc).map(function(cn){return cn+':\n'+bc[cn].map(function(e){var emt=ST.matters.find(function(m){return m.id==e.matterId;})||{};return '  '+e.date+'  '+(emt.name||'General')+'  '+Number(e.hours).toFixed(2)+'h = $'+(Number(e.hours)*Number(e.rate)).toFixed(2)+(e.description?'  '+e.description:'');}).join('\n');}).join('\n\n');}
-    },
-    ts_approval_note:{
-      label:'Approval Note', icon:'⚠️',
-      preview:'Please log in to approve entries',
-      renderHtml:function(b){return renderActionNote(b,'Please log in to approve or return these entries. Approved entries will be available for invoicing.','yellow');},
-      cfgPanel:cfgPanel,
-      textFn:function(b){return (b.cfg&&b.cfg.textOverride)||'Please log in to approve or return these entries.';}
-    },
-    by_attorney:{
-      label:'By Attorney', icon:'👥',
-      preview:Object.keys(byAuthor).length+' attorney'+(Object.keys(byAuthor).length!==1?'s':''),
-      renderHtml:renderByAuthor, cfgPanel:cfgPanel,
-      textFn:function(b){return '--- By Attorney ---\n'+Object.keys(byAuthor).map(function(a){var ad=byAuthor[a];return a+': '+ad.h.toFixed(2)+'h / $'+ad.amt.toFixed(2)+' ('+ad.count+' entries)';}).join('\n');}
-    },
-    by_client:{
-      label:'By Client', icon:'🏢',
-      preview:(function(){var cs={};(d.entries||[]).forEach(function(e){var ecl=ST.clients.find(function(c){return c.id==e.clientId;})||{name:'?'};cs[ecl.name]=1;});return Object.keys(cs).length+' client'+(Object.keys(cs).length!==1?'s':'');})(),
-      renderHtml:renderByClient, cfgPanel:cfgPanel,
-      textFn:function(b){var bc={};(d.entries||[]).forEach(function(e){var ecl=ST.clients.find(function(c){return c.id==e.clientId;})||{name:'?'};if(!bc[ecl.name]){bc[ecl.name]={h:0,amt:0,count:0};}bc[ecl.name].h+=Number(e.hours);bc[ecl.name].amt+=Number(e.hours)*Number(e.rate);bc[ecl.name].count++;});return '--- By Client ---\n'+Object.keys(bc).map(function(cn){var cd=bc[cn];return cn+': '+cd.h.toFixed(2)+'h / $'+cd.amt.toFixed(2)+' ('+cd.count+' entries)';}).join('\n');}
-    },
-    summary_header:{
-      label:'Summary Header', icon:'📈',
-      preview:firmName+' · $'+(totalAmt||0).toFixed(2),
-      renderHtml:renderSummaryHeader, cfgPanel:cfgPanel,
-      textFn:function(b){var c=b.cfg||{};return (cstr(c,'titleOverride','')||firmName)+' — Billing Summary\nPrepared by: '+(cstr(c,'fromOverride','')||fromUser)+'\nTotal: $'+(totalAmt||0).toFixed(2)+' ('+(totalH||0).toFixed(2)+'h)';}
-    },
-    custom_text:{
-      label:'Custom Text', icon:'✏️',
-      preview:'Editable text block',
-      renderHtml:renderCustomText, cfgPanel:cfgPanel,
-      textFn:function(b){return (b.customText||'').trim();}
-    },
-    spacer:{
-      label:'Spacer', icon:'⬜',
-      preview:'Vertical spacing',
-      renderHtml:renderSpacer, cfgPanel:cfgPanel,
-      textFn:function(){ return ''; }
-    }
-  };
-}
-
-
-function ecPaletteFor(d){
-  var type=d.type||'generic';
-  var cl=d.cl||{};
-  var inv=d.inv||{};
-  var mt=d.mt||null;
-  var invNum=inv.number||String(inv.id||'');
-  var fromUser=d.fromUser||(ST.user?ST.user.name:'');
-  var firmName=d.firmName||inv.firmName||ST.prefs.appName||'Our Firm';
-  var approved=d.approved;
-  var partners=ST.contacts.filter(function(c){return c.role&&c.role.toLowerCase().indexOf('partner')!==-1;});
-  var allStaff=ST.contacts.filter(function(c){return c.email;});
-
-  var recs=[], subjs=[], btypes=[];
-
-  if(type==='invClient'){
-    if(cl.email) recs.push({label:H(cl.name)+(cl.email?' <'+cl.email+'>':''),email:cl.email});
-    recs.push({label:'+ Custom recipient',email:''});
-    subjs=['Invoice #'+invNum+' from '+firmName+(mt?' — '+mt.name:''),
-           'Your invoice is ready — '+H(cl.name||''),
-           'Payment due: Invoice #'+invNum];
-    btypes=['greeting','inv_header','line_items','totals','payment_terms','inv_notes','signature','custom_text','spacer'];
-
-  } else if(type==='invApproval'){
-    partners.forEach(function(p){if(p.email)recs.push({label:H(p.name)+' <'+p.email+'>',email:p.email});});
-    if(!recs.length) recs.push({label:'+ Add partner email',email:''});
-    subjs=['Action Required: Invoice #'+invNum+' — '+H(cl.name||'')+(mt?' / '+H(mt.name):''),
-           'Invoice #'+invNum+' ready for your approval'];
-    btypes=['approval_header','inv_summary','entries_table','action_note','signature','custom_text','spacer'];
-
-  } else if(type==='invDecision'){
-    var entAuthors={};
-    (inv.entryIds||[]).forEach(function(eid){var e=_lu.en[eid];if(e&&e.createdBy)entAuthors[e.createdBy]=true;});
-    var authorNames=Object.keys(entAuthors);
-    var ct=ST.contacts.find(function(c){return authorNames.indexOf(c.name)!==-1&&c.email;});
-    if(ct) recs.push({label:H(ct.name)+' <'+ct.email+'>',email:ct.email});
-    recs.push({label:'+ Custom recipient',email:''});
-    subjs=['Invoice #'+invNum+' — '+(approved?'Approved':'Changes Requested')+' — '+H(cl.name||''),
-           'Review complete: Invoice #'+invNum];
-    btypes=['decision_header','hour_cuts','entry_comments','inv_comments','decision_closing','signature','custom_text','spacer'];
-
-  } else if(type==='tsApproval'){
-    partners.forEach(function(p){if(p.email)recs.push({label:H(p.name)+' <'+p.email+'>',email:p.email});});
-    if(!recs.length) recs.push({label:'+ Add partner email',email:''});
-    subjs=[(d.isPending?'Approval Request':'Billing Entries')+' from '+H(fromUser),
-           'Time entries ready for review — '+H(fromUser)];
-    btypes=['ts_header','ts_stats','ts_entries','ts_approval_note','signature','custom_text','spacer'];
-
-  } else if(type==='tsSummary'){
-    allStaff.forEach(function(c){recs.push({label:H(c.name)+' <'+c.email+'>',email:c.email});});
-    if(!recs.length) recs.push({label:'+ Add recipient',email:''});
-    subjs=['Billing Summary — '+H(firmName),
-           'Monthly billing report — '+H(firmName)];
-    btypes=['summary_header','ts_stats','by_attorney','by_client','signature','custom_text','spacer'];
-  }
-
-  return {recs:recs, subjs:subjs, btypes:btypes};
-}
-
-// Default body blocks for each context
-function ecDefaultBlocks(type){
-  var map={
-    invClient:   ['greeting','inv_header','line_items','totals','payment_terms','inv_notes','signature'],
-    invApproval: ['approval_header','inv_summary','entries_table','action_note'],
-    invDecision: ['decision_header','hour_cuts','entry_comments','inv_comments','decision_closing'],
-    tsApproval:  ['ts_header','ts_stats','ts_entries','ts_approval_note'],
-    tsSummary:   ['summary_header','ts_stats','by_attorney','by_client','signature']
-  };
-  return (map[type]||['custom_text']).map(function(btype,i){
-    return {id:Date.now()+i, btype:btype, customText:''};
-  });
-}
-
-// === EMAIL COMPOSE MODAL (simple send screen — pick template, review, send)
-function buildEmailCompose(){
-  var d=ST.emailDraft||{};
-  var type=d.type||'generic';
-  var typeLabels={invClient:'Email Invoice to Client',invApproval:'Request Partner Approval',invDecision:'Send Review Decision',tsApproval:'Submit Entries for Approval',tsSummary:'Send Billing Summary'};
-  var typeLabel=typeLabels[type]||'Send Email';
-
-  // Context info banner
-  var ctx=d;
-  var ctxPills='';
-  if(ctx.clientName) ctxPills+='<span style="background:var(--bg);border:1px solid var(--brd);border-radius:12px;padding:2px 10px;font-size:11px"><strong>Client:</strong> '+H(ctx.clientName)+'</span> ';
-  if(ctx.invNum) ctxPills+='<span style="background:var(--bg);border:1px solid var(--brd);border-radius:12px;padding:2px 10px;font-size:11px"><strong>Invoice:</strong> #'+H(String(ctx.invNum))+'</span> ';
-  if(ctx.invAmount) ctxPills+='<span style="background:var(--bg);border:1px solid var(--brd);border-radius:12px;padding:2px 10px;font-size:11px"><strong>Amount:</strong> '+H(String(ctx.invAmount))+'</span> ';
-  if(ctx.hoursTotal) ctxPills+='<span style="background:var(--bg);border:1px solid var(--brd);border-radius:12px;padding:2px 10px;font-size:11px"><strong>Hours:</strong> '+H(String(ctx.hoursTotal))+'h</span> ';
-  if(ctx.entriesCount!=null) ctxPills+='<span style="background:var(--bg);border:1px solid var(--brd);border-radius:12px;padding:2px 10px;font-size:11px"><strong>Entries:</strong> '+H(String(ctx.entriesCount))+'</span>';
-
-  // Filter templates for this email type
-  var allTpl=ST.emailTemplates||[];
-  var matching=allTpl.filter(function(t){return !t.types||!t.types.length||t.types.indexOf(type)!==-1||t.types.indexOf('all')!==-1;});
-  var selected=d.selectedTemplateId?allTpl.find(function(t){return t.id==d.selectedTemplateId;}):null;
-
-  // Template picker list
-  var tplList=matching.length===0
-    ?'<div class="empty" style="padding:32px"><p>No templates yet</p><small>Build one in <strong>Settings → Email Templates</strong> and tag it for this email type.</small>'
-      +'<br><button class="btn btn-dk" style="margin-top:12px" onclick="A.etOpen(null,\''+type+'\')">'+IC.plus+' Create Template</button></div>'
-    :matching.map(function(t){
-        var isSelected=selected&&selected.id===t.id;
-        return '<button onclick="A.ecSelectTemplate(\''+t.id+'\')" style="display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;padding:11px 13px;border:2px solid '+(isSelected?'var(--blue)':'var(--brd)')+';border-radius:8px;background:'+(isSelected?'var(--blue-pale)':'var(--white)')+';cursor:pointer;margin-bottom:7px">'
-          +'<span style="font-size:20px;flex-shrink:0;line-height:1;margin-top:1px">📧</span>'
-          +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:13px;font-weight:600;color:'+(isSelected?'var(--blue)':'var(--ink)')+'">'+H(t.name)+'</div>'
-          +(t.description?'<div style="font-size:11px;color:var(--ink3);margin-top:1px">'+H(t.description)+'</div>':'')
-          +'<div style="font-size:10px;color:var(--ink3);margin-top:3px">'+t.blocks.filter(function(b){return !b.hidden;}).length+' block'+(t.blocks.filter(function(b){return !b.hidden;}).length!==1?'s':'')+' · '+(t.defaultSubject?H(t.defaultSubject):'no default subject')+'</div>'
-          +'</div>'
-          +(isSelected?'<span style="color:var(--blue);font-size:18px;flex-shrink:0;line-height:1">✓</span>':'')
-          +'</button>';
-      }).join('');
-
-  // Preview panel (right side when template selected)
-  var previewH='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink3);font-size:13px;flex-direction:column;gap:8px">'
-    +'<span style="font-size:32px;opacity:.3">📧</span>'
-    +'<span>Select a template to preview</span></div>';
-  if(selected){
-    var defs2=ecBlockDefs(Object.assign({},d,{bodyBlocks:selected.blocks}));
-    previewH=selected.blocks.filter(function(b){return !b.hidden;}).map(function(b){
-      var def=defs2[b.btype]; if(!def) return '';
-      return (def.renderHtml?def.renderHtml(b):'')||'';
-    }).join('');
-    if(!previewH) previewH='<div style="color:var(--ink3);font-size:12px;padding:20px">No preview content for this template with the current context data.</div>';
-  }
-
-  var toVal=H(d.to||'');
-  var subjVal=H(selected&&selected.defaultSubject||d.subject||'');
-  var hasTemplate=!!selected;
-
-  return '<div class="ov"><div class="modal modal-xl" style="height:88vh;display:flex;flex-direction:column">'
-    +'<div class="modal-hd" style="flex-shrink:0">'
-    +'<h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' '+H(typeLabel)+'</h2>'
-    +'<button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
-
-    // Context pills strip
-    +(ctxPills?'<div style="flex-shrink:0;display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px;border-bottom:1px solid var(--brd);background:var(--bg2)">'+ctxPills+'</div>':'')
-
-    // To + Subject (minimal, always visible)
-    +'<div style="flex-shrink:0;display:grid;grid-template-columns:200px 1fr;gap:10px;padding:9px 16px;border-bottom:1px solid var(--brd);align-items:end">'
-    +'<div class="fl" style="margin:0"><label style="font-size:11px">To</label>'
-    +'<input type="text" id="ec-to" value="'+toVal+'" placeholder="recipient@example.com" style="font-size:13px"></div>'
-    +'<div class="fl" style="margin:0"><label style="font-size:11px">Subject</label>'
-    +'<input type="text" id="ec-subject" value="'+subjVal+'" placeholder="Email subject…" style="font-size:13px"></div>'
-    +'</div>'
-
-    // Body: left = template picker, right = preview
-    +'<div style="display:flex;flex:1;overflow:hidden;min-height:0">'
-
-    // Left: template list
-    +'<div style="width:280px;flex-shrink:0;border-right:1px solid var(--brd);overflow-y:auto;padding:12px">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:10px">Choose a template</div>'
-    +tplList
-    +'<button onclick="A.etOpen(null,\''+type+'\')" style="display:flex;align-items:center;gap:5px;width:100%;font-size:11px;padding:7px 10px;border:1px dashed var(--brd);border-radius:7px;background:none;cursor:pointer;color:var(--ink3);margin-top:4px">'
-    +IC.plus+' New template</button>'
-    +'</div>'
-
-    // Right: preview
-    +'<div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg2)">'
-    +(selected
-      ?'<div style="background:var(--white);border:1px solid var(--brd);border-radius:8px;padding:24px 28px;max-width:700px;margin:0 auto">'+previewH+'</div>'
-        +'<div style="text-align:center;margin-top:14px">'
-        +'<button onclick="A.etOpen(\''+selected.id+'\',\''+type+'\')" style="font-size:11px;padding:4px 12px;background:none;border:1px solid var(--brd);border-radius:5px;cursor:pointer;color:var(--ink3)">'+IC.edit+' Edit template</button>'
-        +'</div>'
-      :previewH)
-    +'</div>'
-
-    +'</div>'
-
-    // Footer
-    +'<div class="modal-ft" style="gap:8px">'
-    +'<button class="btn btn-gh" onclick="A.closeM()">Cancel</button>'
-    +(hasTemplate?'<button class="btn btn-gh" onclick="A.ecCopyText()" style="gap:5px">'+IC.dl+' Copy Text</button>'
-      +'<button class="btn btn-gr" onclick="A.ecOpen()" style="gap:5px">'+IC.mail+' Open in Mail App</button>':'')
-    +'</div>'
-    +'</div></div>';
-}
-
-
-// === EMAIL TEMPLATE EDITOR (full block builder — accessed from Settings or Send screen)
-function buildEmailTemplateEditor(){
-  var tf=ST.etf||{};
-  var isEdit=(tf.editId!=null);
-  var blocks=tf.blocks||[];
-  var showPreview=!!tf.showPreview;
-
-  // Proxy emailDraft-style object for block rendering
-  var dProxy=Object.assign({},ST.emailDraft||{},{bodyBlocks:blocks});
-  var defs=ecBlockDefs(dProxy);
-
-  // ── Palette (all block categories)
-  var BLOCK_CATS2=[
-    {label:'Structure',      btypes:['greeting','custom_text','spacer','signature']},
-    {label:'Invoice',        btypes:['inv_header','inv_summary','line_items','totals','inv_notes']},
-    {label:'Entries & Data', btypes:['entries_table','ts_entries','ts_stats','by_attorney','by_client']},
-    {label:'Workflow',       btypes:['approval_header','action_note','ts_header','ts_approval_note','decision_header','decision_closing','hour_cuts','entry_comments','inv_comments','summary_header']}
-  ];
-  var etBlockPal=BLOCK_CATS2.map(function(cat){
-    var items=cat.btypes.map(function(btype){
-      var def=defs[btype]; if(!def) return '';
-      return '<div draggable="true" ondragstart="A.etDragPalette(event,\''+btype+'\')" '
-        +'style="display:flex;align-items:center;gap:5px;padding:4px 6px;margin-bottom:2px;border:1px solid var(--brd);border-radius:5px;background:var(--bg);user-select:none">'
-        +'<span style="font-size:12px;flex-shrink:0;cursor:grab">'+def.icon+'</span>'
-        +'<div style="flex:1;min-width:0;cursor:grab"><div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+H(def.label)+'</div></div>'
-        +'<button onclick="A.etAddBlock(\''+btype+'\',null)" title="Add" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:14px;font-weight:700;color:var(--blue);padding:0 2px;opacity:.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">+</button>'
-        +'</div>';
-    }).join('');
-    return '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--ink3);padding:7px 0 3px">'+H(cat.label)+'</div>'+items;
-  }).join('');
-
-  // ── Insert picker
-  function etRenderInsertPicker(atIdx){
-    return '<div style="background:var(--blue-pale);border:2px solid var(--blue);border-radius:7px;padding:8px 10px;margin-bottom:4px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
-      +'<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--blue)">Insert block '+(atIdx===null?'at end':'above #'+(atIdx+1))+'</span>'
-      +'<button onclick="A.etHideInsertPicker()" style="background:none;border:none;cursor:pointer;font-size:16px;line-height:1;color:var(--ink3)">×</button>'
-      +'</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:3px">'
-      +Object.keys(defs).map(function(btype){
-        var bd=defs[btype];
-        return '<button onclick="A.etAddBlock(\''+btype+'\','+JSON.stringify(atIdx)+')" '
-          +'style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border:1px solid var(--brd);border-radius:12px;background:var(--white);cursor:pointer;font-size:11px;white-space:nowrap">'
-          +bd.icon+' '+H(bd.label)+'</button>';
-      }).join('')
-      +'</div></div>';
-  }
-
-  // ── Block row renderer
-  function etRenderBlock(b,i){
-    var def=defs[b.btype]; if(!def) return '';
-    var isExp=!!b.expanded, isHid=!!b.hidden;
-    var isFirst=(i===0), isLast=(i===blocks.length-1);
-    var pickerSlot=(tf.insertPickerAt===i)?etRenderInsertPicker(i):'';
-    b._idx=i;
-    var cfgH=isExp&&def.cfgPanel?(def.cfgPanel(b)||''):'';
-    if(isExp&&!cfgH) cfgH='<div style="font-size:11px;color:var(--ink3);font-style:italic;padding:6px 0">No settings for this block type.</div>';
-    var contentH='';
-    if(isHid){
-      contentH='<span style="font-size:11px;color:var(--ink3);font-style:italic">Hidden</span>';
-    } else if(b.btype==='custom_text'){
-      contentH='<textarea id="et-custom-'+i+'" rows="2" placeholder="Type your message…" oninput="A.etCustomText('+i+',this.value)" '
-        +'style="display:block;width:100%;margin-top:4px;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);resize:vertical;box-sizing:border-box;font-family:inherit">'
-        +H(b.customText||'')+'</textarea>';
-    } else {
-      contentH='<span style="font-size:11px;color:var(--ink2)">'+H(def.preview)+'</span>';
-    }
-    function cb(title,content,oc,extra){
-      return '<button onclick="'+oc+'" title="'+title+'" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px;color:var(--ink3);line-height:1;opacity:.5'+(extra?';'+extra:'')+'" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">'+content+'</button>';
-    }
-    return pickerSlot
-      +'<div id="etb-'+i+'" draggable="true" '
-      +'ondragstart="A.etDragBody(event,'+i+')" '
-      +'ondragover="A.etBodyDragOver(event,'+i+')" '
-      +'ondrop="A.etBodyDrop(event,'+i+')" '
-      +'ondragleave="A.etBodyDragLeave(event)" '
-      +'style="border:1px solid var(--brd);border-radius:6px;background:var(--bg);margin-bottom:4px;overflow:hidden'+(isHid?';opacity:.4':'')+';">'
-      +'<div style="display:flex;align-items:flex-start;gap:5px;padding:6px 7px">'
-      +'<span style="cursor:grab;color:var(--ink3);font-size:13px;line-height:1;padding-top:3px;flex-shrink:0;opacity:.35">⠿</span>'
-      +'<span style="font-size:13px;flex-shrink:0;line-height:1;padding-top:3px">'+def.icon+'</span>'
-      +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:12px;font-weight:600;line-height:1.2'+(isHid?';text-decoration:line-through;color:var(--ink3)':'')+'">'+H(def.label)+'</div>'
-      +contentH+'</div>'
-      +'<div style="display:flex;align-items:center;gap:1px;flex-shrink:0;padding-top:1px">'
-      +cb('Move up','↑','A.etMoveBlock('+i+',-1)', isFirst?'opacity:.15;cursor:not-allowed':'')
-      +cb('Move down','↓','A.etMoveBlock('+i+',1)', isLast?'opacity:.15;cursor:not-allowed':'')
-      +'<span style="width:1px;height:12px;background:var(--border);margin:0 2px;display:inline-block;opacity:.5"></span>'
-      +cb('Duplicate','⧉','A.etDuplicateBlock('+i+')')
-      +cb('Insert above','⊕','A.etShowInsertPicker('+i+')')
-      +'<span style="width:1px;height:12px;background:var(--border);margin:0 2px;display:inline-block;opacity:.5"></span>'
-      +'<button onclick="A.etToggleBlockVisible('+i+')" title="'+(isHid?'Show':'Hide')+'" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:3px;color:'+(isHid?'var(--blue)':'var(--ink3)')+';line-height:1;opacity:'+(isHid?'1':'.5')+'" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=\''+(isHid?'1':'.5')+'\'">'+(isHid?'👁':'🙈')+'</button>'
-      +'<button onclick="A.etToggleBlockExpand('+i+')" title="Settings" style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;color:'+(isExp?'var(--blue)':'var(--ink3)')+';opacity:'+(isExp?'1':'.5')+'" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=\''+(isExp?'1':'.5')+'\'">⚙</button>'
-      +'<button onclick="A.etRemoveBlock('+i+')" title="Remove" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--ink3);font-size:16px;padding:1px 3px;opacity:.4;border-radius:3px;line-height:1" onmouseover="this.style.opacity=1;this.style.color=\'var(--red)\'" onmouseout="this.style.opacity=.4;this.style.color=\'var(--ink3)\'">×</button>'
-      +'</div></div>'
-      +(isExp?'<div style="border-top:1px solid var(--brd);padding:8px 10px;background:var(--bg2)">'+cfgH+'</div>':'')
-      +'</div>';
-  }
-
-  var endPickerH=(tf.insertPickerAt===null&&blocks.length>0)?etRenderInsertPicker(null):'';
-  var visCount=blocks.filter(function(b){return !b.hidden;}).length;
-  var hidCount=blocks.length-visCount;
-  var blockCountH='<span style="font-size:10px;color:var(--ink3);margin-left:6px">'+blocks.length+' block'+(blocks.length!==1?'s':''+(hidCount?' · '+hidCount+' hidden':''))+'</span>';
-
-  var bodyBlocksH=blocks.length===0
-    ?'<div style="border:2px dashed var(--brd);border-radius:7px;padding:28px;text-align:center;color:var(--ink3);font-size:12px">← Drag blocks from the panel, or click <strong>+</strong></div>'
-    :blocks.map(etRenderBlock).join('')+endPickerH;
-
-  var dropZoneH='<div id="et-drop-zone" ondragover="A.etZoneDragOver(event)" ondrop="A.etZoneDrop(event)" '
-    +'style="height:28px;border:2px dashed var(--brd);border-radius:6px;display:flex;align-items:center;justify-content:center;margin-top:3px;color:var(--ink3);font-size:11px">'
-    +'<span>⬇ drop to append · <button onclick="A.etShowInsertPicker(null)" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--blue);padding:0">⊕ insert here</button></span></div>';
-
-  // Preview
-  var assembledPreview='';
-  if(showPreview){
-    assembledPreview=blocks.filter(function(b){return !b.hidden;}).map(function(b){
-      var def=defs[b.btype]; if(!def) return '';
-      return (def.renderHtml?def.renderHtml(b):'')||'';
-    }).join('');
-    if(!assembledPreview) assembledPreview='<div style="color:var(--ink3);font-size:12px;padding:20px">No visible blocks to preview.</div>';
-  }
-
-  // Type tags — what email contexts this template applies to
-  var allTypes=[['invClient','Invoice to Client'],['invApproval','Partner Approval'],['invDecision','Review Decision'],['tsApproval','Submit for Approval'],['tsSummary','Billing Summary'],['all','All contexts']];
-  var selTypes=tf.types||[];
-  var typesH=allTypes.map(function(tp){
-    var sel=selTypes.indexOf(tp[0])!==-1;
-    return '<button onclick="A.etToggleType(\''+tp[0]+'\')" '
-      +'style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid '+(sel?'var(--blue)':'var(--brd)')+';border-radius:12px;background:'+(sel?'var(--blue-pale)':'var(--bg)')+';cursor:pointer;font-size:11px;font-weight:'+(sel?'600':'400')+';color:'+(sel?'var(--blue)':'var(--ink2)')+'">'
-      +(sel?'✓ ':'')+H(tp[1])+'</button>';
-  }).join(' ');
-
-  function etTabBtn(lbl,active,oc){
-    return '<button onclick="'+oc+'" style="padding:5px 14px;font-size:12px;font-weight:'+(active?'700':'400')+';border:none;border-bottom:2px solid '+(active?'var(--blue)':'transparent')+';background:none;cursor:pointer;color:'+(active?'var(--blue)':'var(--ink2)')+'">'+lbl+'</button>';
-  }
-  var tabBar2='<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--brd);padding:0 2px;margin-bottom:8px;flex-shrink:0">'
-    +'<div style="display:flex;align-items:center">'
-    +etTabBtn('Build',!showPreview,'A.etSetView(false)')
-    +etTabBtn('Preview',showPreview,'A.etSetView(true)')
-    +(!showPreview?blockCountH:'')
-    +'</div>'
-    +(!showPreview
-      ?'<div style="display:flex;gap:4px">'
-        +'<button onclick="A.etExpandAll()" style="font-size:10px;padding:2px 7px;background:none;border:1px solid var(--brd);border-radius:4px;cursor:pointer;color:var(--ink3)">Expand all ⚙</button>'
-        +'<button onclick="A.etCollapseAll()" style="font-size:10px;padding:2px 7px;background:none;border:1px solid var(--brd);border-radius:4px;cursor:pointer;color:var(--ink3)">Collapse all</button>'
-        +'</div>':'')
-    +'</div>';
-
-  var rightContent2=showPreview
-    ?tabBar2+'<div style="flex:1;overflow-y:auto;min-height:0;padding-bottom:16px"><div style="background:#fff;padding:24px 28px;border:1px solid var(--brd);border-radius:7px;max-width:700px;margin:0 auto">'+assembledPreview+'</div></div>'
-    :tabBar2+'<div style="flex:1;overflow-y:auto;min-height:0">'+bodyBlocksH+dropZoneH+'</div>';
-
-  return '<div class="ov"><div class="modal modal-xl" style="height:92vh;display:flex;flex-direction:column">'
-    +'<div class="modal-hd" style="flex-shrink:0">'
-    +'<h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' '+(isEdit?'Edit':'New')+' Email Template</h2>'
-    +'<button class="btn-ic" onclick="A.etClose()">'+IC.x+'</button></div>'
-
-    // Template meta strip
-    +'<div style="flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--brd);background:var(--bg2);display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-    +'<div class="fl" style="margin:0"><label style="font-size:11px">Template Name <span class="req">*</span></label>'
-    +'<input type="text" id="et-name" value="'+H(tf.name||'')+'" placeholder="e.g. Standard Invoice to Client"></div>'
-    +'<div class="fl" style="margin:0"><label style="font-size:11px">Default Subject</label>'
-    +'<input type="text" id="et-subject" value="'+H(tf.defaultSubject||'')+'" placeholder="Invoice #{invoice_num} — {client}"></div>'
-    +'</div>'
-    +'<div style="flex-shrink:0;padding:8px 14px;border-bottom:1px solid var(--brd);background:var(--bg2)">'
-    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:6px">Applies to email type (multi-select)</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:5px">'+typesH+'</div>'
-    +'</div>'
-    +'<div style="flex-shrink:0;padding:6px 14px;border-bottom:1px solid var(--brd);background:var(--bg2)">'
-    +'<div class="fl" style="margin:0"><label style="font-size:11px">Description / notes <span style="color:var(--ink3)">(optional)</span></label>'
-    +'<input type="text" id="et-desc" value="'+H(tf.description||'')+'" placeholder="e.g. Used for monthly billing…"></div>'
-    +'</div>'
-
-    // Two-col body
-    +'<div style="display:flex;flex:1;overflow:hidden;min-height:0">'
-
-    // Left palette
-    +'<div style="width:180px;flex-shrink:0;border-right:1px solid var(--brd);overflow-y:auto;padding:0 8px 12px">'
-    +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--ink3);padding:8px 0 5px">Drag or click + to add</div>'
-    +etBlockPal
-    +'</div>'
-
-    // Right: build / preview
-    +'<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;padding:10px 12px 0">'
-    +rightContent2
-    +'</div>'
-
-    +'</div>'
-
-    +'<div class="modal-ft" style="gap:8px">'
-    +'<button class="btn btn-gh" onclick="A.etClose()">Cancel</button>'
-    +'<button class="btn btn-bl" onclick="A.etSave()">'+IC.save+' Save Template</button>'
-    +'</div>'
-    +'</div></div>';
-}
-
-
 
 // === MAIN RENDER
 var TABS=[
@@ -4346,8 +3323,6 @@ function render(){
   else if(ST.modal==='invReview') overlays=buildInvoiceReview();
   else if(ST.modal==='invPrint') overlays=buildInvoicePrint();
   else if(ST.modal==='pref') overlays=buildPartnerReview();
-  else if(ST.modal==='emailCompose') overlays=buildEmailCompose();
-  else if(ST.modal==='emailtemplateeditor') overlays=buildEmailTemplateEditor();
 
   var appName=H(ST.prefs.appName||'SixMinuteLog.com');
   var dmCur=ST.prefs.darkMode;
@@ -4549,9 +3524,29 @@ var A={
     ST.mailCompose={purpose:'general',toEmail:'',clientName:'',invId:null,invNum:null,invAmount:null,entriesCount:null};
     ST.modal='mailcompose'; render();
   },
+  _fireMail:function(mailto,label){
+    console.log('[_fireMail] showing send modal, uri length:', mailto.length);
+    // Programmatic mailto triggers are silently blocked by most browsers.
+    // Show a modal with a real <a> the user clicks — the only guaranteed approach.
+    var displayTo = decodeURIComponent(mailto.replace(/^mailto:/,'').split('?')[0]);
+    var overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML='<div style="background:var(--white,#fff);border-radius:12px;padding:28px 28px 22px;max-width:420px;width:90vw;box-shadow:0 8px 40px rgba(0,0,0,.22);position:relative">'
+      +'<button onclick="this.closest(\'[data-mail-overlay]\').remove()" style="position:absolute;top:10px;right:12px;background:none;border:none;cursor:pointer;font-size:20px;color:#999;line-height:1">×</button>'
+      +'<div style="font-size:18px;margin-bottom:6px">📧</div>'
+      +'<div style="font-weight:600;font-size:15px;margin-bottom:4px">'+(label||'Send Email')+'</div>'
+      +'<div style="font-size:12px;color:#777;margin-bottom:18px">To: '+displayTo+'</div>'
+      +'<a href="'+mailto+'" style="display:block;text-align:center;padding:11px 20px;background:#2563eb;color:#fff;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;margin-bottom:10px">'
+      +'Open Mail App</a>'
+      +'<p style="font-size:11px;color:#999;text-align:center;margin:0">Click the button above to open your default mail app.<br>If nothing happens, no mail client may be configured.</p>'
+      +'</div>';
+    overlay.setAttribute('data-mail-overlay','1');
+    overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
+    document.body.appendChild(overlay);
+  },
   sendMailPreset:function(i){
     var mp=ST.mailPresets[i];
-    if(!mp) return;
+    if(!mp){ console.warn('[sendMailPreset] preset index',i,'not found. mailPresets:',ST.mailPresets); return; }
     var fname=exportFilename();
     var now=new Date();
     var dateStr=now.toLocaleDateString('en-US',{month:'long',year:'numeric'});
@@ -4577,14 +3572,15 @@ var A={
         .replace(/\{cc_list\}/g, mp.cc||'');
     }
     var fullBody=(mp.body||'')+(mp.signature?'\n\n'+(mp.signature):'');
-    var to=encodeURIComponent(mp.to||'');
-    var subj=encodeURIComponent(replacePlaceholders(mp.subject||''));
-    var body=encodeURIComponent(replacePlaceholders(fullBody));
-    var mailto='mailto:'+to+'?subject='+subj+'&body='+body;
+    var to=mp.to||'';
+    var subj=replacePlaceholders(mp.subject||'');
+    var body=replacePlaceholders(fullBody);
+    var mailto='mailto:'+to+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
     if(mp.cc) mailto+='&cc='+encodeURIComponent(mp.cc);
     if(mp.bcc) mailto+='&bcc='+encodeURIComponent(mp.bcc);
-    A.exportCSV();
-    setTimeout(function(){ window.location.href=mailto; }, 500);
+    console.log('[sendMailPreset] firing mailto, to:',to,'subject:',subj,'uri length:',mailto.length);
+    A._fireMail(mailto, mp.name||'Send Email');
+    A.closeM();
   },
 
   // Open contextual email compose for an invoice (called from invoice list, print preview, client card)
@@ -4681,17 +3677,15 @@ var A={
     }
     var fullBody=(mp.body||'')+(mp.signature?'\n\n'+(mp.signature):'');
     var toRaw=(mp.to&&mp.to.trim().length)?mp.to:(ctx.toEmail||'');
-    var mailto='mailto:'+encodeURIComponent(toRaw)
+    var mailto='mailto:'+toRaw
       +'?subject='+encodeURIComponent(replacePlaceholders(mp.subject||''))
       +'&body='+encodeURIComponent(replacePlaceholders(fullBody));
     if(mp.cc) mailto+='&cc='+encodeURIComponent(mp.cc);
     if(mp.bcc) mailto+='&bcc='+encodeURIComponent(mp.bcc);
     if(mp.replyTo) mailto+='&reply-to='+encodeURIComponent(mp.replyTo);
-    if(ctx.purpose==='billing_staff'||ctx.purpose==='partner_approval'){
-      A.exportCSV();
-    }
+    console.log('[sendFromCompose] firing mailto, to:',toRaw,'subject:',replacePlaceholders(mp.subject||''),'uri length:',mailto.length);
+    A._fireMail(mailto, mp.name||'Send Email');
     A.closeM();
-    setTimeout(function(){ window.location.href=mailto; }, 400);
   },
 
 
@@ -6220,599 +5214,6 @@ tableRows,
     save(); toast('Invoice marked as sent','ok'); render();
   },
 
-  // ======== EMAIL ACTIONS ========
-
-  _openMailto:function(d){
-    // Derive context pill display values from the data already in d
-    d.clientName = (d.cl&&d.cl.name)||d.clientName||'';
-    d.invNum     = (d.inv&&(d.inv.number||d.inv.id))||d.invNum||'';
-    d.invAmount  = (d.grandTotal!=null?'$'+Number(d.grandTotal).toFixed(2):d.invAmount)||'';
-    d.hoursTotal = (d.totalH!=null?Number(d.totalH).toFixed(1):d.hoursTotal)||'';
-    d.entriesCount = (d.entries!=null?d.entries.length:d.entriesCount);
-    d.selectedTemplateId = null;  // reset on each open
-    // Auto-select a template if there's exactly one matching this type
-    var matching=(ST.emailTemplates||[]).filter(function(t){
-      return !t.types||!t.types.length||t.types.indexOf(d.type)!==-1||t.types.indexOf('all')!==-1;
-    });
-    if(matching.length===1) d.selectedTemplateId=matching[0].id;
-    ST.emailDraft=d;
-    ST.modal='emailCompose';
-    render();
-  },
-
-  // ── Sync live field values into emailDraft ────────────────────────────────
-  _ecSyncFields:function(){
-    if(!ST.emailDraft) return;
-    var toEl=document.getElementById('ec-to');
-    var subEl=document.getElementById('ec-subject');
-    if(toEl) ST.emailDraft.to=toEl.value;
-    if(subEl) ST.emailDraft.subject=subEl.value;
-    // sync custom text blocks
-    (ST.emailDraft.bodyBlocks||[]).forEach(function(b,i){
-      if(b.btype==='custom_text'){var ta=document.getElementById('ec-custom-'+i);if(ta)b.customText=ta.value;}
-    });
-  },
-
-  // ── View toggle (Compose / Preview) ──────────────────────────────────────
-  ecSetView:function(preview){
-    A._ecSyncFields();
-    ST.emailDraft.showPreview=!!preview;
-    render();
-  },
-
-  // ── Reset blocks to context defaults ─────────────────────────────────────
-  ecResetBlocks:function(){
-    if(!ST.emailDraft) return;
-    if(!confirm('Reset email body to defaults? Custom edits will be lost.')) return;
-    ST.emailDraft.bodyBlocks=ecDefaultBlocks(ST.emailDraft.type);
-    render();
-  },
-
-  // ── Palette: add recipient ────────────────────────────────────────────────
-  ecAddRecipient:function(email){
-    var el=document.getElementById('ec-to');
-    if(!el) return;
-    if(!email){var custom=prompt('Enter email address:');if(!custom||!custom.trim()) return;email=custom.trim();}
-    var cur=el.value.trim();
-    el.value=cur?(cur.replace(/,\s*$/,'')+', '+email):email;
-    if(ST.emailDraft) ST.emailDraft.to=el.value;
-  },
-
-  // ── Palette: set subject ──────────────────────────────────────────────────
-  ecSetSubject:function(idx){
-    var d=ST.emailDraft||{};
-    var s=(ecPaletteFor(d).subjs||[])[idx]||'';
-    var el=document.getElementById('ec-subject');
-    if(el) el.value=s;
-    if(ST.emailDraft) ST.emailDraft.subject=s;
-  },
-
-  // ── Block: toggle settings panel ─────────────────────────────────────────
-  ecToggleBlockExpand:function(idx){
-    A._ecSyncFields();
-    var blocks=ST.emailDraft&&ST.emailDraft.bodyBlocks;
-    if(!blocks||!blocks[idx]) return;
-    blocks[idx].expanded=!blocks[idx].expanded;
-    if(ST.emailDraft) ST.emailDraft.insertPickerAt=undefined;
-    render();
-  },
-
-  // ── Block: set a config key ───────────────────────────────────────────────
-  ecSetBlockCfg:function(idx,key,val){
-    // When the template editor is open, the cfgPanel still emits A.ecSetBlockCfg — delegate
-    if(ST.modal==='emailtemplateeditor'){ A.etSetBlockCfg(idx,key,val); return; }
-    var blocks=ST.emailDraft&&ST.emailDraft.bodyBlocks;
-    if(!blocks||!blocks[idx]) return;
-    if(!blocks[idx].cfg) blocks[idx].cfg={};
-    blocks[idx].cfg[key]=val;
-    // Re-render only if the preview is showing; otherwise just store
-    if(ST.emailDraft&&ST.emailDraft.showPreview) render();
-  },
-
-  // ── Block: custom text update ─────────────────────────────────────────────
-  ecCustomText:function(idx,val){
-    var blocks=ST.emailDraft&&ST.emailDraft.bodyBlocks;
-    if(blocks&&blocks[idx]) blocks[idx].customText=val;
-  },
-
-  // ── Block: remove ─────────────────────────────────────────────────────────
-  ecRemoveBlock:function(idx){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    var blocks=(ST.emailDraft.bodyBlocks||[]).slice();
-    blocks.splice(idx,1);
-    ST.emailDraft.bodyBlocks=blocks;
-    render();
-  },
-
-  // ── Block: add at position (null = append) ────────────────────────────────
-  ecAddBlock:function(btype,atIdx){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    var nb={id:uid(),btype:btype,cfg:{},customText:'',expanded:false,hidden:false};
-    var blocks=(ST.emailDraft.bodyBlocks||[]).slice();
-    if(atIdx===null||atIdx===undefined) blocks.push(nb);
-    else blocks.splice(atIdx,0,nb);
-    ST.emailDraft.bodyBlocks=blocks;
-    ST.emailDraft.insertPickerAt=undefined;
-    render();
-  },
-
-  // ── Block: duplicate ──────────────────────────────────────────────────────
-  ecDuplicateBlock:function(idx){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    var blocks=(ST.emailDraft.bodyBlocks||[]).slice();
-    var src=blocks[idx]; if(!src) return;
-    var copy={id:uid(),btype:src.btype,cfg:Object.assign({},src.cfg||{}),customText:src.customText||'',expanded:false,hidden:false};
-    blocks.splice(idx+1,0,copy);
-    ST.emailDraft.bodyBlocks=blocks;
-    toast('Block duplicated','ok'); render();
-  },
-
-  // ── Block: move up or down ────────────────────────────────────────────────
-  ecMoveBlock:function(idx,dir){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    var blocks=(ST.emailDraft.bodyBlocks||[]).slice();
-    var target=idx+dir;
-    if(target<0||target>=blocks.length) return;
-    var tmp=blocks[idx]; blocks[idx]=blocks[target]; blocks[target]=tmp;
-    ST.emailDraft.bodyBlocks=blocks;
-    render();
-  },
-
-  // ── Block: toggle visibility ──────────────────────────────────────────────
-  ecToggleBlockVisible:function(idx){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    var blocks=ST.emailDraft.bodyBlocks;
-    if(!blocks||!blocks[idx]) return;
-    blocks[idx].hidden=!blocks[idx].hidden;
-    render();
-  },
-
-  // ── Block: insert picker ──────────────────────────────────────────────────
-  ecShowInsertPicker:function(atIdx){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    ST.emailDraft.insertPickerAt=atIdx;
-    render();
-  },
-  ecHideInsertPicker:function(){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    ST.emailDraft.insertPickerAt=undefined;
-    render();
-  },
-
-  // ── Expand / collapse all ─────────────────────────────────────────────────
-  ecExpandAll:function(){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    (ST.emailDraft.bodyBlocks||[]).forEach(function(b){b.expanded=true;});
-    render();
-  },
-  ecCollapseAll:function(){
-    if(!ST.emailDraft) return;
-    A._ecSyncFields();
-    (ST.emailDraft.bodyBlocks||[]).forEach(function(b){b.expanded=false;});
-    render();
-  },
-
-  // ── Drag-and-drop ─────────────────────────────────────────────────────────
-  ecDragPalette:function(ev,btype){
-    window._ecDrag={src:'palette',btype:btype};
-    ev.dataTransfer.effectAllowed='copy';
-    ev.dataTransfer.setData('text/plain',btype);
-  },
-
-  ecDragBody:function(ev,idx){
-    window._ecDrag={src:'body',idx:idx};
-    ev.dataTransfer.effectAllowed='move';
-    ev.dataTransfer.setData('text/plain',String(idx));
-    ev.stopPropagation();
-  },
-
-  ecBodyDragOver:function(ev,targetIdx){
-    ev.preventDefault();
-    ev.dataTransfer.dropEffect=(window._ecDrag&&window._ecDrag.src==='body')?'move':'copy';
-    var el=document.getElementById('ecb-'+targetIdx);
-    if(el) el.style.outline='2px solid var(--blue)';
-  },
-
-  ecBodyDragLeave:function(ev){
-    var el=ev.currentTarget; if(el) el.style.outline='';
-  },
-
-  ecBodyDrop:function(ev,targetIdx){
-    ev.preventDefault(); ev.stopPropagation();
-    var el=document.getElementById('ecb-'+targetIdx); if(el) el.style.outline='';
-    A._ecCommitDrop(targetIdx);
-  },
-
-  ecZoneDragOver:function(ev){
-    ev.preventDefault();
-    var z=document.getElementById('ec-drop-zone'); if(z) z.style.borderColor='var(--blue)';
-  },
-
-  ecZoneDrop:function(ev){
-    ev.preventDefault();
-    var z=document.getElementById('ec-drop-zone'); if(z) z.style.borderColor='var(--brd)';
-    A._ecCommitDrop(null);
-  },
-
-  _ecCommitDrop:function(targetIdx){
-    A._ecSyncFields();
-    var drag=window._ecDrag; if(!drag||!ST.emailDraft) return;
-    window._ecDrag=null;
-    ST.emailDraft.insertPickerAt=undefined;
-    var blocks=(ST.emailDraft.bodyBlocks||[]).slice();
-    if(drag.src==='palette'){
-      var nb={id:uid(),btype:drag.btype,cfg:{},customText:'',expanded:false};
-      if(targetIdx===null||targetIdx===undefined) blocks.push(nb);
-      else blocks.splice(targetIdx,0,nb);
-    } else if(drag.src==='body'){
-      var si=drag.idx; if(si===targetIdx) return;
-      var mv=blocks.splice(si,1)[0];
-      if(targetIdx===null||targetIdx===undefined) blocks.push(mv);
-      else blocks.splice(si<targetIdx?targetIdx-1:targetIdx,0,mv);
-    }
-    ST.emailDraft.bodyBlocks=blocks;
-    render();
-  },
-
-  // ── Plain text generation ─────────────────────────────────────────────────
-  _draftPlainText:function(d){
-    var defs=ecBlockDefs(d);
-    return (d.bodyBlocks||[]).filter(function(b){return !b.hidden;}).map(function(b){
-      var def=defs[b.btype];
-      if(!def) return '';
-      return (def.textFn?def.textFn(b):'').trim();
-    }).filter(Boolean).join('\n\n');
-  },
-
-  // ── Send / copy ───────────────────────────────────────────────────────────
-  ecOpen:function(){
-    A._ecSyncFields();
-    var d=ST.emailDraft||{};
-    var to=d.to||''; var subject=d.subject||''; var body=A._draftPlainText(d);
-    var uri='mailto:'+to+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-    var a=document.createElement('a'); a.href=uri; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    toast('Opening mail app…','ok');
-  },
-
-  ecCopyText:function(){
-    A._ecSyncFields();
-    var d=ST.emailDraft||{};
-    var sel=d.selectedTemplateId?ST.emailTemplates.find(function(t){return t.id==d.selectedTemplateId;}):null;
-    var dProxy=sel?Object.assign({},d,{bodyBlocks:sel.blocks}):d;
-    var to=d.to||''; var subject=(document.getElementById('ec-subject')||{}).value||d.subject||''; var body=A._draftPlainText(dProxy);
-    var full='To: '+to+'\nSubject: '+subject+'\n\n'+body;
-    if(navigator.clipboard){navigator.clipboard.writeText(full).then(function(){toast('Email copied to clipboard','ok');});}
-    else{var ta=document.createElement('textarea');ta.value=full;ta.style.cssText='position:fixed;opacity:0;top:0;left:0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('Email copied','ok');}
-  },
-
-  // ── Select a template in the send screen ─────────────────────────────────
-  ecSelectTemplate:function(id){
-    if(!ST.emailDraft) return;
-    var tpl=ST.emailTemplates.find(function(t){return t.id==id;});
-    ST.emailDraft.selectedTemplateId=id;
-    if(tpl&&tpl.defaultSubject&&!ST.emailDraft.subject){
-      ST.emailDraft.subject=tpl.defaultSubject;
-    }
-    render();
-  },
-
-  // ── ecOpen uses selected template blocks ──────────────────────────────────
-  ecOpen:function(){
-    var d=ST.emailDraft||{};
-    var sel=d.selectedTemplateId?ST.emailTemplates.find(function(t){return t.id==d.selectedTemplateId;}):null;
-    var dProxy=sel?Object.assign({},d,{bodyBlocks:sel.blocks}):d;
-    var toEl=document.getElementById('ec-to'); var subjEl=document.getElementById('ec-subject');
-    var to=toEl?toEl.value:(d.to||'');
-    var subject=subjEl?subjEl.value:(d.subject||'');
-    var body=A._draftPlainText(dProxy);
-    var uri='mailto:'+to+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
-    var a=document.createElement('a'); a.href=uri; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    toast('Opening mail app…','ok');
-  },
-
-  // ── Email Template Editor ─────────────────────────────────────────────────
-  // etOpen: open editor for new (id=null) or edit (id=templateId)
-  etOpen:function(id,defaultType){
-    var returnToSend=(ST.modal==='emailCompose');
-    var tpl=id?ST.emailTemplates.find(function(t){return t.id==id;}):null;
-    if(tpl){
-      ST.etf={editId:id,name:tpl.name,description:tpl.description||'',defaultSubject:tpl.defaultSubject||'',types:tpl.types||[],blocks:(tpl.blocks||[]).map(function(b){return Object.assign({},b,{cfg:Object.assign({},b.cfg||{})});}),_returnToSend:returnToSend};
-    } else {
-      ST.etf={editId:null,name:'',description:'',defaultSubject:'',types:defaultType?[defaultType]:[],blocks:[],_returnToSend:returnToSend};
-    }
-    ST.modal='emailtemplateeditor'; render();
-  },
-  etClose:function(){
-    var returnToSend=ST.etf&&ST.etf._returnToSend;
-    ST.etf={};
-    ST.modal=returnToSend?'emailCompose':null;
-    render();
-  },
-  etSave:function(){
-    var name=(document.getElementById('et-name')||{}).value||'';
-    var subject=(document.getElementById('et-subject')||{}).value||'';
-    var desc=(document.getElementById('et-desc')||{}).value||'';
-    // sync custom_text blocks from DOM
-    (ST.etf.blocks||[]).forEach(function(b,i){
-      if(b.btype==='custom_text'){var ta=document.getElementById('et-custom-'+i);if(ta)b.customText=ta.value;}
-    });
-    name=name.trim();
-    if(!name){toast('Template name required','warn');return;}
-    var tpl={
-      id:ST.etf.editId||uid(),
-      name:name,
-      description:desc.trim(),
-      defaultSubject:subject.trim(),
-      types:ST.etf.types||[],
-      blocks:(ST.etf.blocks||[]).map(function(b){return Object.assign({},b,{_idx:undefined,expanded:false});})
-    };
-    if(ST.etf.editId){
-      ST.emailTemplates=ST.emailTemplates.map(function(t){return t.id==ST.etf.editId?tpl:t;});
-    } else {
-      ST.emailTemplates.push(tpl);
-    }
-    var returnToSend=ST.etf._returnToSend;
-    // Auto-select this template in the send screen if returning there
-    if(returnToSend&&ST.emailDraft) ST.emailDraft.selectedTemplateId=tpl.id;
-    ST.etf={};
-    save(); toast('Template saved','ok');
-    ST.modal=returnToSend?'emailCompose':null; render();
-  },
-  etToggleType:function(typ){
-    var types=ST.etf.types||[];
-    var idx=types.indexOf(typ);
-    if(idx===-1) types=types.concat([typ]);
-    else types=types.filter(function(x){return x!==typ;});
-    ST.etf.types=types; render();
-  },
-  etSetView:function(preview){
-    // sync custom_text before re-render
-    (ST.etf.blocks||[]).forEach(function(b,i){
-      if(b.btype==='custom_text'){var ta=document.getElementById('et-custom-'+i);if(ta)b.customText=ta.value;}
-    });
-    ST.etf.showPreview=!!preview; render();
-  },
-  // ── et* block manipulation (mirrors ec* but operates on ST.etf.blocks) ────
-  _etSync:function(){
-    (ST.etf.blocks||[]).forEach(function(b,i){
-      if(b.btype==='custom_text'){var ta=document.getElementById('et-custom-'+i);if(ta)b.customText=ta.value;}
-    });
-  },
-  etAddBlock:function(btype,atIdx){
-    A._etSync();
-    var nb={id:uid(),btype:btype,cfg:{},customText:'',expanded:false,hidden:false};
-    var blocks=(ST.etf.blocks||[]).slice();
-    if(atIdx===null||atIdx===undefined) blocks.push(nb);
-    else blocks.splice(atIdx,0,nb);
-    ST.etf.blocks=blocks; ST.etf.insertPickerAt=undefined; render();
-  },
-  etRemoveBlock:function(idx){
-    A._etSync();
-    var blocks=(ST.etf.blocks||[]).slice();
-    blocks.splice(idx,1);
-    ST.etf.blocks=blocks; render();
-  },
-  etDuplicateBlock:function(idx){
-    A._etSync();
-    var blocks=(ST.etf.blocks||[]).slice();
-    var src=blocks[idx]; if(!src) return;
-    var copy={id:uid(),btype:src.btype,cfg:Object.assign({},src.cfg||{}),customText:src.customText||'',expanded:false,hidden:false};
-    blocks.splice(idx+1,0,copy);
-    ST.etf.blocks=blocks; toast('Block duplicated','ok'); render();
-  },
-  etMoveBlock:function(idx,dir){
-    A._etSync();
-    var blocks=(ST.etf.blocks||[]).slice();
-    var target=idx+dir;
-    if(target<0||target>=blocks.length) return;
-    var tmp=blocks[idx]; blocks[idx]=blocks[target]; blocks[target]=tmp;
-    ST.etf.blocks=blocks; render();
-  },
-  etToggleBlockVisible:function(idx){
-    A._etSync();
-    var blocks=ST.etf.blocks;
-    if(!blocks||!blocks[idx]) return;
-    blocks[idx].hidden=!blocks[idx].hidden; render();
-  },
-  etToggleBlockExpand:function(idx){
-    A._etSync();
-    var blocks=ST.etf.blocks;
-    if(!blocks||!blocks[idx]) return;
-    blocks[idx].expanded=!blocks[idx].expanded;
-    ST.etf.insertPickerAt=undefined; render();
-  },
-  etSetBlockCfg:function(idx,key,val){
-    var blocks=ST.etf.blocks;
-    if(!blocks||!blocks[idx]) return;
-    if(!blocks[idx].cfg) blocks[idx].cfg={};
-    blocks[idx].cfg[key]=val;
-    if(ST.etf.showPreview) render();
-  },
-  etCustomText:function(idx,val){
-    var blocks=ST.etf.blocks;
-    if(blocks&&blocks[idx]) blocks[idx].customText=val;
-  },
-  etShowInsertPicker:function(atIdx){ A._etSync(); ST.etf.insertPickerAt=atIdx; render(); },
-  etHideInsertPicker:function(){ A._etSync(); ST.etf.insertPickerAt=undefined; render(); },
-  etExpandAll:function(){ A._etSync(); (ST.etf.blocks||[]).forEach(function(b){b.expanded=true;}); render(); },
-  etCollapseAll:function(){ A._etSync(); (ST.etf.blocks||[]).forEach(function(b){b.expanded=false;}); render(); },
-  // ── et drag-and-drop ─────────────────────────────────────────────────────
-  etDragPalette:function(ev,btype){
-    window._etDrag={src:'palette',btype:btype};
-    ev.dataTransfer.effectAllowed='copy';
-    ev.dataTransfer.setData('text/plain',btype);
-  },
-  etDragBody:function(ev,idx){
-    window._etDrag={src:'body',idx:idx};
-    ev.dataTransfer.effectAllowed='move';
-    ev.dataTransfer.setData('text/plain',String(idx));
-    ev.stopPropagation();
-  },
-  etBodyDragOver:function(ev,targetIdx){
-    ev.preventDefault();
-    ev.dataTransfer.dropEffect=(window._etDrag&&window._etDrag.src==='body')?'move':'copy';
-    var el=document.getElementById('etb-'+targetIdx);
-    if(el) el.style.outline='2px solid var(--blue)';
-  },
-  etBodyDragLeave:function(ev){
-    var el=ev.currentTarget; if(el) el.style.outline='';
-  },
-  etBodyDrop:function(ev,targetIdx){
-    ev.preventDefault(); ev.stopPropagation();
-    var el=document.getElementById('etb-'+targetIdx); if(el) el.style.outline='';
-    A._etCommitDrop(targetIdx);
-  },
-  etZoneDragOver:function(ev){
-    ev.preventDefault();
-    var z=document.getElementById('et-drop-zone'); if(z) z.style.borderColor='var(--blue)';
-  },
-  etZoneDrop:function(ev){
-    ev.preventDefault();
-    var z=document.getElementById('et-drop-zone'); if(z) z.style.borderColor='var(--brd)';
-    A._etCommitDrop(null);
-  },
-  _etCommitDrop:function(targetIdx){
-    A._etSync();
-    var drag=window._etDrag; if(!drag) return;
-    window._etDrag=null;
-    ST.etf.insertPickerAt=undefined;
-    var blocks=(ST.etf.blocks||[]).slice();
-    if(drag.src==='palette'){
-      var nb={id:uid(),btype:drag.btype,cfg:{},customText:'',expanded:false,hidden:false};
-      if(targetIdx===null||targetIdx===undefined) blocks.push(nb);
-      else blocks.splice(targetIdx,0,nb);
-    } else if(drag.src==='body'){
-      var si=drag.idx; if(si===targetIdx) return;
-      var mv=blocks.splice(si,1)[0];
-      if(targetIdx===null||targetIdx===undefined) blocks.push(mv);
-      else blocks.splice(si<targetIdx?targetIdx-1:targetIdx,0,mv);
-    }
-    ST.etf.blocks=blocks; render();
-  },
-  // ── Delete template ───────────────────────────────────────────────────────
-  etDelete:function(id){
-    if(!confirm('Delete this email template? This cannot be undone.')) return;
-    ST.emailTemplates=ST.emailTemplates.filter(function(t){return t.id!=id;});
-    save(); toast('Template deleted','warn'); render();
-  },
-
-  // ── Email trigger functions ───────────────────────────────────────────────
-  invEmailClient:function(id){
-    var inv=ST.invoices.find(function(i){return i.id==id;});
-    if(!inv){toast('Invoice not found','err');return;}
-    var cl=ST.clients.find(function(c){return c.id==inv.clientId;})||{name:'Client',email:''};
-    var mt=inv.matterId?(ST.matters.find(function(m){return m.id==inv.matterId;})||null):null;
-    var cuts=inv.cuts||{};
-    var merged=inv.mergedEntries||[];
-    var mergedIds={};
-    merged.forEach(function(mg){(mg.entryIds||[]).forEach(function(eid){mergedIds[eid]=true;});});
-    var total=0; var lineItems=[];
-    (inv.entryIds||[]).forEach(function(eid){
-      if(mergedIds[eid]) return;
-      var e=ST.entries.find(function(x){return x.id==eid;}); if(!e) return;
-      var h=cuts[eid]!=null?Number(cuts[eid]):Number(e.hours);
-      var amt=h*Number(e.rate); total+=amt;
-      lineItems.push({date:e.date,desc:e.description||'Legal Services',hrs:h.toFixed(2),rate:'$'+Number(e.rate).toFixed(2),amt:'$'+amt.toFixed(2)});
-    });
-    merged.forEach(function(mg){
-      var amt=Number(mg.hours)*Number(mg.rate); total+=amt;
-      lineItems.push({date:'',desc:mg.description,hrs:Number(mg.hours).toFixed(2),rate:'$'+Number(mg.rate).toFixed(2),amt:'$'+amt.toFixed(2)});
-    });
-    var taxAmt=inv.taxPct?total*Number(inv.taxPct)/100:0;
-    var firmName=inv.firmName||ST.prefs.appName||'Our Firm';
-    var invNum=inv.number||String(inv.id);
-    A._openMailto({type:'invClient',to:cl.email||'',subject:'Invoice #'+invNum+' from '+firmName+(mt?' — '+mt.name:''),
-      inv:inv,cl:cl,mt:mt,lineItems:lineItems,total:total,taxAmt:taxAmt,grandTotal:total+taxAmt});
-  },
-
-  invEmailApproval:function(id){
-    var inv=ST.invoices.find(function(i){return i.id==id;});
-    if(!inv){toast('Invoice not found','err');return;}
-    var cl=ST.clients.find(function(c){return c.id==inv.clientId;})||{name:'Client'};
-    var mt=inv.matterId?(ST.matters.find(function(m){return m.id==inv.matterId;})||null):null;
-    var partners=ST.contacts.filter(function(c){return c.role&&c.role.toLowerCase().indexOf('partner')!==-1;});
-    var to=partners.map(function(p){return p.email||'';}).filter(Boolean).join(', ');
-    var fromUser=ST.user?ST.user.name:'Billing Staff';
-    var entries=(inv.entryIds||[]).map(function(eid){return _lu.en[eid];}).filter(Boolean);
-    var totalH=entries.reduce(function(s,e){return s+Number(e.hours);},0);
-    var totalAmt=entries.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
-    var invNum=inv.number||String(inv.id);
-    A._openMailto({type:'invApproval',to:to,subject:'Action Required: Invoice #'+invNum+' — '+(cl.name||'')+(mt?' / '+mt.name:''),
-      inv:inv,cl:cl,mt:mt,entries:entries,totalH:totalH,totalAmt:totalAmt,fromUser:fromUser});
-  },
-
-  invEmailDecision:function(){
-    var rev=ST.invRev; if(!rev){toast('No active review','err');return;}
-    var inv=ST.invoices.find(function(i){return i.id==rev.invoiceId;}); if(!inv) return;
-    var cl=ST.clients.find(function(c){return c.id==inv.clientId;})||{name:'Client'};
-    var reviewer=ST.user?ST.user.name:'Partner';
-    var cuts=rev.cuts||{}; var comments=rev.comments||{};
-    var cutLines=[];
-    Object.keys(cuts).forEach(function(eid){
-      var e=_lu.en[eid]; if(!e) return;
-      var orig=Number(e.hours); var cut=Number(cuts[eid]);
-      if(cut!==orig) cutLines.push({label:e.date+(e.description?' — '+e.description:''),orig:orig.toFixed(2),cut:cut.toFixed(2)});
-    });
-    var commentLines=[];
-    Object.keys(comments).forEach(function(eid){
-      var txt=(comments[eid]||'').trim(); if(!txt) return;
-      var e=_lu.en[eid];
-      commentLines.push({label:e?e.date+(e.description?' — '+e.description:''):eid,text:txt});
-    });
-    var entryAuthors={};
-    (inv.entryIds||[]).forEach(function(eid){var e=_lu.en[eid];if(e&&e.createdBy)entryAuthors[e.createdBy]=true;});
-    var to=''; var authorNames=Object.keys(entryAuthors);
-    if(authorNames.length>0){var ct=ST.contacts.find(function(c){return authorNames.indexOf(c.name)!==-1&&c.email;});if(ct)to=ct.email;}
-    var invNum=inv.number||String(inv.id);
-    A._openMailto({type:'invDecision',to:to,subject:'Invoice #'+invNum+' — '+(inv.status==='approved'?'Approved':'Changes Requested')+' — '+(cl.name||''),
-      inv:inv,cl:cl,reviewer:reviewer,cutLines:cutLines,commentLines:commentLines,invComments:inv.comments||[],approved:inv.status==='approved'});
-  },
-
-  emailEntriesApproval:function(){
-    var fe=filterEnt(ST.entries,ST.tsFilter);
-    if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
-    if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
-    if(!fe.length){toast('No entries visible to email','warn');return;}
-    var pending=fe.filter(function(e){return (e.status||'approved')==='pending';});
-    var entriesToSend=pending.length?pending:fe;
-    var partners=ST.contacts.filter(function(c){return c.role&&c.role.toLowerCase().indexOf('partner')!==-1;});
-    var to=partners.map(function(p){return p.email||'';}).filter(Boolean).join(', ');
-    var fromUser=ST.user?ST.user.name:'Attorney';
-    var totalH=entriesToSend.reduce(function(s,e){return s+Number(e.hours);},0);
-    var totalAmt=entriesToSend.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
-    A._openMailto({type:'tsApproval',to:to,subject:(pending.length?'Approval Request':'Billing Entries')+' from '+fromUser+' — '+totalH.toFixed(1)+'h',
-      entries:entriesToSend,totalH:totalH,totalAmt:totalAmt,fromUser:fromUser,isPending:pending.length>0});
-  },
-
-  emailEntriesSummary:function(){
-    var fe=filterEnt(ST.entries,ST.tsFilter);
-    if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
-    if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
-    if(!fe.length){toast('No entries visible to email','warn');return;}
-    var totalH=fe.reduce(function(s,e){return s+Number(e.hours);},0);
-    var totalAmt=fe.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
-    var fromUser=ST.user?ST.user.name:'Partner';
-    var firmName=ST.prefs.appName||'Our Firm';
-    var byAuthor={};
-    fe.forEach(function(e){
-      var a=e.createdBy||'Unknown';
-      if(!byAuthor[a]){byAuthor[a]={h:0,amt:0,count:0};}
-      byAuthor[a].h+=Number(e.hours); byAuthor[a].amt+=Number(e.hours)*Number(e.rate); byAuthor[a].count++;
-    });
-    var allStaff=ST.contacts.filter(function(c){return c.email;});
-    var to=allStaff.map(function(c){return c.email;}).join(', ');
-    A._openMailto({type:'tsSummary',to:to,subject:'Billing Summary — '+firmName+' — '+totalH.toFixed(1)+'h / $'+totalAmt.toFixed(2),
-      entries:fe,totalH:totalH,totalAmt:totalAmt,fromUser:fromUser,firmName:firmName,byAuthor:byAuthor});
-  }
-
 };
 
 function buildEntRow(e,s){
@@ -6909,8 +5310,7 @@ document.addEventListener('keydown',function(e){
     Store.getMeta('descpresets'),
     Store.getMeta('mailpresets'),
     Store.getMeta('itmode'),
-    Store.getAll('invoices'),
-    Store.getAll('emailtemplates')
+    Store.getAll('invoices')
   ]).then(function(res){
     // res values are already parsed native JS objects — no JSON.parse needed
     try{if(res[0])ST.user=res[0];}catch(e){}
@@ -6938,7 +5338,6 @@ document.addEventListener('keydown',function(e){
     try{if(res[7])ST.mailPresets=res[7];}catch(e){}
     try{if(res[8]){ST.itMode=!!res[8].itMode;if(res[8].firmProfile)ST.firmProfile=res[8].firmProfile;}}catch(e){}
     try{if(res[9]&&res[9].length)ST.invoices=res[9];}catch(e){}
-    try{if(res[10]&&res[10].length)ST.emailTemplates=res[10];}catch(e){}
     applyPrefs();
     if(!ST.user){
       // First run: show profile import prompt
