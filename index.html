@@ -88,7 +88,21 @@ body.layout-spacious .sc{padding:18px 24px}
 body.layout-spacious .sc-val{font-size:1.6rem}
 body.layout-spacious .srow{gap:16px;margin-bottom:26px}
 
-/* == Description Chips == */
+/* == Rate History Tables == */
+.rate-hist-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.rate-hist-table th{text-align:left;padding:5px 8px;background:var(--bg2);color:var(--ink3);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.rate-hist-table td{padding:6px 8px;border-bottom:1px solid var(--border-l);vertical-align:middle}
+.rate-hist-table tr:last-child td{border-bottom:none}
+.rate-hist-table input[type=date],.rate-hist-table input[type=number],.rate-hist-table input[type=text]{padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--white);color:var(--ink);width:100%}
+.rate-hist-add{display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:6px;align-items:end;margin-top:8px}
+.rate-hist-add select{padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--white);color:var(--ink)}
+.rate-section-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.rate-section-hd h4{font-size:12px;font-weight:600;color:var(--ink2);margin:0}
+.rate-section-hd small{font-size:11px;color:var(--ink3)}
+.rate-cur-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(22,163,74,.1);color:var(--green);border:1px solid rgba(22,163,74,.25)}
+body.dark .rate-hist-table th{background:var(--bg2)}
+body.dark .rate-hist-table input[type=date],body.dark .rate-hist-table input[type=number],body.dark .rate-hist-table input[type=text]{background:#0f172a;color:var(--ink)}
+
 .desc-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;margin-bottom:2px}
 .desc-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:16px;font-size:11px;color:var(--ink2);cursor:pointer;transition:all .15s}
 .desc-chip:hover{background:#e2e8f0;color:var(--ink);border-color:var(--ink3)}
@@ -240,6 +254,32 @@ tr:hover td{background:#fafafa}
 .timer-num{font-size:2.1rem;font-weight:200;font-family:'Courier New',monospace;letter-spacing:.04em;min-width:115px}
 .timer-on{color:var(--ink)}.timer-off{color:var(--ink3)}
 .total-pill{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 14px;font-size:13px;color:#15803d;margin-bottom:14px}
+/* Row timer */
+.row-tmr-live{font-family:'Courier New',monospace;font-size:11px;color:var(--red);font-weight:600;letter-spacing:.02em;vertical-align:middle;margin-right:2px}
+.row-tmr-stop{color:var(--red)!important;animation:tmr-pulse 1.2s ease-in-out infinite}
+@keyframes tmr-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+/* Active timer banner */
+.active-tmr-banner{background:var(--white);border:2px solid var(--red);border-radius:12px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;box-shadow:0 0 0 4px rgba(220,38,38,.07)}
+body.dark .active-tmr-banner{background:#1e1010;border-color:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.1)}
+.active-tmr-banner .atb-info{flex:1;min-width:0}
+.active-tmr-banner .atb-tracking{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--red);display:flex;align-items:center;gap:5px;margin-bottom:6px}
+.active-tmr-banner .atb-dot{width:7px;height:7px;border-radius:50%;background:var(--red);animation:tmr-pulse 1.2s ease-in-out infinite;flex-shrink:0}
+.active-tmr-banner .atb-who{font-size:1.05rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.active-tmr-banner .atb-desc{font-size:12px;color:var(--ink2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic}
+.active-tmr-banner .atb-clock{font-family:'Courier New',monospace;font-size:2.4rem;font-weight:200;color:var(--red);letter-spacing:.03em;flex-shrink:0;min-width:130px;text-align:right}
+.active-tmr-banner .atb-stop{flex-shrink:0;padding:10px 20px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.active-tmr-banner .atb-stop:hover{background:#b91c1c}
+/* Table row states when timer running */
+tr.tr-active-tmr td{background:#fff5f5!important;border-top:1px solid #fecaca;border-bottom:1px solid #fecaca}
+tr.tr-active-tmr:first-child td{border-top-color:#fecaca}
+body.dark tr.tr-active-tmr td{background:#2d1010!important}
+tr.tr-dimmed td{opacity:.45}
+/* QL inline new client/matter */
+.ql-new-row{display:flex;gap:6px;align-items:center;margin-top:0}
+.ql-new-row input{flex:1;padding:7px 10px;border:1.5px solid var(--blue);border-radius:6px;font-size:13px;background:var(--white);color:var(--ink);outline:none}
+.ql-new-row .btn-confirm{padding:6px 11px;border-radius:6px;background:var(--blue);color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;line-height:1}
+.ql-new-row .btn-cancel{padding:6px 10px;border-radius:6px;background:transparent;color:var(--ink3);border:1px solid var(--border);cursor:pointer;font-size:13px;line-height:1}
+.ql-new-row .btn-confirm:hover{background:#1d4ed8}.ql-new-row .btn-cancel:hover{color:var(--ink)}
 
 /* Help */
 .help-lay{display:flex;flex:1;overflow:hidden;min-height:0}
@@ -751,6 +791,7 @@ var ST={
   // Contacts sort/search
   ctSort:'alpha',ctSearch:'',
   tmrOn:false,tmrStart:0,tmrMs:0,tmrIv:null,
+  rowTmr:null, // {entId, startMs, accMs, iv} — per-row stopwatch
   ef:{},cf:{},mf:{},ctf:{},ql:{},
   mpf:{},
   // Pagination (timesheet)
@@ -880,15 +921,57 @@ function roleBadge(role){
   return '<span class="role-lbl '+(cls[r]||'rl-attorney')+'">'+(lbl[r]||r)+'</span>';
 }
 
-function autoRate(cid,mid,ctid){
-  // Priority: 1) User/Attorney rate, 2) Contact rate, 3) Matter rate, 4) Client rate
-  if(ST.user&&ST.user.rate) return ST.user.rate;
-  var ct=ST.contacts.find(function(x){return x.id==ctid;});
-  if(ct&&ct.rate) return ct.rate;
-  var m=ST.matters.find(function(x){return x.id==mid;});
-  if(m&&m.rate) return m.rate;
-  var cl=ST.clients.find(function(x){return x.id==cid;});
-  if(cl&&cl.rate) return cl.rate;
+// Return the most recent rate from a rateHistory array that is effective on or before `forDate`.
+// Each entry in history must have { effectiveDate:'YYYY-MM-DD', rate:Number }.
+function _rateOnDate(history, forDate){
+  if(!history||!history.length) return null;
+  var valid=history.filter(function(r){return r.effectiveDate&&r.effectiveDate<=forDate&&Number(r.rate)>0;});
+  if(!valid.length) return null;
+  // Sort descending by date → first entry is the latest applicable
+  valid=valid.slice().sort(function(a,b){return a.effectiveDate<b.effectiveDate?1:-1;});
+  return Number(valid[0].rate)||null;
+}
+
+// Rate precedence (most-specific wins):
+//   1. Matter  + attorney rate history (entry date)
+//   2. Client  + attorney rate history (entry date)
+//   3. Attorney's own rate history (entry date), then attorney's current .rate
+//   4. If no attorney selected: user's own .rate
+//   5. Matter default rate
+//   6. Client default rate
+function autoRate(cid,mid,ctid,date){
+  var d=date||today();
+  if(ctid){
+    // 1. Matter-specific attorney rate
+    var m=ST.matters.find(function(x){return x.id==mid;});
+    if(m&&m.attorneyRates){
+      var mar=m.attorneyRates.filter(function(r){return r.contactId==ctid;});
+      var mRate=_rateOnDate(mar,d);
+      if(mRate) return mRate;
+    }
+    // 2. Client-specific attorney rate
+    var cl=ST.clients.find(function(x){return x.id==cid;});
+    if(cl&&cl.attorneyRates){
+      var car=cl.attorneyRates.filter(function(r){return r.contactId==ctid;});
+      var cRate=_rateOnDate(car,d);
+      if(cRate) return cRate;
+    }
+    // 3. Attorney's own rate history, then current rate
+    var ct=ST.contacts.find(function(x){return x.id==ctid;});
+    if(ct){
+      var ctRate=_rateOnDate(ct.rateHistory,d)||(ct.rate?Number(ct.rate):null);
+      if(ctRate) return ctRate;
+    }
+  } else {
+    // 4. No attorney selected — use logged-in user's rate
+    if(ST.user&&ST.user.rate) return ST.user.rate;
+  }
+  // 5. Matter default rate
+  var m2=ST.matters.find(function(x){return x.id==mid;});
+  if(m2&&m2.rate) return m2.rate;
+  // 6. Client default rate
+  var cl2=ST.clients.find(function(x){return x.id==cid;});
+  if(cl2&&cl2.rate) return cl2.rate;
   return '';
 }
 
@@ -962,11 +1045,12 @@ function salaryPeriodLabel(f){
 // This prevents typed text from being lost when a select triggers a re-render
 function syncForm(){
   if(ST.modal==='ef'){
-    var d=g('ef-d'),h=g('ef-h'),r=g('ef-r'),desc=g('ef-desc');
+    var d=g('ef-d'),h=g('ef-h'),r=g('ef-r'),desc=g('ef-desc'),by=g('ef-by');
     if(d) ST.ef.date=d;
     ST.ef.hours=h; // always sync so partial typing is preserved
     ST.ef.rate=r;
     ST.ef.description=desc;
+    if(by!==undefined) ST.ef.byContactId=by;
   }
   if(ST.modal==='cf'){
     var n=g('cf-n'),e=g('cf-e'),p=g('cf-p'),r=g('cf-r'),op=g('cf-op');
@@ -994,6 +1078,9 @@ function syncForm(){
     if(h) ST.ql.hours=h;
     if(r) ST.ql.rate=r;
     if(desc) ST.ql.description=desc;
+    var ncn=g('ql-ncn'),nmn=g('ql-nmn');
+    if(ncn!==undefined) ST.ql.newClName=ncn;
+    if(nmn!==undefined) ST.ql.newMaName=nmn;
   }
   if(ST.modal==='settings'){
     var ef=g('exp-from'),et=g('exp-to');
@@ -1269,7 +1356,7 @@ function vTimesheet(){
   var noticeH='';
   if(role==='billing_staff'){
     noticeH='<div class="role-notice">'+IC.shield
-      +' <span><strong>Billing mode:</strong> You can view all entries, assign ABA codes &amp; matter numbers (🧾 per row), then use <strong>Send to Partner</strong> to forward for approval.</span></div>';
+      +' <span><strong>Billing mode:</strong> You can add entries on behalf of attorneys, edit any entry, assign ABA codes &amp; matter numbers, then use <strong>Send to Partner</strong> to forward for approval.</span></div>';
   } else if(role==='attorney'&&myPending>0){
     noticeH='<div class="role-notice">'+IC.clock
       +' <span><strong>'+myPending+' unsent entr'+(myPending===1?'y':'ies')+'.</strong> Review your entries below, then click <strong>Submit Timesheet</strong> to send to billing.</span></div>';
@@ -1286,7 +1373,7 @@ function vTimesheet(){
   var tableH='';
   if(sorted.length===0){
     tableH='<div class="empty"><div class="empty-ico">&#9201;</div><p>No entries yet</p>'
-      +'<small>'+(role==='billing_staff'?'No entries in this time range.':'Click "+ New Entry" or tap ⚡ to log time.')+'</small></div>';
+      +'<small>'+(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click "+ New Entry" or tap ⚡ to log time.')+'</small></div>';
   } else {
     var PAGE_SIZE=ST.TS_PAGE_SIZE||50;
     var totalFiltered=sorted.length;
@@ -1303,8 +1390,11 @@ function vTimesheet(){
       var ct=_lu.ct[e.contactId];
       var amt=Number(e.hours)*Number(e.rate);
       var est=e.status||'pending';
+      var rt=ST.rowTmr;
+      var isActive=rt&&String(rt.entId)===String(e.id);
+      var isOther=rt&&!isActive;
 
-      // Actions — no approve/reject here; that lives in Approvals tab
+      // Actions
       var canEdit=false,canDelete=false;
       if(role==='partner'){canEdit=true;canDelete=true;}
       else if(role==='attorney'){canEdit=(est==='pending');canDelete=(est==='pending');}
@@ -1313,17 +1403,26 @@ function vTimesheet(){
       if(canEdit)   actionsH+='<button onclick="A.editEnt('+e.id+')" title="Edit">'+IC.edit+'</button>';
       if(canDelete) actionsH+='<button onclick="A.delEnt('+e.id+')" title="Delete">'+IC.trash+'</button>';
       if(role==='billing_staff') actionsH+='<button onclick="A.billingEditEntry('+e.id+')" title="Add ABA code / matter number" style="color:var(--blue)">🧾</button>';
+      if(role!=='billing_staff'){
+        if(isActive){
+          // Stop button only — the big banner handles the main UI
+          actionsH+='<button onclick="A.rowTmrStop()" title="Stop timer" class="btn-ic row-tmr-stop" style="font-size:14px;padding:3px 6px;color:var(--red)">■</button>';
+        } else {
+          var tmrTitle=rt?'Switch timer to this entry':'Start timer for this entry';
+          actionsH+='<button onclick="A.rowTmrStart('+e.id+')" title="'+tmrTitle+'" class="btn-ic" style="font-size:13px;opacity:'+(rt?'0.25':'0.65')+';padding:3px 6px">⏱</button>';
+        }
+      }
       actionsH+='</div>';
 
       var abaDisplay=e.abaCode
         ?'<span style="font-family:monospace;font-size:10px;color:var(--blue);display:block">'+H(e.abaCode)+'</span>':'';
       var mnDisplay=(mt&&mt.matterNumber)
         ?'<span style="font-family:monospace;font-size:10px;color:var(--ink3);display:block">#'+H(mt.matterNumber)+'</span>':'';
-      // For billing staff, show submitter badge; for attorney/partner it's always self so omit
       var byCell=role==='billing_staff'
         ?'<td><span class="badge" title="'+H(e.createdBy||'')+'">'+H(e.createdByIni||'?')+'</span></td>':'';
 
-      return '<tr>'
+      var trClass=isActive?'tr-active-tmr':(isOther?'tr-dimmed':'');
+      return '<tr'+(trClass?' class="'+trClass+'"':'')+'>'
         +'<td style="white-space:nowrap;color:var(--ink2)">'+$d(e.date)+'</td>'
         +'<td style="font-weight:500">'+H(cl?cl.name:'?')+'</td>'
         +'<td style="color:var(--ink2)">'+H(mt?mt.name:'General')+mnDisplay+'</td>'
@@ -1334,7 +1433,6 @@ function vTimesheet(){
         +'<td>'+(e.rawMs!=null
           ?'<span title="Timer: '+msToHMS(e.rawMs)+'" style="cursor:help;border-bottom:1px dotted var(--ink3)">'+$h(e.hours)+'</span>'
           :$h(e.hours))
-          +(e.finalized?'<span style="font-size:10px;color:var(--green);margin-left:3px" title="Finalized">✓</span>':'')
         +'</td>'
         +'<td style="color:var(--ink2)">'+$m(e.rate)+'</td>'
         +'<td style="color:var(--green);font-weight:500">'+$m(amt)+'</td>'
@@ -1357,7 +1455,31 @@ function vTimesheet(){
     }
 
     var thBy=role==='billing_staff'?'<th>By</th>':'';
-    tableH='<div class="twrap"><div class="tscroll"><table>'
+
+    // Active timer banner — shown above table when a row timer is live
+    var activeBanner='';
+    if(ST.rowTmr){
+      var rtEnt=ST.entries.find(function(x){return String(x.id)===String(ST.rowTmr.entId);});
+      if(rtEnt){
+        var rtCl=_lu.cl[rtEnt.clientId];
+        var rtMt=_lu.ma[rtEnt.matterId];
+        var whoStr=H(rtCl?rtCl.name:'Unknown client')+(rtMt?' <span style="font-weight:400;color:var(--ink2)">&#8250; '+H(rtMt.name)+'</span>':'');
+        var ms0=ST.rowTmr.accMs+(Date.now()-ST.rowTmr.startMs);
+        var h0=Math.floor(ms0/3600000),m0=Math.floor((ms0%3600000)/60000),s0=Math.floor((ms0%60000)/1000);
+        var clockStr=String(h0).padStart(2,'0')+':'+String(m0).padStart(2,'0')+':'+String(s0).padStart(2,'0');
+        activeBanner='<div class="active-tmr-banner">'
+          +'<div class="atb-info">'
+          +'<div class="atb-tracking"><span class="atb-dot"></span>Tracking time</div>'
+          +'<div class="atb-who">'+whoStr+'</div>'
+          +(rtEnt.description?'<div class="atb-desc">'+H(rtEnt.description)+'</div>':'')
+          +'</div>'
+          +'<div id="row-tmr-'+rtEnt.id+'" class="atb-clock">'+clockStr+'</div>'
+          +'<button class="atb-stop" onclick="A.rowTmrStop()">&#9632; Stop &amp; Save</button>'
+          +'</div>';
+      }
+    }
+
+    tableH=activeBanner+'<div class="twrap"><div class="tscroll"><table>'
       +'<thead><tr><th>Date</th><th>Client</th><th>Matter</th><th>Description</th><th>Hours</th><th>Rate</th><th>Amount</th>'+thBy+'<th></th></tr></thead>'
       +'<tbody>'+rows+'</tbody></table></div></div>'
       +pagCtrl;
@@ -1382,17 +1504,14 @@ function vTimesheet(){
   var actionBtns='';
   if(role==='attorney'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
-    if(fe.filter(function(e){return !e.finalized;}).length>0)
-      actionBtns+='<button class="btn btn-gr" onclick="A.finalizeEntries()" title="Group identical entries for the same day">Finalize</button>';
     if(fe.length>0)
       actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Review, export, and email your timesheet to billing">📤 Submit Timesheet</button>';
   } else if(role==='partner'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
-    if(fe.filter(function(e){return !e.finalized;}).length>0)
-      actionBtns+='<button class="btn btn-gr" onclick="A.finalizeEntries()">Finalize</button>';
     if(fe.length>0)
       actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send your own entries to billing">📤 Submit My Time</button>';
   } else if(role==='billing_staff'){
+    actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
     actionBtns+='<button class="btn btn-gh" onclick="A.openReceivePackage()" title="Import a timesheet submission received from an attorney">📥 Receive Submission</button>';
     if(fe.length>0)
       actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send all visible entries to partner for approval">📤 Send to Partner</button>';
@@ -1435,18 +1554,36 @@ function entryForm(){
   } else if(existingStatus==='rejected'){
     statusNotice='<div class="danger" style="margin-bottom:14px">This entry was <strong>rejected</strong>. Edit and re-submit via the Submit Timesheet button.</div>';
   }
+  // Billing staff: "Logged By" attorney/timekeeper selector
+  // Attorney/partner: no such field — entry always attributed to themselves
+  var byRow='';
+  if(role==='billing_staff'){
+    var tkOpts=[{v:'',l:'Select attorney / timekeeper...'}].concat(
+      ST.contacts
+        .filter(function(c){
+          var r=(c.role||'').toLowerCase();
+          return r.indexOf('attorney')!==-1||r.indexOf('partner')!==-1||r.indexOf('associate')!==-1||r.indexOf('counsel')!==-1;
+        })
+        .map(function(c){return{v:c.id,l:c.name+(c.role?' \u2013 '+c.role:'')};})
+    );
+    byRow='<div class="frow c2">'+field('Attorney / Timekeeper','ef-by',{type:'select',opts:tkOpts,val:String(f.byContactId||''),req:true,err:f.errs&&f.errs.by,hint:'Entry will be attributed to this timekeeper'})+'<div></div></div>';
+  }
   return '<div class="fbox" id="ef">'
-    +'<h3>'+(ST.editId?'Edit Entry':'New Time Entry')+'</h3>'
+    +'<h3>'+(ST.editId?'Edit Entry':'New Time Entry')+(role==='billing_staff'?' <span class="badge" style="font-size:10px;background:var(--amber);color:#fff;font-weight:500;margin-left:6px;vertical-align:middle">Billing Entry</span>':'')+'</h3>'
     +statusNotice
+    +byRow
     +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d})+field('Hours','ef-h',{type:'number',ph:'1.0',val:f.hours||'',req:true,err:f.errs&&f.errs.h,hint:'e.g. 1.5 or 0.25',step:'0.01',min:'0.01'})+'</div>'
     +'<div class="frow c2">'+field('Client','ef-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl})+field('Matter','ef-ma',{type:'select',opts:maOpts,val:f.matterId||'',hint:matHint})+'</div>'
-    +'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'150.00',val:f.rate||'',req:true,err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Your rate > Contact > Matter > Client':'Priority: Your rate > Contact > Matter > Client'})+'</div>'
+    +(role==='billing_staff'
+      ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'150.00',val:f.rate||'',req:true,err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Uses attorney\'s rate on entry date by default':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
+      :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'150.00',val:f.rate||'',req:true,err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule > Matter > Client':'Priority: Matter-attorney > Client-attorney > Attorney schedule > Matter > Client'})+'</div>')
     +'<div class="frow c2">'+field('ABA/UTBMS Code','ef-aba',{type:'select',opts:ABA_TASK_CODES,val:f.abaCode||'',hint:'Optional task code for billing compliance'})+'<div></div></div>'
     +'<div class="frow">'+field('Description','ef-desc',{type:'textarea',rows:2,ph:'Describe the work performed...',val:f.description||''})+'</div>'
     +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ef-desc\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'')
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveEnt()">'+IC.save+' Save Entry</button></div>'
     +'</div>';
 }
+
 
 // == Clients ==
 function vClients(){
@@ -1493,6 +1630,7 @@ function vClients(){
         +(linkedCts.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Firm Team</div>'
           +linkedCts.map(function(ct){return '<p style="font-size:12px;margin:2px 0">&#128203; '+H(ct.name)+(ct.role?' <span style="color:var(--ink3)">&middot; '+H(ct.role)+'</span>':'')+'</p>';}).join('')+'</div>':'')
         +(c.rate?'<div class="card-rate">Default rate <strong>'+$m(c.rate)+'/hr</strong></div>':'')
+        +((c.attorneyRates&&c.attorneyRates.length)?'<div class="card-rate" style="color:var(--blue)">'+c.attorneyRates.length+' negotiated attorney rate'+(c.attorneyRates.length!==1?'s':'')+'</div>':'')
         +'<div class="card-rate" style="border-top:none;padding-top:0;margin-top:6px">'
         +(function(){var mc=ST.matters.filter(function(m){return m.clientId==c.id;}).length;return '<span style="color:var(--ink3)">'+mc+' matter'+(mc!==1?'s':'')+'</span>';})()
         +'</div>'
@@ -1562,6 +1700,36 @@ function clientForm(){
     +'</div>'
     +'<button type="button" class="btn btn-gh" style="font-size:12px;padding:6px 14px" onclick="A.cfAddPerson()">+ Add Contact</button>'
     +'</div></div>'
+    // Per-attorney negotiated rates section
+    +(function(){
+      var ar=f.attorneyRates||[];
+      var atOpts='<option value="">Select attorney…</option>'+ST.contacts.map(function(c){return '<option value="'+c.id+'">'+H(c.name)+(c.role?' – '+H(c.role):'')+'</option>';}).join('');
+      var arRows=ar.length===0
+        ?'<tr><td colspan="5" style="text-align:center;padding:8px;color:var(--ink3);font-size:11px">No per-attorney rates yet. Attorneys default to their own rate schedule.</td></tr>'
+        :ar.map(function(r,i){
+            var ct=ST.contacts.find(function(c){return c.id==r.contactId;});
+            return '<tr>'
+              +'<td style="font-weight:500">'+H(ct?ct.name:'?')+'</td>'
+              +'<td><strong>'+$m(r.rate)+'/hr</strong></td>'
+              +'<td>'+r.effectiveDate+'</td>'
+              +'<td style="color:var(--ink3)">'+H(r.note||'')+'</td>'
+              +'<td style="text-align:right"><button type="button" class="btn-ic" style="padding:2px 6px;font-size:11px" onclick="A.cfRemAtRate('+i+')" title="Remove">&#10005;</button></td>'
+              +'</tr>';
+          }).join('');
+      return '<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
+        +'<div class="rate-section-hd"><h4>Negotiated Attorney Rates</h4><small>Override default attorney rates for this client</small></div>'
+        +'<p style="font-size:11px;color:var(--ink3);margin-bottom:8px">When this client is selected, the rate below takes precedence over the attorney\'s own rate schedule. A more specific matter-level rate overrides this.</p>'
+        +'<table class="rate-hist-table"><thead><tr><th>Attorney</th><th>Rate</th><th>Effective Date</th><th>Note</th><th></th></tr></thead><tbody>'+arRows+'</tbody></table>'
+        +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:5px">Add negotiated rate:</div>'
+        +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;align-items:end">'
+        +'<div class="fl"><label style="font-size:11px">Attorney</label><select id="cf-ar-ct" style="width:100%;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--white);color:var(--ink)">'+atOpts+'</select></div>'
+        +'<div class="fl"><label style="font-size:11px">Rate ($/hr)</label><input type="number" id="cf-ar-rate" placeholder="200.00" min="0" step="0.01" style="width:100%"></div>'
+        +'<div class="fl"><label style="font-size:11px">Effective Date</label><input type="date" id="cf-ar-date" value="'+today()+'" style="width:100%"></div>'
+        +'<div class="fl"><label style="font-size:11px">Note</label><input type="text" id="cf-ar-note" placeholder="Insurance cap, negotiated…" style="width:100%"></div>'
+        +'<button type="button" class="btn btn-gh" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="A.cfAddAtRate()">+ Add</button>'
+        +'</div></div>'
+        +'</div></div>';
+    })()
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveCl()">'+IC.save+' Save Client</button></div>'
     +'</div>';
 }
@@ -1662,7 +1830,8 @@ function matterCard(m){
       +linkedPeople.map(function(p){return '<div style="font-size:12px;padding:2px 0"><strong>'+H(p.name)+'</strong>'+(p.role?' <span style="color:var(--ink3)">&middot; '+H(p.role)+'</span>':'')+(p.email?'<br><span style="color:var(--ink2)">'+H(p.email)+'</span>':'')+'</div>';}).join('')
       +'</div>':'')
     +(m.description?'<p style="color:var(--ink3);font-size:12px">'+H(m.description)+'</p>':'')
-    +(rate?'<div class="card-rate">'+(m.rate?'Matter rate':'Client rate')+' <strong>'+$m(rate)+'/hr</strong></div>':'')
+    +(rate?'<div class="card-rate">'+(m.rate?'Default rate':'Client rate')+' <strong>'+$m(rate)+'/hr</strong></div>':'')
+    +((m.attorneyRates&&m.attorneyRates.length)?'<div class="card-rate" style="color:var(--blue)">'+m.attorneyRates.length+' attorney-specific rate'+(m.attorneyRates.length!==1?'s':'')+'</div>':'')
     +'</div>';
 }
 
@@ -1699,8 +1868,38 @@ function matterForm(){
     +'<div class="frow c2">'+field('Matter Name','mf-n',{ph:'Contract Review',val:f.name||'',req:true,err:f.errs&&f.errs.n})+field('Client','mf-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl})+'</div>'
     +'<div class="frow c2">'+field('Matter Number','mf-num',{ph:'e.g. 2024-001 or 12345',val:f.matterNumber||'',hint:'Firm-assigned matter number for billing/invoice reference'})+field('Lead Attorney','mf-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+'</div>'
     +'<div class="frow">'+field('Description','mf-desc',{type:'textarea',rows:2,ph:'Brief description of this matter...',val:f.description||''})+'</div>'
-    +'<div class="frow c2">'+field('Billing Rate ($/hr)','mf-r',{pfx:'$',ph:'Override rate...',val:f.rate||'',hint:hint})+'<div></div></div>'
+    +'<div class="frow c2">'+field('Default Billing Rate ($/hr)','mf-r',{pfx:'$',ph:'Override rate…',val:f.rate||'',hint:hint+' · Overridden by per-attorney rates below'})+'<div></div></div>'
     +cpSection
+    // Per-attorney rates for this matter
+    +(function(){
+      var ar=f.attorneyRates||[];
+      var atOpts='<option value="">Select attorney…</option>'+ST.contacts.map(function(c){return '<option value="'+c.id+'">'+H(c.name)+(c.role?' – '+H(c.role):'')+'</option>';}).join('');
+      var arRows=ar.length===0
+        ?'<tr><td colspan="5" style="text-align:center;padding:8px;color:var(--ink3);font-size:11px">No matter-specific attorney rates. Add a rate to override the client-level rate for a specific attorney on this matter.</td></tr>'
+        :ar.map(function(r,i){
+            var ct=ST.contacts.find(function(c){return c.id==r.contactId;});
+            return '<tr>'
+              +'<td style="font-weight:500">'+H(ct?ct.name:'?')+'</td>'
+              +'<td><strong>'+$m(r.rate)+'/hr</strong></td>'
+              +'<td>'+r.effectiveDate+'</td>'
+              +'<td style="color:var(--ink3)">'+H(r.note||'')+'</td>'
+              +'<td style="text-align:right"><button type="button" class="btn-ic" style="padding:2px 6px;font-size:11px" onclick="A.mfRemAtRate('+i+')" title="Remove">&#10005;</button></td>'
+              +'</tr>';
+          }).join('');
+      return '<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
+        +'<div class="rate-section-hd"><h4>Matter-Specific Attorney Rates</h4><small>Highest priority — overrides client &amp; attorney schedule</small></div>'
+        +'<p style="font-size:11px;color:var(--ink3);margin-bottom:8px">E.g. insurance defense matters cap attorney rates at a specific amount.</p>'
+        +'<table class="rate-hist-table"><thead><tr><th>Attorney</th><th>Rate</th><th>Effective Date</th><th>Note</th><th></th></tr></thead><tbody>'+arRows+'</tbody></table>'
+        +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:5px">Add matter-specific rate:</div>'
+        +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;align-items:end">'
+        +'<div class="fl"><label style="font-size:11px">Attorney</label><select id="mf-ar-ct" style="width:100%;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--white);color:var(--ink)">'+atOpts+'</select></div>'
+        +'<div class="fl"><label style="font-size:11px">Rate ($/hr)</label><input type="number" id="mf-ar-rate" placeholder="150.00" min="0" step="0.01" style="width:100%"></div>'
+        +'<div class="fl"><label style="font-size:11px">Effective Date</label><input type="date" id="mf-ar-date" value="'+today()+'" style="width:100%"></div>'
+        +'<div class="fl"><label style="font-size:11px">Note</label><input type="text" id="mf-ar-note" placeholder="Insurance cap, agreement…" style="width:100%"></div>'
+        +'<button type="button" class="btn btn-gh" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="A.mfAddAtRate()">+ Add</button>'
+        +'</div></div>'
+        +'</div></div>';
+    })()
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveMa()">'+IC.save+' Save Matter</button></div>'
     +'</div>';
 }
@@ -1738,6 +1937,7 @@ function vContacts(){
           +(ST.prefs.revenueSplit?'<div class="split-pill"><span class="own">Own '+pct+'%</span><span class="firm">Firm '+firmPct+'%</span></div>':'')
           +(ST.prefs.revenueSplit&&c.salary!=null&&c.salary!==''?'<div class="card-rate">Salary <strong>'+$m(c.salary)+'/yr</strong></div>':'')
           +(c.rate?'<div class="card-rate">Rate <strong>'+$m(c.rate)+'/hr</strong></div>':'')
+          +((c.rateHistory&&c.rateHistory.length)?'<div class="card-rate" style="color:var(--blue)">'+c.rateHistory.length+' rate schedule entr'+(c.rateHistory.length!==1?'ies':'y')+'</div>':'')
           +'</div>';
       }).join('')+'</div>';
     }
@@ -1759,12 +1959,43 @@ function vContacts(){
 function contactForm(){
   var f=ST.ctf;
   var pct=f.ownPct!=null?f.ownPct:100;
+  var rh=f.rateHistory||[];
+  // Current rate: derived from rate history (latest effective) or from .rate field
+  var latestHistRate=_rateOnDate(rh,today());
+
+  // Rate history table rows
+  var rhRows=rh.length===0
+    ?'<tr><td colspan="4" style="text-align:center;padding:10px;color:var(--ink3);font-size:11px">No rate history entries. Add one below, or use the Default Rate field.</td></tr>'
+    :rh.slice().sort(function(a,b){return a.effectiveDate<b.effectiveDate?1:-1;}).map(function(r,i){
+        var isCur=latestHistRate&&Number(r.rate)===latestHistRate&&r.effectiveDate===rh.slice().sort(function(a,b){return a.effectiveDate<b.effectiveDate?1:-1;})[0].effectiveDate;
+        return '<tr>'
+          +'<td><strong>'+$m(r.rate)+'</strong>'+(isCur?'&nbsp;<span class="rate-cur-badge">current</span>':'')+'</td>'
+          +'<td>'+r.effectiveDate+'</td>'
+          +'<td style="color:var(--ink3)">'+H(r.note||'')+'</td>'
+          +'<td style="text-align:right"><button type="button" class="btn-ic" style="padding:2px 6px;font-size:11px" onclick="A.ctfRemRate('+i+')" title="Remove">&#10005;</button></td>'
+          +'</tr>';
+      }).join('');
+
+  var rateSection='<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
+    +'<div class="rate-section-hd"><h4>Rate History</h4><small>Most-recent-on-entry-date wins</small></div>'
+    +(latestHistRate?'<p style="font-size:12px;margin-bottom:8px;color:var(--ink2)">Current rate: <strong>'+$m(latestHistRate)+'/hr</strong> &mdash; overrides the Default Rate above when a time entry uses this attorney.</p>':'')
+    +'<table class="rate-hist-table"><thead><tr><th>Rate</th><th>Effective Date</th><th>Note</th><th></th></tr></thead><tbody>'+rhRows+'</tbody></table>'
+    +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:5px">Add rate entry:</div>'
+    +'<div class="rate-hist-add">'
+    +'<div class="fl"><label style="font-size:11px">Rate ($/hr)</label><input type="number" id="ctf-rh-rate" placeholder="175.00" min="0" step="0.01"></div>'
+    +'<div class="fl"><label style="font-size:11px">Effective Date</label><input type="date" id="ctf-rh-date" value="'+today()+'"></div>'
+    +'<div class="fl"><label style="font-size:11px">Note (optional)</label><input type="text" id="ctf-rh-note" placeholder="Rate increase, insurance adj…"></div>'
+    +'<button type="button" class="btn btn-gh" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="A.ctfAddRate()">+ Add</button>'
+    +'</div></div>'
+    +'</div></div>';
+
   return '<div class="fbox" id="ctf">'
     +'<h3>'+(ST.editId?'Edit':'New')+' Contact</h3>'
     +'<div class="frow c2">'+field('Name','ctf-n',{ph:'Jane Smith',val:f.name||'',req:true,err:f.errs&&f.errs.n})+field('Role / Title','ctf-ro',{ph:'Associate Attorney',val:f.role||''})+'</div>'
     +'<div class="frow c2">'+field('Email','ctf-e',{type:'email',ph:'jane@firm.com',val:f.email||'',err:f.errs&&f.errs.e})+field('Phone','ctf-p',{type:'tel',ph:'(555) 123-4567',val:f.phone||'',oninput:"A.livePhone('ctf-p')"})+'</div>'
-    +'<div class="frow c2">'+field('Default Rate ($/hr)','ctf-rate',{pfx:'$',ph:'175.00',val:f.rate||'',hint:'Auto-fills when this person is assigned to an entry'})+(ST.prefs.revenueSplit?field('Personal Cut %','ctf-op',{type:'number',sfx:'%',ph:'100',val:String(pct),hint:'% of billed amount this person keeps (firm gets the rest)'}):'')+'</div>'
+    +'<div class="frow c2">'+field('Default Rate ($/hr)','ctf-rate',{pfx:'$',ph:'175.00',val:f.rate||'',hint:'Fallback if no rate history entry applies to the entry date'})+(ST.prefs.revenueSplit?field('Personal Cut %','ctf-op',{type:'number',sfx:'%',ph:'100',val:String(pct),hint:'% of billed amount this person keeps (firm gets the rest)'}):'')+'</div>'
     +(ST.prefs.revenueSplit?'<div class="frow c2">'+field('Annual Salary','ctf-sal',{pfx:'$',ph:'120,000',val:f.salary!=null&&f.salary!==''?String(f.salary):'',hint:'Used to calculate net income and bonus/deficit vs. billed earnings'})+'<div></div>'+'</div>':'')
+    +rateSection
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveCt()">'+IC.save+' Save Contact</button></div>'
     +'</div>';
 }
@@ -2021,7 +2252,7 @@ function vApprovals(){
       +'<div style="margin-bottom:18px"><h2 style="font-size:1.3rem;font-weight:300;margin-bottom:3px">My Entry Status</h2>'
       +'<p style="font-size:12px;color:var(--ink3)">'+mine.length+' entr'+(mine.length===1?'y':'ies')+' total</p></div>'
       +stats([['Pending',String(mine.filter(function(e){return (e.status||'approved')==='pending';}).length),'highlight2'],['Approved',String(mine.filter(function(e){return (e.status||'approved')==='approved';}).length),'highlight'],['Rejected',String(mine.filter(function(e){return e.status==='rejected';}).length),'']])
-      +(role==='billing_staff'?'<div class="role-notice">'+IC.shield+' Billing staff do not submit time entries.</div>':'')
+      +(role==='billing_staff'?'<div class="role-notice">'+IC.shield+' Billing staff view: use the Timesheet tab to add or edit entries on behalf of attorneys.</div>':'')
       +tableH+'</div>';
   }
 
@@ -2612,7 +2843,7 @@ function buildUP(){
   var roles=[
     {v:'attorney',  label:'Attorney',      desc:'Track and submit time entries for review'},
     {v:'partner',   label:'Partner',        desc:'Full access \u2014 add entries, approve timesheets, manage everything'},
-    {v:'billing_staff', label:'Billing Staff', desc:'View-only access: review entries and export reports'}
+    {v:'billing_staff', label:'Billing Staff', desc:'Can add/edit entries on behalf of attorneys, review all entries and export reports'}
   ];
   var roleCardsH=roles.map(function(r){
     var sel=curRole===r.v?' sel':'';
@@ -2701,32 +2932,75 @@ function buildQL(){
   var hh=String(Math.floor(ms/3600000)).padStart(2,'0');
   var mm=String(Math.floor((ms%3600000)/60000)).padStart(2,'0');
   var ss=String(Math.floor((ms%60000)/1000)).padStart(2,'0');
-  // Actual hours from timer (no rounding, no forced minimum)
   var rnd=ms/3600000;
-  var clOpts=[{v:'',l:'Select client...'}].concat(ST.clients.map(function(c){return{v:c.id,l:c.name};}));
   var avMat=ST.matters.filter(function(m){return m.clientId==f.clientId;});
-  var maOpts=[{v:'',l:'General'}].concat(avMat.map(function(m){return{v:m.id,l:m.name};}));
   var total=(f.hours&&f.rate)?$m(Number(f.hours)*Number(f.rate)):null;
-  // Today's existing entries for "continue" feature
   var todayStr=today();
-  var todayEntries=ST.entries.filter(function(e){return e.date===todayStr&&!e.finalized;}).sort(function(a,b){return b.id-a.id;});
+  var todayEntries=ST.entries.filter(function(e){return e.date===todayStr;}).sort(function(a,b){return b.id-a.id;});
   var continueH='';
   if(todayEntries.length>0){
     var addToId=f.addToId||'';
     var entOpts='<option value="">&#43; New entry</option>'
       +todayEntries.map(function(e){
-        var cl=_lu.cl[e.clientId];
-        var mt=_lu.ma[e.matterId];
+        var cl=_lu.cl[e.clientId];var mt=_lu.ma[e.matterId];
         var label=(cl?cl.name:'?')+(mt?' \u2022 '+mt.name:'')+' ('+$h(e.hours)+')'+(e.description?' \u2013 '+e.description.substring(0,28)+(e.description.length>28?'\u2026':''):'');
         return '<option value="'+e.id+'"'+(String(e.id)===String(addToId)?' selected':'')+'>'+H(label)+'</option>';
       }).join('');
-    continueH='<div style="background:var(--bg2,#f8f8f8);border-bottom:1px solid var(--border);padding:12px 20px">'
+    continueH='<div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 20px">'
       +'<label style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Continue existing entry today</label>'
       +'<select style="width:100%;font-size:13px" onchange="A.qlPickEntry(this.value)">'+entOpts+'</select>'
-      +(addToId?'<div style="margin-top:6px;font-size:12px;color:var(--green,#2a9d5c)">&#10010; Hours you log will be added to this entry</div>':'')
+      +(addToId?'<div style="margin-top:6px;font-size:12px;color:var(--green)">&#10010; Hours you log will be added to this entry</div>':'')
       +'</div>';
   }
   var headingLabel=f.addToId?IC.flash+' Add Hours to Entry':IC.flash+' Quick Log';
+
+  // Client field: dropdown or inline-create
+  var clientField;
+  if(f.newCl){
+    clientField='<div class="fl"><label>Client <span class="req">*</span></label>'
+      +'<div class="ql-new-row">'
+      +'<input id="ql-ncn" value="'+H(f.newClName||'')+'" placeholder="New client name" oninput="A.qlSet(\'newClName\',this.value)" onkeydown="if(event.key===\'Enter\')A.qlCreateClient();if(event.key===\'Escape\')A.qlCancelNew(\'cl\')" autofocus>'
+      +'<button class="btn-confirm" onclick="A.qlCreateClient()" title="Create client">✓</button>'
+      +'<button class="btn-cancel" onclick="A.qlCancelNew(\'cl\')" title="Cancel">✕</button>'
+      +'</div></div>';
+  } else {
+    var clOpts='<option value="">Select client...</option>'
+      +ST.clients.map(function(c){return '<option value="'+c.id+'"'+(String(c.id)===String(f.clientId)?' selected':'')+'>'+H(c.name)+'</option>';}).join('')
+      +'<option value="__new__" style="color:var(--blue)">+ Add new client\u2026</option>';
+    clientField='<div class="fl"><label>Client <span class="req">*</span></label>'
+      +'<select id="ql-cl" onchange="A.qlCl(this.value)">'+clOpts+'</select></div>';
+  }
+
+  // Matter field: dropdown or inline-create
+  var matterField;
+  if(f.newMa){
+    matterField='<div class="fl"><label>Matter</label>'
+      +'<div class="ql-new-row">'
+      +'<input id="ql-nmn" value="'+H(f.newMaName||'')+'" placeholder="New matter name" oninput="A.qlSet(\'newMaName\',this.value)" onkeydown="if(event.key===\'Enter\')A.qlCreateMatter();if(event.key===\'Escape\')A.qlCancelNew(\'ma\')" autofocus>'
+      +'<button class="btn-confirm" onclick="A.qlCreateMatter()" title="Create matter">✓</button>'
+      +'<button class="btn-cancel" onclick="A.qlCancelNew(\'ma\')" title="Cancel">✕</button>'
+      +'</div></div>';
+  } else {
+    var maOpts='<option value="">General</option>'
+      +(f.clientId?avMat.map(function(m){return '<option value="'+m.id+'"'+(String(m.id)===String(f.matterId)?' selected':'')+'>'+H(m.name)+'</option>';}).join(''):'')
+      +(f.clientId?'<option value="__new__" style="color:var(--blue)">+ Add new matter\u2026</option>':'');
+    matterField='<div class="fl"><label>Matter</label>'
+      +'<select id="ql-ma" onchange="A.qlMa(this.value)"'+(f.clientId?'':' disabled')+'>'+maOpts+'</select></div>';
+  }
+
+  // Continue mode read-only display
+  var clientMatterH;
+  if(f.addToId){
+    var cl2=ST.clients.find(function(c){return String(c.id)===String(f.clientId);});
+    var mt2=ST.matters.find(function(m){return String(m.id)===String(f.matterId);});
+    clientMatterH='<div class="frow c2" style="margin-bottom:12px">'
+      +'<div class="fl"><label>Client</label><div style="padding:7px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--ink)">'+H(cl2?cl2.name:'\u2014')+'</div></div>'
+      +'<div class="fl"><label>Matter</label><div style="padding:7px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--ink2)">'+H(mt2?mt2.name:'General')+'</div></div>'
+      +'</div>';
+  } else {
+    clientMatterH='<div class="frow c2" style="margin-bottom:12px">'+clientField+matterField+'</div>';
+  }
+
   return '<div class="ov"><div class="modal modal-sm">'
     +'<div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+headingLabel+'</h2>'
     +'<button class="btn-ic" onclick="A.closeQL()">'+IC.x+'</button></div>'
@@ -2740,29 +3014,9 @@ function buildQL(){
     +(ST.tmrMs>0&&!ST.tmrOn?'<span style="font-size:12px;color:var(--ink3)" title="Exact measured time">'+msToHMS(ST.tmrMs)+' ('+rnd.toFixed(4)+'h exact)</span>':'')
     +'</div>'
     +'<div class="modal-bd" style="padding:18px 20px">'
-    +(!f.addToId
-      // New entry mode: show client/matter dropdowns
-      ?('<div class="frow c2" style="margin-bottom:12px">'
-        +'<div class="fl"><label>Client <span class="req">*</span></label>'
-        +'<select id="ql-cl" onchange="A.qlCl(this.value)">'
-        +clOpts.map(function(o){return '<option value="'+H(o.v)+'"'+(String(o.v)===String(f.clientId)?'selected':'')+'>'+H(o.l)+'</option>';}).join('')
-        +'</select></div>'
-        +'<div class="fl"><label>Matter</label>'
-        +'<select id="ql-ma" onchange="A.qlSet(\'matterId\',this.value)"'+(f.clientId?'':' disabled')+'>'
-        +maOpts.map(function(o){return '<option value="'+H(o.v)+'"'+(String(o.v)===String(f.matterId)?'selected':'')+'>'+H(o.l)+'</option>';}).join('')
-        +'</select></div></div>')
-      // Continue mode: show client/matter as read-only chips
-      :(function(){
-          var cl=ST.clients.find(function(c){return String(c.id)===String(f.clientId);});
-          var mt=ST.matters.find(function(m){return String(m.id)===String(f.matterId);});
-          return '<div class="frow c2" style="margin-bottom:12px">'
-            +'<div class="fl"><label>Client</label><div style="padding:7px 10px;background:var(--bg2,#f8f8f8);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--ink)">'+H(cl?cl.name:'\u2014')+'</div></div>'
-            +'<div class="fl"><label>Matter</label><div style="padding:7px 10px;background:var(--bg2,#f8f8f8);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--ink2)">'+H(mt?mt.name:'General')+'</div></div>'
-            +'</div>';
-        })()
-    )
+    +clientMatterH
     +'<div class="frow c2" style="margin-bottom:12px">'
-    +'<div class="fl"><label>'+(f.addToId?'Hours to Add':'Hours')+' <span class="req">*</span></label><input type="number" id="ql-h" step="0.01" min="0.01" value="'+H(f.hours||'')+'" placeholder="1.0" oninput="A.qlSet(\'hours\',this.value)"'+(f.rawMs!=null?' title="Timer-measured: '+msToHMS(f.rawMs)+' exact — adjust for billing if needed"':'')+'></div>'
+    +'<div class="fl"><label>'+(f.addToId?'Hours to Add':'Hours')+' <span class="req">*</span></label><input type="number" id="ql-h" step="0.01" min="0.01" value="'+H(f.hours||'')+'" placeholder="1.0" oninput="A.qlSet(\'hours\',this.value)"'+(f.rawMs!=null?' title="Timer-measured: '+msToHMS(f.rawMs)+' exact"':'')+'></div>'
     +'<div class="fl"><label>Rate ($/hr) <span class="req">*</span></label><div class="pw"><span class="pfx">$</span><input type="text" id="ql-r" value="'+H(f.rate||'')+'" placeholder="150.00" oninput="A.qlSet(\'rate\',fmtCur(this.value))"></div></div></div>'
     +'<div class="fl" style="margin-bottom:14px"><label>Description</label>'
     +'<input type="text" id="ql-d" value="'+H(f.description||'')+'" placeholder="What did you work on?" oninput="A.qlSet(\'description\',this.value)" onkeydown="if(event.key===\'Enter\')A.saveQL()"></div>'
@@ -3073,7 +3327,7 @@ function buildSettings(){
         }).join('')
         : '<div class="empty" style="padding:20px"><p>No email presets yet</p></div>'
       )
-      +'<button class="btn btn-dk" style="margin-top:12px" onclick="A.openMailPreset(null)">'+IC.plus+' New CSV Preset</button>'
+      +'<button class="btn btn-dk" style="margin-top:12px" onclick="A.openMailPreset(null)">'+IC.plus+' New Email Preset</button>'
       +'</div>'
     // ── Placeholder editor ─────────────────────────────────────────────────
     +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
@@ -3841,6 +4095,33 @@ function buildMailCompose(){
   return _buildMailPicker(ctx);
 }
 
+// ── Partner Assignment Helper ──────────────────────────────────────────────────
+// Returns first partner-role contact assigned to a client, or null.
+function _getClientPartner(clientId){
+  if(!clientId) return null;
+  var cl=ST.clients.find(function(c){return c.id==clientId;});
+  if(!cl||!cl.contactIds||!cl.contactIds.length) return null;
+  for(var i=0;i<cl.contactIds.length;i++){
+    var ctid=cl.contactIds[i];
+    var ct=ST.contacts.find(function(c){return c.id==ctid;});
+    if(ct&&ct.role&&(ct.role.toLowerCase().indexOf('partner')!==-1||ct.role.toLowerCase().indexOf('supervising')!==-1)) return ct;
+  }
+  return null;
+}
+
+// Returns map of {partnerId|'__none__': {partner, entries[]}} for entries grouped by assigned partner.
+function _groupEntriesByPartner(entries){
+  var groups={};
+  var groupOrder=[];
+  entries.forEach(function(e){
+    var pt=_getClientPartner(e.clientId);
+    var key=pt?String(pt.id):'__none__';
+    if(!groups[key]){groups[key]={partner:pt,entries:[]};groupOrder.push(key);}
+    groups[key].entries.push(e);
+  });
+  return {groups:groups,order:groupOrder};
+}
+
 // ── Workflow Export Modal ────────────────────────────────────────────────────
 // ── Submit Timesheet Modal ─────────────────────────────────────────────────────
 // Unified send + email form. Replaces the old workflow export modal.
@@ -3908,30 +4189,59 @@ function buildSubmitTimesheetModal(){
       +(dateFrom?'<div style="font-size:11px;color:var(--ink3);margin-top:8px;text-align:center">'+$d(dateFrom)+' — '+$d(dateTo)+'</div>':'')
       +'</div>':'')
 
-    // Note to recipient
-    +'<div class="frow" style="margin-bottom:18px">'
-    +'<label style="font-size:12px;font-weight:600;margin-bottom:5px;display:block">Note to '+H(recipient)+' <span style="font-weight:400;color:var(--ink3)">(optional)</span></label>'
-    +'<textarea id="st-note" rows="2" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;background:var(--white);color:var(--ink)" placeholder="Any context, instructions, or dates to highlight..."></textarea>'
-    +'</div>'
+
 
     // Two action cards side by side
     +'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px">'
 
-    // Save file card
-    +(entries.length?'<div style="'+cardStyle+'">'
+    // Save file card — billing_staff gets per-partner breakdown, others get single card
+    +(entries.length?(role==='billing_staff'?(function(){
+      // Build per-partner export cards for billing staff
+      var pg=_groupEntriesByPartner(entries);
+      var cards='';
+      pg.order.forEach(function(key){
+        var grp=pg.groups[key];
+        var pt=grp.partner;
+        var ptName=pt?H(pt.name):'<em>No Partner Assigned</em>';
+        var ptIni=pt?H(pt.initials||(pt.name.split(' ').map(function(w){return w[0];}).join('').toUpperCase())):'?';
+        var ptId=pt?pt.id:'__none__';
+        var gHrs=grp.entries.reduce(function(s,e){return s+Number(e.hours||0);},0);
+        var gBill=grp.entries.reduce(function(s,e){return s+Number(e.hours||0)*Number(e.rate||0);},0);
+        // Determine filename preview
+        var entryMonth='';
+        if(grp.entries.length){var ms={};grp.entries.forEach(function(e){var m=(e.date||'').substring(0,7);if(m)ms[m]=(ms[m]||0)+1;});var bm='',bn=0;Object.keys(ms).forEach(function(m){if(ms[m]>bn){bn=ms[m];bm=m;}});entryMonth=bm;}
+        var ptLast=pt?(pt.name.trim().split(/\s+/).pop().replace(/[^A-Za-z0-9]/g,'')):'Partner';
+        var fnPrev='TS_'+(entryMonth||'YYYY-MM')+'_'+ptLast+'.json';
+        cards+='<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px">'
+          +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+          +'<div class="avatar" style="width:32px;height:32px;font-size:13px;flex-shrink:0">'+ptIni+'</div>'
+          +'<div><div style="font-weight:600;font-size:13px">'+ptName+'</div>'
+          +'<div style="font-size:11px;color:var(--ink3)">'+(pt&&pt.role?H(pt.role):'No partner assigned')+'</div></div>'
+          +'<div style="margin-left:auto;text-align:right">'
+          +'<div style="font-size:13px;font-weight:500">'+grp.entries.length+' entr'+(grp.entries.length===1?'y':'ies')+'</div>'
+          +'<div style="font-size:11px;color:var(--ink3)">'+$h(gHrs)+' &middot; '+$m(gBill)+'</div>'
+          +'</div></div>'
+          +'<div style="font-size:11px;color:var(--ink3);margin-bottom:8px;font-family:monospace">'+H(fnPrev)+'</div>'
+          +(pt?'<button class="btn btn-dk" style="width:100%;justify-content:center" onclick="A.doSubmitSaveFileByPartner('+ptId+')">💾 Save Package for '+ptName+'</button>'
+               :'<button class="btn btn-gh" style="width:100%;justify-content:center" onclick="A.doSubmitSaveFileByPartner(\'__none__\')">💾 Save (Unassigned)</button>')
+          +'</div>';
+      });
+      if(!cards) cards='<div class="empty" style="padding:14px"><p>No entries to package</p></div>';
+      return '<div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px">'
+        +'<div style="font-weight:600;font-size:13px;margin-bottom:6px">💾 Save Packages by Partner</div>'
+        +'<div style="font-size:12px;color:var(--ink2);line-height:1.5;margin-bottom:10px">Each package contains only the entries for clients assigned to that partner — export one per partner for their individual approval.</div>'
+        +cards+'</div>';
+    })()
+    :'<div style="'+cardStyle+'">'
       +'<div style="font-weight:600;font-size:13px">💾 Save Package File</div>'
       +'<div style="font-size:12px;color:var(--ink2);line-height:1.6">Downloads a <code>.json</code> transfer package the recipient imports into their own copy of the app.</div>'
       +'<button class="btn btn-dk" onclick="A.doSubmitSaveFile(\''+pkgType+'\')" style="margin-top:auto">Save Package File</button>'
-      +'</div>':'')
+      +'</div>'):'')
 
     // Email card
     +'<div style="'+cardStyle+'">'
     +'<div style="font-weight:600;font-size:13px">'+IC.mail+' Send Email</div>'
     +'<div style="font-size:12px;color:var(--ink2);line-height:1.6">Compose an email to notify '+H(recipient)+' '+H(recipientRole)+'. You can attach the saved file manually.</div>'
-    +'<div class="fl" style="margin-top:auto">'
-    +'<label style="font-size:11px;color:var(--ink3)">Recipient email</label>'
-    +'<input type="email" id="st-email" value="'+H(rcpEmail)+'" placeholder="colleague@firm.com" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;background:var(--white);color:var(--ink)">'
-    +'</div>'
     +'<button class="btn btn-gr" onclick="A.doSubmitEmail(\''+recipientRoleKey+'\')" style="margin-top:6px">Open Email</button>'
     +'</div>'
 
@@ -4009,7 +4319,7 @@ var TABS=[
   {id:'matters',   lbl:'Matters',   ic:IC.brief},
   {id:'contacts',  lbl:'Contacts',  ic:IC.doc},
   {id:'analytics', lbl:'Analytics', ic:IC.chart},
-  {id:'invoices',  lbl:'Invoices',  ic:IC.invoice},
+  {id:'invoices',  lbl:'Invoices',  ic:IC.invoice, roleExclude:['partner','attorney']},
   {id:'approvals', lbl:'Approvals', ic:IC.shield, roleOnly:'partner'}
 ];
 
@@ -4056,7 +4366,7 @@ function render(){
   // render, and in INIT. Calling it on every render was wasted DOM classList work.
   var views={timesheet:vTimesheet,clients:vClients,matters:vMatters,contacts:vContacts,analytics:vAnalytics,approvals:vApprovals,invoices:vInvoices};
   var role=myRole();
-  var visTabs=TABS.filter(function(t){return !t.roleOnly||t.roleOnly===role;});
+  var visTabs=TABS.filter(function(t){return (!t.roleOnly||t.roleOnly===role)&&(!t.roleExclude||t.roleExclude.indexOf(role)===-1);});
   var nav=visTabs.map(function(t){
     var pcount=(t.id==='approvals'&&role==='partner')?(ST.entries.filter(function(e){return (e.status||'approved')==='pending';}).length + (ST.invoices||[]).filter(function(i){return i.status==='review';}).length):0;
     var badge=pcount>0?' <span style="background:var(--amber);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+pcount+'</span>':'';
@@ -4110,7 +4420,7 @@ function render(){
     +'<div class="main">'+viewH+'</div>'
     +overlays;
 
-  document.getElementById('fab').style.display=(isBilling()||(ST.modal&&ST.modal!=='help'&&ST.modal!=='settings'))?'none':'flex';
+  document.getElementById('fab').style.display=((isBilling()&&ST.tab!=='timesheet')||(ST.modal&&ST.modal!=='help'&&ST.modal!=='settings'))?'none':'flex';
   if(ST.modal==='up') setTimeout(function(){var el=document.getElementById('up-n');if(el)el.focus();},50);
   if(ST.modal==='mailpreset') setTimeout(_mpPreview,30);
 }
@@ -4580,7 +4890,8 @@ var A={
     // Sync user into contacts so they appear in Team Member dropdown & Contacts tab
     var existingUserCt=ST.contacts.find(function(c){return c.isUser;});
     var userCtId=existingUserCt?existingUserCt.id:uid();
-    var userCt={id:userCtId,name:n,role:role||'',email:email,phone:phone,rate:rate?Number(rate):'',ownPct:ownPct,salary:salary?Number(salary):'',isUser:true,createdBy:n,createdByIni:ini};
+    // Preserve rateHistory from existing contact record — managed via Contacts tab
+    var userCt={id:userCtId,name:n,role:role||'',email:email,phone:phone,rate:rate?Number(rate):'',ownPct:ownPct,salary:salary?Number(salary):'',rateHistory:(existingUserCt&&existingUserCt.rateHistory)||[],isUser:true,createdBy:n,createdByIni:ini};
     if(existingUserCt){ST.contacts=ST.contacts.map(function(c){return c.isUser?userCt:c;});}
     else{ST.contacts=ST.contacts.concat([userCt]);}
     save();
@@ -4615,107 +4926,80 @@ var A={
 
   // Entry form
   openEF:function(){
-    if(isBilling()){toast('View-only mode: cannot add entries','warn');return;}
-    ST.ef={date:today(),clientId:'',matterId:'',contactId:'',hours:'',rate:'',description:'',abaCode:'',errs:{}};
+    // Billing staff CAN add entries on behalf of attorneys/partners
+    ST.ef={date:today(),clientId:'',matterId:'',contactId:'',byContactId:'',hours:'',rate:'',description:'',abaCode:'',errs:{}};
     ST.modal='ef'; render();
     var el=document.getElementById('ef'); if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
   },
   editEnt:function(id){
     var e=ST.entries.find(function(x){return x.id==id;}); if(!e) return;
-    if(isBilling()){toast('View-only mode: cannot edit entries','warn');return;}
     var me=ST.user?ST.user.name:'';
     var entSt=e.status||'approved';
-    if(myRole()==='attorney'&&(e.createdBy!==me||entSt!=='pending')){toast(entSt==='approved'?'Cannot edit approved entries':'Cannot edit rejected entries','warn');return;}
-    ST.editId=id; ST.ef=Object.assign({abaCode:''},e,{errs:{}}); ST.modal='ef';
+    var role=myRole();
+    // Attorney: can only edit own pending entries
+    if(role==='attorney'&&(e.createdBy!==me||entSt!=='pending')){toast(entSt==='approved'?'Cannot edit approved entries':'Cannot edit rejected entries','warn');return;}
+    // Partner: can edit own entries; cannot edit others' entries via this form (use Approvals)
+    if(role==='partner'&&e.createdBy!==me&&entSt==='approved'){toast('Use the Approvals tab to adjust approved entries','warn');return;}
+    // Billing staff: can edit any entry; pre-populate byContactId from existing createdBy match
+    var byContactId='';
+    if(role==='billing_staff'){
+      var byCt=ST.contacts.find(function(c){return c.name===e.createdBy;});
+      byContactId=byCt?String(byCt.id):'';
+    }
+    ST.editId=id; ST.ef=Object.assign({abaCode:'',byContactId:byContactId},e,{errs:{}}); ST.modal='ef';
     render(); var el=document.getElementById('ef'); if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
   },
   saveEnt:function(){
     // Sync all typed values first
     var f=ST.ef;
-    f.date=g('ef-d'); f.clientId=g('ef-cl'); f.matterId=g('ef-ma'); f.contactId=g('ef-ct');
+    f.date=g('ef-d'); f.clientId=g('ef-cl'); f.matterId=g('ef-ma');
+    // Billing staff: contactId is derived from the attorney selection, not a separate field
+    f.contactId=(entRole==='billing_staff')?f.byContactId:g('ef-ct');
     f.hours=g('ef-h'); f.rate=fmtCur(g('ef-r')||''); f.description=g('ef-desc'); f.abaCode=g('ef-aba')||'';
+    var entRole=myRole();
+    // Billing staff: read & validate the "Logged By" attorney selector
+    if(entRole==='billing_staff'){
+      var byEl=document.getElementById('ef-by');
+      f.byContactId=byEl?byEl.value:'';
+    }
     var errs={};
     if(!f.date) errs.d='Required';
     if(!f.clientId) errs.cl='Select a client';
     if(!f.hours||isNaN(Number(f.hours))||Number(f.hours)<=0) errs.h='Enter hours';
     if(!f.rate||Number(f.rate)<=0) errs.r='Enter rate';
+    if(entRole==='billing_staff'&&!f.byContactId) errs.by='Select the attorney for this entry';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
     // Keep precise hours (finalize feature will round when grouping)
     var hrs=Number(f.hours);
-    var entRole=myRole();
     var existingEntry=ST.editId?ST.entries.find(function(e){return e.id==ST.editId;}):null;
     // Preserve status when editing; set initial status based on role for new entries
     var entStatus=existingEntry?existingEntry.status:(entRole==='partner'?'approved':'pending');
+    // Determine createdBy / createdByIni:
+    //   - Attorney or partner: always their own identity — no override possible
+    //   - Billing staff: the selected attorney/timekeeper contact
+    var createdBy, createdByIni;
+    if(entRole==='billing_staff'){
+      var byCt=ST.contacts.find(function(c){return String(c.id)===String(f.byContactId);});
+      createdBy=byCt?byCt.name:'Unknown';
+      createdByIni=byCt?(byCt.initials||(byCt.name.split(' ').filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase().substring(0,3))):'?';
+    } else {
+      createdBy=ST.user?ST.user.name:'';
+      createdByIni=ST.user?ST.user.initials:'?';
+    }
     var entry={id:ST.editId||uid(),date:f.date,
       clientId:Number(f.clientId),matterId:Number(f.matterId)||'',contactId:Number(f.contactId)||'',
       hours:hrs,rate:Number(f.rate),description:f.description||'',abaCode:f.abaCode||'',
-      createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?',
+      createdBy:createdBy,createdByIni:createdByIni,
+      // Track who actually entered this (billing staff vs. the timekeeper)
+      enteredBy:(entRole==='billing_staff'&&ST.user)?ST.user.name:undefined,
+      enteredByRole:entRole==='billing_staff'?'billing_staff':undefined,
       status:entStatus,finalized:existingEntry?existingEntry.finalized:false};
     if(ST.editId){ST.entries=ST.entries.map(function(e){return e.id==ST.editId?entry:e;});toast('Entry updated');}
-    else{ST.entries=ST.entries.concat([entry]);toast(entRole==='attorney'?'Entry submitted for approval':'Entry added');}
+    else{ST.entries=ST.entries.concat([entry]);toast(entRole==='billing_staff'?'Entry added on behalf of '+createdBy:entRole==='attorney'?'Entry submitted for approval':'Entry added');}
     saveOne('entries',entry); A.closeF();
   },
   delEnt:function(id){if(!confirm('Delete this time entry?'))return;ST.entries=ST.entries.filter(function(e){return e.id!=id;});delOne('entries',id);toast('Deleted','warn');render();},
-
-  // Finalize entries - groups identical entries for each day with total rounded hours
-  finalizeEntries:function(){
-    if(isBilling()){toast('View-only mode: cannot finalize entries','warn');return;}
-    var unfinalized=ST.entries.filter(function(e){return !e.finalized;});
-    if(unfinalized.length===0){toast('No entries to finalize','warn');return;}
-    if(!confirm('Finalize entries? This will group identical entries by day (same client, matter, and description) with rounded total hours. Finalized entries cannot be unfinalized.'))return;
-    
-    // Group ONLY by: date + client + matter + description
-    // This means entries with same work but different hours, rates, contacts, etc. will be grouped
-    var groups={};
-    unfinalized.forEach(function(e){
-      var key=[e.date,e.clientId,e.matterId||'',e.description||''].join('|');
-      if(!groups[key])groups[key]=[];
-      groups[key].push(e);
-    });
-    
-    // For each group, combine entries
-    var finalized=0;
-    var newEntries=[];
-    Object.keys(groups).forEach(function(key){
-      var group=groups[key];
-      if(group.length===1){
-        // Single entry - just mark as finalized and round hours
-        var e=group[0];
-        e.hours=Math.round(Number(e.hours)*10)/10;
-        e.finalized=true;
-        newEntries.push(e);
-        finalized++;
-      } else {
-        // Multiple entries - combine into one
-        // Use first entry as template, sum hours, take average rate if rates differ
-        var first=group[0];
-        var totalHours=group.reduce(function(sum,e){return sum+Number(e.hours);},0);
-        var roundedHours=Math.round(totalHours*10)/10;
-        
-        // Use the most common rate, or first rate if all different
-        var rates=group.map(function(e){return e.rate;});
-        var rate=rates[0];
-        
-        var combined=Object.assign({},first,{
-          hours:roundedHours,
-          rate:Number(rate),
-          finalized:true,
-          combinedFrom:group.map(function(e){return e.id;})
-        });
-        newEntries.push(combined);
-        finalized+=group.length;
-      }
-    });
-    
-    // Keep all already-finalized entries
-    var alreadyFinalized=ST.entries.filter(function(e){return e.finalized;});
-    ST.entries=alreadyFinalized.concat(newEntries);
-    
-    save(); 
-    toast('Finalized '+finalized+' entr'+(finalized===1?'y':'ies')+' into '+newEntries.length+' final entr'+(newEntries.length===1?'y':'ies'));
-    render();
-  },
 
   // Approval actions (partner only)
   approveEnt:function(id){
@@ -4730,7 +5014,7 @@ var A={
   },
   rejectEnt:function(id){
     if(!isPartner()){toast('Only partners can reject entries','warn');return;}
-    if(!confirm('Reject this entry? The attorney will be notified via status.')) return;
+    if(!confirm('Reject this entry?')) return;
     var updated;
     ST.entries=ST.entries.map(function(e){
       if(e.id==id){updated=Object.assign({},e,{status:'rejected',approvedBy:ST.user?ST.user.name:'',approvedAt:today()});return updated;}
@@ -4870,20 +5154,45 @@ var A={
     else if(role==='partner') entries=fe.filter(function(e){return (e.status||'pending')==='approved';});
     else entries=fe;
     if(!entries.length){toast('No entries to export in current view','warn');return;}
-    var note=g('st-note')||'';
-    var fname=_exportWorkflowPackage(pkgType||'attorney_submission', entries, {note:note});
+    var fname=_exportWorkflowPackage(pkgType||'attorney_submission', entries, {});
+    toast('Saved '+entries.length+' entries \u2192 '+fname);
+  },
+
+  // Billing staff: export package scoped to entries for clients assigned to a specific partner
+  doSubmitSaveFileByPartner:function(partnerId){
+    var fe=filterEnt(ST.entries,ST.tsFilter);
+    if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
+    if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
+    var entries;
+    if(partnerId==='__none__'){
+      entries=fe.filter(function(e){return !_getClientPartner(e.clientId);});
+    } else {
+      entries=fe.filter(function(e){
+        var pt=_getClientPartner(e.clientId);
+        return pt&&String(pt.id)===String(partnerId);
+      });
+    }
+    if(!entries.length){toast('No entries found for this partner in the current view','warn');return;}
+    var fname=_exportWorkflowPackage('billing_review', entries, {});
     toast('Saved '+entries.length+' entries \u2192 '+fname);
   },
 
   // Called from the Submit modal: open email compose
   doSubmitEmail:function(purpose){
-    var toVal=g('st-email')||'';
-    var note=g('st-note')||'';
+    var role=myRole();
+    var rcpEmail='';
+    if(purpose==='billing_staff'){
+      var bsCt=ST.contacts.find(function(c){return c.email&&c.role&&c.role.toLowerCase().indexOf('billing')!==-1;});
+      if(bsCt) rcpEmail=bsCt.email;
+    } else {
+      var pCt=ST.contacts.find(function(c){return c.email&&c.role&&(c.role.toLowerCase().indexOf('partner')!==-1||c.role.toLowerCase().indexOf('supervising')!==-1);});
+      if(pCt) rcpEmail=pCt.email;
+    }
+    var toVal=rcpEmail;
     var fe=filterEnt(ST.entries,ST.tsFilter);
     if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
     if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
     var me=ST.user?ST.user.name:'';
-    var role=myRole();
     var target;
     if(role==='attorney') target=fe.filter(function(e){return e.createdBy===me;});
     else if(role==='partner') target=fe.filter(function(e){return (e.status||'pending')==='approved';});
@@ -4899,7 +5208,7 @@ var A={
       invId:null, invNum:null, invAmount:null,
       entriesCount:target.length,
       hoursTotal:hrs.toFixed(1),
-      note:note,
+      note:'',
       _preview:false, _draft:null, _mailto:null, _preset:null
     };
     ST.modal='mailcompose'; render();
@@ -4999,11 +5308,11 @@ var A={
 
 
   // Client form
-  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',contactIds:[],clientPeople:[],newPerson:{},errs:{}};ST.modal='cf';render();},
+  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',contactIds:[],clientPeople:[],attorneyRates:[],newPerson:{},errs:{}};ST.modal='cf';render();},
   editCl:function(id){var c=ST.clients.find(function(x){return x.id==id;});if(!c)return;ST.editId=id;
     // Migrate legacy contactId to contactIds array
     var cids=c.contactIds&&c.contactIds.length?c.contactIds:(c.contactId?[Number(c.contactId)]:[]);
-    ST.cf=Object.assign({},c,{contactIds:cids,clientPeople:c.clientPeople||[],newPerson:{},errs:{}});ST.modal='cf';render();},
+    ST.cf=Object.assign({},c,{contactIds:cids,clientPeople:c.clientPeople||[],attorneyRates:(c.attorneyRates||[]).map(function(r){return Object.assign({},r);}),newPerson:{},errs:{}});ST.modal='cf';render();},
   cfTogCt:function(cb){
     var id=Number(cb.getAttribute('data-cf-ct'));
     var ids=ST.cf.contactIds||[];
@@ -5033,6 +5342,27 @@ var A={
     ST.cf.clientPeople=(ST.cf.clientPeople||[]).filter(function(_,idx){return idx!==i;});
     render();
   },
+  cfAddAtRate:function(){
+    syncForm();
+    var ctVal=((document.getElementById('cf-ar-ct')||{}).value||'').trim();
+    var rateVal=parseFloat((document.getElementById('cf-ar-rate')||{}).value||'');
+    var dateVal=((document.getElementById('cf-ar-date')||{}).value||'').trim();
+    var noteVal=((document.getElementById('cf-ar-note')||{}).value||'').trim();
+    if(!ctVal){toast('Select an attorney','err');return;}
+    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(!dateVal){toast('Enter an effective date','err');return;}
+    var ar=ST.cf.attorneyRates||[];
+    // Prevent exact duplicate
+    if(ar.some(function(r){return r.contactId==ctVal&&r.effectiveDate===dateVal;})){toast('A rate entry for this attorney/date already exists','err');return;}
+    ST.cf.attorneyRates=ar.concat([{contactId:Number(ctVal),rate:rateVal,effectiveDate:dateVal,note:noteVal}]);
+    render();
+  },
+  cfRemAtRate:function(idx){
+    syncForm();
+    var ar=ST.cf.attorneyRates||[];
+    ST.cf.attorneyRates=ar.filter(function(_,i){return i!==idx;});
+    render();
+  },
   saveCl:function(){
     var f=ST.cf;
     f.name=g('cf-n'); f.email=g('cf-e'); f.phone=g('cf-p'); f.rate=fmtCur(g('cf-r')||'');
@@ -5043,7 +5373,7 @@ var A={
     if(f.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) errs.e='Invalid email';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
-    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',rate:f.rate?Number(f.rate):'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',rate:f.rate?Number(f.rate):'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     if(ST.editId){ST.clients=ST.clients.map(function(x){return x.id==ST.editId?c:x;});toast('Client updated');}
     else{ST.clients=ST.clients.concat([c]);toast('Client added');}
     saveOne('clients',c); A.closeF();
@@ -5051,8 +5381,8 @@ var A={
   delCl:function(id){if(!confirm('Delete this client?'))return;ST.clients=ST.clients.filter(function(c){return c.id!=id;});delOne('clients',id);toast('Deleted','warn');render();},
 
   // Matter form
-  openMF:function(){ST.editId=null;ST.mf={name:'',clientId:'',description:'',rate:'',contactId:'',matterNumber:'',linkedClientPeopleIds:[],errs:{}};ST.modal='mf';render();},
-  editMa:function(id){var m=ST.matters.find(function(x){return x.id==id;});if(!m)return;ST.editId=id;ST.mf=Object.assign({},m,{matterNumber:m.matterNumber||'',linkedClientPeopleIds:m.linkedClientPeopleIds||[],errs:{}});ST.modal='mf';render();},
+  openMF:function(){ST.editId=null;ST.mf={name:'',clientId:'',description:'',rate:'',contactId:'',matterNumber:'',linkedClientPeopleIds:[],attorneyRates:[],errs:{}};ST.modal='mf';render();},
+  editMa:function(id){var m=ST.matters.find(function(x){return x.id==id;});if(!m)return;ST.editId=id;ST.mf=Object.assign({},m,{matterNumber:m.matterNumber||'',linkedClientPeopleIds:m.linkedClientPeopleIds||[],attorneyRates:(m.attorneyRates||[]).map(function(r){return Object.assign({},r);}),errs:{}});ST.modal='mf';render();},
   saveMa:function(){
     var f=ST.mf;
     f.name=g('mf-n'); f.clientId=g('mf-cl'); f.description=g('mf-desc'); f.rate=fmtCur(g('mf-r')||''); f.contactId=g('mf-ct'); f.matterNumber=g('mf-num')||'';
@@ -5061,7 +5391,7 @@ var A={
     if(!f.clientId) errs.cl='Select a client';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
-    var m={id:ST.editId||uid(),name:f.name.trim(),clientId:Number(f.clientId),matterNumber:f.matterNumber.trim(),description:f.description||'',rate:f.rate?Number(f.rate):'',contactId:Number(f.contactId)||'',linkedClientPeopleIds:f.linkedClientPeopleIds||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    var m={id:ST.editId||uid(),name:f.name.trim(),clientId:Number(f.clientId),matterNumber:f.matterNumber.trim(),description:f.description||'',rate:f.rate?Number(f.rate):'',contactId:Number(f.contactId)||'',linkedClientPeopleIds:f.linkedClientPeopleIds||[],attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     if(ST.editId){ST.matters=ST.matters.map(function(x){return x.id==ST.editId?m:x;});toast('Matter updated');}
     else{ST.matters=ST.matters.concat([m]);toast('Matter added');}
     saveOne('matters',m); A.closeF();
@@ -5075,10 +5405,56 @@ var A={
     else{ST.mf.linkedClientPeopleIds=ids.concat([pid]);}
     render();
   },
+  mfAddAtRate:function(){
+    syncForm();
+    var ctVal=((document.getElementById('mf-ar-ct')||{}).value||'').trim();
+    var rateVal=parseFloat((document.getElementById('mf-ar-rate')||{}).value||'');
+    var dateVal=((document.getElementById('mf-ar-date')||{}).value||'').trim();
+    var noteVal=((document.getElementById('mf-ar-note')||{}).value||'').trim();
+    if(!ctVal){toast('Select an attorney','err');return;}
+    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(!dateVal){toast('Enter an effective date','err');return;}
+    var ar=ST.mf.attorneyRates||[];
+    if(ar.some(function(r){return r.contactId==ctVal&&r.effectiveDate===dateVal;})){toast('A rate entry for this attorney/date already exists','err');return;}
+    ST.mf.attorneyRates=ar.concat([{contactId:Number(ctVal),rate:rateVal,effectiveDate:dateVal,note:noteVal}]);
+    render();
+  },
+  mfRemAtRate:function(idx){
+    syncForm();
+    var ar=ST.mf.attorneyRates||[];
+    ST.mf.attorneyRates=ar.filter(function(_,i){return i!==idx;});
+    render();
+  },
 
   // Contact form
-  openCTF:function(){ST.editId=null;ST.ctf={name:'',role:'',email:'',phone:'',rate:'',ownPct:100,salary:'',errs:{}};ST.modal='ctf';render();},
-  editCt:function(id){var c=ST.contacts.find(function(x){return x.id==id;});if(!c)return;if(c.isUser){ST._splashMode=false;ST.modal='up';render();return;}ST.editId=id;ST.ctf=Object.assign({},c,{errs:{}});ST.modal='ctf';render();},
+  openCTF:function(){ST.editId=null;ST.ctf={name:'',role:'',email:'',phone:'',rate:'',ownPct:100,salary:'',rateHistory:[],errs:{}};ST.modal='ctf';render();},
+  editCt:function(id){var c=ST.contacts.find(function(x){return x.id==id;});if(!c)return;ST.editId=id;ST.ctf=Object.assign({},c,{rateHistory:(c.rateHistory||[]).map(function(r){return Object.assign({},r);}),errs:{}});ST.modal='ctf';render();},
+
+  // Add / remove rate history entries in contact form
+  ctfAddRate:function(){
+    syncForm();
+    var rateVal=parseFloat((document.getElementById('ctf-rh-rate')||{}).value||'');
+    var dateVal=((document.getElementById('ctf-rh-date')||{}).value||'').trim();
+    var noteVal=((document.getElementById('ctf-rh-note')||{}).value||'').trim();
+    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(!dateVal){toast('Enter an effective date','err');return;}
+    var rh=ST.ctf.rateHistory||[];
+    // Prevent duplicate effective dates
+    if(rh.some(function(r){return r.effectiveDate===dateVal;})){toast('A rate entry already exists for that date','err');return;}
+    ST.ctf.rateHistory=(rh).concat([{effectiveDate:dateVal,rate:rateVal,note:noteVal}]);
+    render();
+  },
+  ctfRemRate:function(idx){
+    syncForm();
+    var rh=ST.ctf.rateHistory||[];
+    // idx is index in the sorted display order (desc by date), map back to original array
+    var sorted=rh.slice().sort(function(a,b){return a.effectiveDate<b.effectiveDate?1:-1;});
+    var entry=sorted[idx];
+    if(!entry) return;
+    ST.ctf.rateHistory=rh.filter(function(r){return r!==entry&&!(r.effectiveDate===entry.effectiveDate&&r.rate===entry.rate);});
+    render();
+  },
+
   saveCt:function(){
     var f=ST.ctf;
     f.name=g('ctf-n'); f.role=g('ctf-ro'); f.email=g('ctf-e'); f.phone=g('ctf-p'); f.rate=fmtCur(g('ctf-rate')||'');
@@ -5090,7 +5466,11 @@ var A={
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
     var existing=ST.editId?ST.contacts.find(function(x){return x.id==ST.editId;}):null;
-    var c={id:ST.editId||uid(),name:f.name.trim(),role:f.role||'',email:f.email||'',phone:f.phone||'',rate:f.rate?Number(f.rate):'',ownPct:f.ownPct,salary:f.salary?Number(f.salary):'',createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    // If rate history has entries, derive the current .rate from the latest applicable entry today
+    var rh=f.rateHistory||[];
+    var latestR=_rateOnDate(rh,today());
+    var savedRate=f.rate?Number(f.rate):(latestR||'');
+    var c={id:ST.editId||uid(),name:f.name.trim(),role:f.role||'',email:f.email||'',phone:f.phone||'',rate:savedRate,ownPct:f.ownPct,salary:f.salary?Number(f.salary):'',rateHistory:rh,createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     // Preserve isUser flag if this contact is the logged-in user
     if(existing&&existing.isUser) c.isUser=true;
     if(ST.editId){ST.contacts=ST.contacts.map(function(x){return x.id==ST.editId?c:x;});toast('Contact updated');}
@@ -5110,31 +5490,50 @@ var A={
   delCt:function(id){if(!confirm('Delete this contact?'))return;ST.contacts=ST.contacts.filter(function(c){return c.id!=id;});delOne('contacts',id);toast('Deleted','warn');render();},
 
   // Quick Log
-  openQL:function(){if(isBilling()){toast('View-only mode: cannot log entries','warn');return;}ST.modal='ql';ST.ql={clientId:'',matterId:'',hours:'',rate:'',description:'',addToId:'',rawMs:null};render();},
+  openQL:function(){if(isBilling()){toast('Use New Entry to add entries on behalf of an attorney','warn');return;}ST.modal='ql';ST.ql={clientId:'',matterId:'',hours:'',rate:'',description:'',addToId:'',rawMs:null,newCl:false,newClName:'',newMa:false,newMaName:''};render();},
   closeQL:function(){stopTmr();ST.modal=null;render();},
   qlSet:function(k,v){ST.ql[k]=v;},
   qlCl:function(v){
     syncForm();
-    ST.ql.clientId=v; ST.ql.matterId='';
-    var r=autoRate(v,'','');
-    if(r&&!ST.ql.rate) ST.ql.rate=String(r);
+    if(v==='__new__'){ST.ql.newCl=true;ST.ql.newClName='';render();return;}
+    ST.ql.clientId=v;ST.ql.matterId='';ST.ql.newCl=false;
+    var r=autoRate(v,'','',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
     render();
+  },
+  qlMa:function(v){
+    syncForm();
+    if(v==='__new__'){ST.ql.newMa=true;ST.ql.newMaName='';render();return;}
+    ST.ql.matterId=v;ST.ql.newMa=false;
+    var r=autoRate(ST.ql.clientId,v,'',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
+    render();
+  },
+  qlCancelNew:function(which){syncForm();if(which==='cl')ST.ql.newCl=false;else ST.ql.newMa=false;render();},
+  qlCreateClient:function(){
+    syncForm();
+    var name=(ST.ql.newClName||'').trim();
+    if(!name){toast('Client name required','err');return;}
+    var rec={id:uid(),name:name,email:'',phone:'',rate:0,contactId:''};
+    ST.clients=ST.clients.concat([rec]);saveOne('clients',rec);
+    ST.ql.clientId=String(rec.id);ST.ql.matterId='';ST.ql.newCl=false;ST.ql.newClName='';
+    toast('Client created','ok');render();
+  },
+  qlCreateMatter:function(){
+    syncForm();
+    if(!ST.ql.clientId){toast('Select a client first','err');return;}
+    var name=(ST.ql.newMaName||'').trim();
+    if(!name){toast('Matter name required','err');return;}
+    var rec={id:uid(),name:name,clientId:Number(ST.ql.clientId),description:'',rate:0,contactId:''};
+    ST.matters=ST.matters.concat([rec]);saveOne('matters',rec);
+    ST.ql.matterId=String(rec.id);ST.ql.newMa=false;ST.ql.newMaName='';
+    toast('Matter created','ok');render();
   },
   qlPickEntry:function(id){
     syncForm();
     var id2=String(id);
-    if(!id2){
-      ST.ql.addToId='';
-      render();
-      return;
-    }
+    if(!id2){ST.ql.addToId='';render();return;}
     var e=ST.entries.find(function(x){return String(x.id)===id2;});
-    if(!e) return;
-    ST.ql.addToId=id2;
-    ST.ql.clientId=String(e.clientId||'');
-    ST.ql.matterId=String(e.matterId||'');
-    ST.ql.rate=String(e.rate||'');
-    ST.ql.description=e.description||'';
+    if(!e)return;
+    ST.ql.addToId=id2;ST.ql.clientId=String(e.clientId||'');ST.ql.matterId=String(e.matterId||'');ST.ql.rate=String(e.rate||'');ST.ql.description=e.description||'';
     render();
   },
   saveQL:function(){
@@ -5145,34 +5544,60 @@ var A={
     var hrs=Number(f.hours);
     var qlRole=myRole();
     var qlStatus=qlRole==='partner'?'approved':'pending';
-    // === ADD TO EXISTING ENTRY ===
     if(f.addToId){
       var target=ST.entries.find(function(x){return String(x.id)===String(f.addToId);});
       if(target){
         var newHrs=Math.round((Number(target.hours)+hrs)*10000)/10000;
         var newRawMs=(target.rawMs!=null&&f.rawMs!=null)?(target.rawMs+f.rawMs):null;
-        var updatedTarget;
-        ST.entries=ST.entries.map(function(x){
-          if(String(x.id)===String(f.addToId)){
-            updatedTarget=Object.assign({},x,{hours:newHrs,rawMs:newRawMs});
-            return updatedTarget;
-          }
-          return x;
-        });
-        if(updatedTarget) saveOne('entries',updatedTarget);
-        ST.modal=null; ST.tab='timesheet';
-        toast('+'+hrs.toFixed(1)+'h added \u2192 '+newHrs.toFixed(1)+'h total &#9889;');
-        render();
-        return;
+        var updated;
+        ST.entries=ST.entries.map(function(x){if(String(x.id)===String(f.addToId)){updated=Object.assign({},x,{hours:newHrs,rawMs:newRawMs});return updated;}return x;});
+        if(updated)saveOne('entries',updated);
+        ST.modal=null;ST.tab='timesheet';toast('+'+hrs.toFixed(1)+'h added \u2192 '+newHrs.toFixed(1)+'h total &#9889;');render();return;
       }
     }
-    // === NEW ENTRY ===
     var entry={id:uid(),date:today(),clientId:Number(f.clientId),matterId:Number(f.matterId)||'',contactId:'',
       hours:hrs,rawMs:(f.rawMs!=null?f.rawMs:null),rate:Number(f.rate),description:f.description||'',
       createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?',
       status:qlStatus,finalized:false};
     ST.entries=ST.entries.concat([entry]);
-    saveOne('entries',entry); ST.modal=null; ST.tab='timesheet'; toast(qlRole==='attorney'?'Entry submitted for approval &#9889;':'Entry logged! &#9889;'); render();
+    saveOne('entries',entry);ST.modal=null;ST.tab='timesheet';toast(qlRole==='attorney'?'Entry submitted for approval &#9889;':'Entry logged! &#9889;');render();
+  },
+
+  // Row-level stopwatch
+  rowTmrStart:function(entId){
+    var rt=ST.rowTmr;
+    if(rt&&String(rt.entId)!==String(entId)){
+      if(!confirm('Timer is running on another entry. Switch to this one?\n(Time on the other entry will be discarded.)'))return;
+      clearInterval(rt.iv);
+    }
+    ST.rowTmr={entId:entId,startMs:Date.now(),accMs:0,iv:null};
+    ST.rowTmr.iv=setInterval(function(){
+      var el=document.getElementById('row-tmr-'+entId);
+      if(!el){clearInterval(ST.rowTmr&&ST.rowTmr.iv);return;}
+      var ms=Date.now()-ST.rowTmr.startMs+ST.rowTmr.accMs;
+      var h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000),s=Math.floor((ms%60000)/1000);
+      el.textContent=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    },500);
+    render();
+  },
+  rowTmrStop:function(){
+    var rt=ST.rowTmr;if(!rt)return;
+    clearInterval(rt.iv);
+    var elapsed=Date.now()-rt.startMs+rt.accMs;
+    var addHrs=Math.round((elapsed/3600000)*10000)/10000;
+    var target=ST.entries.find(function(x){return String(x.id)===String(rt.entId);});
+    if(!target){ST.rowTmr=null;render();return;}
+    var newHrs=Math.round((Number(target.hours)+addHrs)*10000)/10000;
+    var newRawMs=target.rawMs!=null?(target.rawMs+elapsed):elapsed;
+    var updated;
+    ST.entries=ST.entries.map(function(x){
+      if(String(x.id)===String(rt.entId)){updated=Object.assign({},x,{hours:newHrs,rawMs:newRawMs});return updated;}
+      return x;
+    });
+    if(updated)saveOne('entries',updated);
+    ST.rowTmr=null;
+    toast('+'+addHrs.toFixed(2)+'h added \u2192 '+newHrs.toFixed(2)+'h total &#9889;');
+    render();
   },
 
   // Timer
@@ -6362,8 +6787,64 @@ function _exportWorkflowPackage(type, entries, opts){
     entries:resolved
   };
   var json=JSON.stringify(pkg,null,2);
-  var shortType={attorney_submission:'atty',billing_review:'bill',partner_approval:'appr'}[type]||type;
-  var fname='workflow-'+shortType+'_'+stamp+'.json';
+  // === Context-aware filenames ===
+  // Attorney → Billing:  INI_YYYY-MM-DD_HHMM.json
+  // Billing → Partner:   TS_YYYY-MM_PartnerLastName.json
+  // Partner → Billing:   TS_YYYY-MM_appr-PARTNERINIT.json
+  var fname;
+  if(type==='attorney_submission'){
+    var ini=(ST.user&&ST.user.initials?ST.user.initials:'ATY').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+    fname=ini+'_'+stamp+'.json';
+  } else if(type==='billing_review'){
+    // Derive month from entries (majority month) or today
+    var entryMonth='';
+    if(entries.length){
+      var months={};
+      entries.forEach(function(e){var m=(e.date||'').substring(0,7);if(m)months[m]=(months[m]||0)+1;});
+      var best='',bestN=0;
+      Object.keys(months).forEach(function(m){if(months[m]>bestN){bestN=months[m];best=m;}});
+      entryMonth=best;
+    }
+    if(!entryMonth) entryMonth=now.getFullYear()+'-'+pad2(now.getMonth()+1);
+    // Find first partner contact among entries' clients
+    var partnerLastName='';
+    var seenCl={};
+    for(var pi=0;pi<entries.length;pi++){
+      var ecl=entries[pi].clientId;
+      if(ecl&&!seenCl[ecl]){
+        seenCl[ecl]=true;
+        var clObj=ST.clients.find(function(c){return c.id==ecl;});
+        if(clObj&&clObj.contactIds&&clObj.contactIds.length){
+          for(var ci=0;ci<clObj.contactIds.length;ci++){
+            var pct=ST.contacts.find(function(c){return c.id==clObj.contactIds[ci];});
+            if(pct&&pct.role&&(pct.role.toLowerCase().indexOf('partner')!==-1||pct.role.toLowerCase().indexOf('supervising')!==-1)){
+              var np=pct.name.trim().split(/\s+/);
+              partnerLastName=np[np.length-1].replace(/[^A-Za-z0-9]/g,'');
+              break;
+            }
+          }
+        }
+        if(partnerLastName) break;
+      }
+    }
+    var partnerSuffix=partnerLastName||'Partner';
+    fname='TS_'+entryMonth+'_'+partnerSuffix+'.json';
+  } else if(type==='partner_approval'){
+    var apprMonth='';
+    if(entries.length){
+      var amonths={};
+      entries.forEach(function(e){var m=(e.date||'').substring(0,7);if(m)amonths[m]=(amonths[m]||0)+1;});
+      var abest='',abestN=0;
+      Object.keys(amonths).forEach(function(m){if(amonths[m]>abestN){abestN=amonths[m];abest=m;}});
+      apprMonth=abest;
+    }
+    if(!apprMonth) apprMonth=now.getFullYear()+'-'+pad2(now.getMonth()+1);
+    var apprIni=(ST.user&&ST.user.initials?ST.user.initials:'PTR').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+    fname='TS_'+apprMonth+'_appr-'+apprIni+'.json';
+  } else {
+    var shortType={attorney_submission:'atty',billing_review:'bill',partner_approval:'appr'}[type]||type;
+    fname='workflow-'+shortType+'_'+stamp+'.json';
+  }
   A._dlData(json, fname, 'application/json');
   return fname;
 }
@@ -6535,20 +7016,33 @@ document.addEventListener('change',function(e){
   var id=e.target.id;
   // Always sync current form state first
   syncForm();
-  if(id==='ef-cl'){
+  if(id==='ef-d'){
+    // Re-evaluate rate when date changes (if rate is still empty or was auto-filled)
+    ST.ef.date=e.target.value;
+    if(!ST.ef.rate&&(ST.ef.clientId||ST.ef.contactId)){
+      var _efDateD=ST.ef.date||today();
+      var r=autoRate(ST.ef.clientId||'',ST.ef.matterId||'',ST.ef.contactId||'',_efDateD);
+      if(r) ST.ef.rate=String(r);
+      render();
+    }
+  }
+  else if(id==='ef-cl'){
     ST.ef.clientId=e.target.value; ST.ef.matterId='';
     // Only auto-fill rate if the rate field is empty
-    if(!ST.ef.rate){var r=autoRate(e.target.value,'',ST.ef.contactId||'');if(r)ST.ef.rate=String(r);}
+    var _efDate1=ST.ef.date||today();
+    if(!ST.ef.rate){var r=autoRate(e.target.value,'',ST.ef.contactId||'',_efDate1);if(r)ST.ef.rate=String(r);}
     render();
   }
   else if(id==='ef-ma'){
     ST.ef.matterId=e.target.value;
-    if(!ST.ef.rate){var r=autoRate(ST.ef.clientId||'',e.target.value,ST.ef.contactId||'');if(r)ST.ef.rate=String(r);}
+    var _efDate2=ST.ef.date||today();
+    if(!ST.ef.rate){var r=autoRate(ST.ef.clientId||'',e.target.value,ST.ef.contactId||'',_efDate2);if(r)ST.ef.rate=String(r);}
     render();
   }
   else if(id==='ef-ct'){
     ST.ef.contactId=e.target.value;
-    if(!ST.ef.rate){var r=autoRate(ST.ef.clientId||'',ST.ef.matterId||'',e.target.value);if(r)ST.ef.rate=String(r);}
+    var _efDate3=ST.ef.date||today();
+    if(!ST.ef.rate){var r=autoRate(ST.ef.clientId||'',ST.ef.matterId||'',e.target.value,_efDate3);if(r)ST.ef.rate=String(r);}
     render();
   }
   else if(id==='mf-cl'){
