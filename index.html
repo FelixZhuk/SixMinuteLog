@@ -483,7 +483,7 @@ const Store=(function(){
   var COLLECTIONS=['clients','matters','entries','contacts','invoices'];
   var COLL_SET={clients:1,matters:1,entries:1,contacts:1,invoices:1};
   // Keys stored in the meta store (everything that isn't a collection array)
-  var META_KEYS=['user','prefs','descpresets','mailpresets','itmode'];
+  var META_KEYS=['user','prefs','descpresets','mailpresets','mailplaceholders','itmode'];
 
   function _open(){
     if(_db) return Promise.resolve(_db);
@@ -657,6 +657,8 @@ var ST={
   ],
   // Mail presets for emailing exported CSV (bl-mailpresets)
   mailPresets:[],
+  // Custom/editable email placeholders
+  mailPlaceholders:[],
   modal:null,editId:null,helpTab:'start',settingsTab:'export',
   tsFilter:'all',anFilter:'month',
   // Timesheet extra filters/sort
@@ -884,6 +886,7 @@ function save(){
     Store.setMeta('prefs',ST.prefs);
     Store.setMeta('descpresets',ST.descPresets);
     Store.setMeta('mailpresets',ST.mailPresets);
+    Store.setMeta('mailplaceholders',ST.mailPlaceholders);
     Store.setMeta('itmode',{itMode:ST.itMode,firmProfile:ST.firmProfile});
   },400);
 }
@@ -2763,6 +2766,43 @@ function buildSettings(){
         : '<div class="empty" style="padding:20px"><p>No email presets yet</p></div>'
       )
       +'<button class="btn btn-dk" style="margin-top:12px" onclick="A.openMailPreset(null)">'+IC.plus+' New CSV Preset</button>'
+      +'</div>'
+    // ── Placeholder editor ─────────────────────────────────────────────────
+    +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      +'<div><h3 style="margin:0">Email Placeholders</h3>'
+      +'<p style="font-size:12px;color:var(--ink3);margin:4px 0 0;line-height:1.5">Custom tokens like <code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">{my_token}</code> you can insert into subject and body fields. Built-in placeholders are filled automatically; custom ones use the value you set here.</p></div>'
+      +'<button class="btn btn-dk" onclick="A.openMailPH(null)">'+IC.plus+' New Placeholder</button>'
+      +'</div>'
+      // Built-in placeholders table
+      +'<div style="margin-bottom:14px">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:6px">Built-in (auto-filled)</div>'
+      +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:0;border:1px solid var(--brd);border-radius:8px;overflow:hidden">'
+      +BUILTIN_PH.map(function(p,i){
+        var bg=i%2===0?'background:var(--bg)':'background:var(--white)';
+        return '<div style="'+bg+';padding:5px 10px;font-family:monospace;font-size:11px;color:var(--blue);border-bottom:1px solid var(--brd)">'+H(p[0])+'</div>'
+          +'<div style="'+bg+';padding:5px 10px;font-size:11px;color:var(--ink2);border-bottom:1px solid var(--brd)">'+H(p[1])+'<span style="color:var(--ink3);margin-left:6px;font-size:10px">'+H(p[3])+'</span></div>'
+          +'<div style="'+bg+';padding:5px 10px;font-size:10px;color:var(--ink3);border-bottom:1px solid var(--brd);white-space:nowrap">e.g. '+H(p[2])+'</div>';
+      }).join('')
+      +'</div>'
+      +'</div>'
+      // Custom placeholders
+      +(ST.mailPlaceholders.length>0
+        ? '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:6px">Custom</div>'
+          +'<div style="border:1px solid var(--brd);border-radius:8px;overflow:hidden">'
+          +ST.mailPlaceholders.map(function(p,i){
+            var bg=i%2===0?'background:var(--bg)':'background:var(--white)';
+            return '<div style="'+bg+';display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--brd)">'
+              +'<code style="font-size:12px;color:var(--blue);flex-shrink:0">{'+H(p.key)+'}</code>'
+              +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">'+H(p.label)+'</div>'
+              +'<div style="font-size:11px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Value: '+H(p.value||'(empty)')+'</div></div>'
+              +'<button class="btn-ic" onclick="A.openMailPH('+i+')" title="Edit">'+IC.edit+'</button>'
+              +'<button class="btn-ic" onclick="A.delMailPH('+i+')" title="Delete" style="color:var(--red)">'+IC.trash+'</button>'
+              +'</div>';
+          }).join('')
+          +'</div>'
+        : '<div class="empty" style="padding:14px"><p>No custom placeholders yet</p><small>Add one to create reusable tokens like {my_firm_address} or {partner_name}</small></div>'
+      )
       +'</div>';
   }
 
@@ -2971,6 +3011,73 @@ function buildITUserSelect(){
 
 // ── Email Preset Builder helpers ────────────────────────────────────────
 // Quick-template definitions: [label, purpose, subject, body, signature]
+// ── Shared placeholder helpers ───────────────────────────────────────────────
+
+// Built-in placeholders: [token, label, sampleValue, description]
+var BUILTIN_PH=[
+  ['{client}',      'Client name',         'Acme Corporation',       'Auto-filled from the active record'],
+  ['{matter}',      'Matter name',         'Contract Review',        'Auto-filled from the active record'],
+  ['{firm}',        'Firm name',           'Smith & Associates LLP', 'Set in Settings → Advanced → Firm Name'],
+  ['{user}',        'Your full name',      'Sarah Johnson',          'Your profile name'],
+  ['{initials}',    'Your initials',       'SJ',                     'Your profile initials'],
+  ['{date}',        'Current month/year',  'January 2026',           'Resolved at send time'],
+  ['{due_date}',    'Due date (+30 days)', 'February 15, 2026',      'Resolved at send time'],
+  ['{invoice_num}', 'Invoice number',      'INV-0042',               'Auto-filled when sending an invoice email'],
+  ['{amount}',      'Invoice total',       '$3,250.00',              'Auto-filled when sending an invoice email'],
+  ['{entries_count}','Number of entries',  '8',                      'Auto-filled from visible timesheet'],
+  ['{hours_total}', 'Total hours',         '12.5',                   'Auto-filled from visible timesheet'],
+  ['{filename}',    'Export filename',     'billing-entries_2026-01-24.csv', 'Generated from current export settings'],
+  ['{cc_list}',     'CC recipients list',  '',                       'Taken from the preset CC field']
+];
+
+// Returns merged list of [token, label] for UI display
+function _allPH(){
+  var list=BUILTIN_PH.map(function(p){return [p[0],p[1]];});
+  (ST.mailPlaceholders||[]).forEach(function(p){
+    list.push(['{'+p.key+'}', p.label]);
+  });
+  return list;
+}
+
+// Build the full token→value map used by replacePlaceholders
+// ctx: optional object with {clientName, matterName, invNum, invAmount, entriesCount, hoursTotal}
+function _phMap(ctx, mp){
+  ctx=ctx||{};
+  mp=mp||{};
+  var now=new Date();
+  var dateStr=now.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  var due=new Date(now); due.setDate(due.getDate()+30);
+  var dueStr=due.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  var map={
+    '{filename}': exportFilename(),
+    '{date}':     dateStr,
+    '{due_date}': dueStr,
+    '{client}':   ctx.clientName||'',
+    '{matter}':   ctx.matterName||'',
+    '{firm}':     ST.prefs.firmName||(ST.firmProfile&&ST.firmProfile.firmName)||'',
+    '{invoice_num}': ctx.invNum||'',
+    '{amount}':   ctx.invAmount||'',
+    '{entries_count}': ctx.entriesCount!=null?String(ctx.entriesCount):'',
+    '{hours_total}':   ctx.hoursTotal||'',
+    '{user}':     (ST.user&&ST.user.name)||'',
+    '{initials}': (ST.user&&ST.user.initials)||'',
+    '{cc_list}':  mp.cc||''
+  };
+  (ST.mailPlaceholders||[]).forEach(function(p){
+    map['{'+p.key+'}'] = p.value||'';
+  });
+  return map;
+}
+
+// Apply a token→value map to a string
+function _applyPH(s, map){
+  s=s||'';
+  Object.keys(map).forEach(function(k){ s=s.split(k).join(map[k]); });
+  return s;
+}
+
+// ── End shared placeholder helpers ───────────────────────────────────────────
+
 var MAIL_QUICK_TEMPLATES=[
   ['Invoice to Client','invoice_client',
    'Invoice #{invoice_num} \u2014 {client} \u2014 {date}',
@@ -3015,27 +3122,20 @@ function _mpPreview(){
   var body=(document.getElementById('mp-body')||{value:''}).value;
   var sig=(document.getElementById('mp-sig')||{value:''}).value;
   var full=body+(sig?'\n\n'+sig:'');
-  var sampleData={
-    '{filename}':'BillingReport_Jan2026.csv',
-    '{date}':'January 2026',
-    '{due_date}':'February 15, 2026',
-    '{client}':'Acme Corporation',
-    '{matter}':'Contract Review',
-    '{firm}':'Smith & Associates LLP',
-    '{invoice_num}':'INV-0042',
-    '{amount}':'$3,250.00',
-    '{entries_count}':'8',
-    '{hours_total}':'12.5',
-    '{user}':(ST.user&&ST.user.name)||'Sarah Johnson',
-    '{initials}':(ST.user&&ST.user.initials)||'SJ',
-    '{cc_list}':''
-  };
-  function rep(s){
-    Object.keys(sampleData).forEach(function(k){s=s.split(k).join(sampleData[k]);});
-    return s;
-  }
-  var rSubj=H(rep(subj||'(no subject)'));
-  var rBody=H(rep(full||'(no body)')).replace(/\n/g,'<br>');
+  // Build sample map: use real user data + built-in samples + custom placeholder values
+  var sampleCtx={clientName:'Acme Corporation',matterName:'Contract Review',invNum:'INV-0042',invAmount:'$3,250.00',entriesCount:'8',hoursTotal:'12.5'};
+  var sampleMp={cc:(document.getElementById('mp-cc')||{value:''}).value};
+  var map=_phMap(sampleCtx, sampleMp);
+  // Override built-ins with richer samples where real data isn't meaningful
+  map['{date}']='January 2026';
+  map['{due_date}']='February 15, 2026';
+  map['{filename}']='billing-entries_2026-01-24.csv';
+  if(!map['{firm}']) map['{firm}']='Smith & Associates LLP';
+  if(!map['{user}']) map['{user}']='Sarah Johnson';
+  if(!map['{initials}']) map['{initials}']='SJ';
+  // Custom placeholders show their configured value in preview
+  var rSubj=H(_applyPH(subj||'(no subject)', map));
+  var rBody=H(_applyPH(full||'(no body)', map)).replace(/\n/g,'<br>');
   var to=(document.getElementById('mp-to')||{value:''}).value||'client@example.com';
   var cc=(document.getElementById('mp-cc')||{value:''}).value;
   var bcc=(document.getElementById('mp-bcc')||{value:''}).value;
@@ -3071,21 +3171,7 @@ function buildMailPreset(){
   var f=ST.mpf||{};
   var isEdit=(f.editIdx!=null);
   var purp=f.purpose||'general';
-  var ALL_PH=[
-    ['{client}','Client name'],
-    ['{matter}','Matter name'],
-    ['{firm}','Firm name'],
-    ['{user}','Your full name'],
-    ['{initials}','Your initials'],
-    ['{date}','Current month/year'],
-    ['{due_date}','Due date (+30 days)'],
-    ['{invoice_num}','Invoice number'],
-    ['{amount}','Invoice total'],
-    ['{entries_count}','Number of entries'],
-    ['{hours_total}','Total hours'],
-    ['{filename}','Export filename'],
-    ['{cc_list}','CC recipients list']
-  ];
+  var ALL_PH=_allPH();
   var priorityOpts=[['normal','Normal'],['high','High \u2014 flag as urgent'],['low','Low \u2014 FYI only']];
   var pri=f.priority||'normal';
   return '<div class="ov"><div class="modal" style="max-width:820px;width:96vw"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' '+(isEdit?'Edit':'New')+' Email Preset</h2><button class="btn-ic" onclick="A.closeMailPreset()">'+IC.x+'</button></div>'
@@ -3171,6 +3257,40 @@ function buildMailPreset(){
     +'</div></div></div>';
 }
 
+function buildMailPH(){
+  var f=ST.mphf||{};
+  var isEdit=(f.editIdx!=null);
+  var keyErr=f.errs&&f.errs.key;
+  var labelErr=f.errs&&f.errs.label;
+  return '<div class="ov"><div class="modal modal-sm"><div class="modal-hd">'
+    +'<h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' '+(isEdit?'Edit':'New')+' Placeholder</h2>'
+    +'<button class="btn-ic" onclick="A.closeMailPH()">'+IC.x+'</button></div>'
+    +'<div class="modal-bd">'
+    +'<div class="fl" style="margin-bottom:14px">'
+    +'<label>Token key <span class="req">*</span> <span style="font-size:11px;color:var(--ink3)">— used as <code>{key}</code> in subject &amp; body</span></label>'
+    +'<div style="display:flex;align-items:center;gap:4px">'
+    +'<span style="font-family:monospace;font-size:14px;color:var(--ink3)">{</span>'
+    +'<input type="text" id="mph-key" value="'+H(f.key||'')+'" placeholder="my_token" style="font-family:monospace" oninput="this.value=this.value.replace(/[^a-z0-9_]/g,\'\')" />'
+    +'<span style="font-family:monospace;font-size:14px;color:var(--ink3)">}</span>'
+    +'</div>'
+    +(keyErr?'<div class="note" style="margin-top:4px">'+H(keyErr)+'</div>':'')
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Lowercase letters, numbers, underscores only.</div>'
+    +'</div>'
+    +'<div class="fl" style="margin-bottom:14px"><label>Label <span class="req">*</span></label>'
+    +'<input type="text" id="mph-label" value="'+H(f.label||'')+'" placeholder="e.g. Partner name" />'
+    +(labelErr?'<div class="note" style="margin-top:4px">'+H(labelErr)+'</div>':'')
+    +'</div>'
+    +'<div class="fl" style="margin-bottom:4px"><label>Value <span style="font-size:11px;color:var(--ink3)">— what gets inserted when sending</span></label>'
+    +'<textarea id="mph-value" rows="3" placeholder="e.g. John Smith, Managing Partner">'+H(f.value||'')+'</textarea>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Leave blank to prompt you to fill it in each time (token stays as-is if empty).</div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="modal-ft" style="gap:8px">'
+    +'<button class="btn btn-gh" onclick="A.closeMailPH()">Cancel</button>'
+    +'<button class="btn btn-bl" onclick="A.saveMailPH()">'+IC.save+' Save</button>'
+    +'</div></div></div>';
+}
+
 function buildMailSend(){
   return '<div class="ov"><div class="modal modal-sm"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' Send Email</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
     +'<div class="modal-bd">'
@@ -3196,24 +3316,97 @@ function purposeLabel(p){
   return {general:'General',invoice_client:'Invoice to Client',billing_staff:'Entries to Billing Staff',partner_approval:'Entries for Partner Approval'}[p]||'General';
 }
 
-// Contextual mail compose modal — shows purpose-filtered presets with smart pre-fill
-function buildMailCompose(){
-  var ctx=ST.mailCompose||{};
+// ── Screen 2: Preview + editable draft ────────────────────────────────────
+function _buildMailPreview(ctx){
   var purpose=ctx.purpose||'general';
-  var titles={
-    invoice_client:'Email Invoice to Client',
-    billing_staff:'Send Entries to Billing Staff',
-    partner_approval:'Submit Entries for Partner Approval',
-    general:'Send Billing Report'
-  };
-  // Show presets matching purpose; general presets always appear as fallback options
+  var titles={invoice_client:'Email Invoice to Client',billing_staff:'Send Entries to Billing Staff',partner_approval:'Submit for Partner Approval',general:'Send Billing Report'};
+  var d=ctx._draft||{};
+  // Tab state: 'edit' | 'preview'
+  var tab=ctx._pvTab||'edit';
+
+  var bodyPreview=H(d.body||'').replace(/\n/g,'<br>');
+
+  var editPanel='<div style="display:flex;flex-direction:column;gap:10px">'
+    // To
+    +'<div class="fl" style="margin:0">'
+    +'<label style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">To <span class="req">*</span></label>'
+    +'<input id="mc-to" type="email" value="'+H(d.to||'')+'" placeholder="recipient@example.com" oninput="A.mcLive()" />'
+    +'</div>'
+    // Subject
+    +'<div class="fl" style="margin:0">'
+    +'<label style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Subject</label>'
+    +'<input id="mc-subj" type="text" value="'+H(d.subj||'')+'" placeholder="(no subject)" oninput="A.mcLive()" />'
+    +'</div>'
+    // CC / BCC / Reply-To in a compact row
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+    +'<div class="fl" style="margin:0"><label style="font-size:11px;color:var(--ink3)">CC</label>'
+    +'<input id="mc-cc" type="text" value="'+H(d.cc||'')+'" placeholder="cc@example.com" oninput="A.mcLive()" /></div>'
+    +'<div class="fl" style="margin:0"><label style="font-size:11px;color:var(--ink3)">BCC</label>'
+    +'<input id="mc-bcc" type="text" value="'+H(d.bcc||'')+'" placeholder="bcc@example.com" oninput="A.mcLive()" /></div>'
+    +'<div class="fl" style="margin:0"><label style="font-size:11px;color:var(--ink3)">Reply-To</label>'
+    +'<input id="mc-rt" type="email" value="'+H(d.replyTo||'')+'" placeholder="you@firm.com" oninput="A.mcLive()" /></div>'
+    +'</div>'
+    // Body
+    +'<div class="fl" style="margin:0">'
+    +'<label style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Body</label>'
+    +'<textarea id="mc-body" rows="12" style="font-family:inherit;font-size:13px;line-height:1.6;resize:vertical" oninput="A.mcLive()">'+H(d.body||'')+'</textarea>'
+    +'</div>'
+    +'</div>';
+
+  var previewPanel='<div style="border:1px solid var(--brd);border-radius:8px;overflow:hidden">'
+    // Header row mimicking an email header
+    +'<div style="background:var(--bg);border-bottom:1px solid var(--brd);padding:12px 16px;display:flex;flex-direction:column;gap:4px;font-size:12px;font-family:monospace;color:var(--ink2)">'
+    +'<div><strong style="color:var(--ink3);display:inline-block;width:52px">To:</strong> '+H(d.to||'—')+'</div>'
+    +(d.cc?'<div><strong style="color:var(--ink3);display:inline-block;width:52px">CC:</strong> '+H(d.cc)+'</div>':'')
+    +(d.bcc?'<div><strong style="color:var(--ink3);display:inline-block;width:52px">BCC:</strong> '+H(d.bcc)+'</div>':'')
+    +(d.replyTo?'<div><strong style="color:var(--ink3);display:inline-block;width:52px">Reply-To:</strong> '+H(d.replyTo)+'</div>':'')
+    +'<div><strong style="color:var(--ink3);display:inline-block;width:52px">Subject:</strong> <strong style="color:var(--ink)">'+H(d.subj||'(no subject)')+'</strong></div>'
+    +'</div>'
+    // Body
+    +'<div style="padding:18px 20px;font-size:13px;line-height:1.75;color:var(--ink);white-space:pre-wrap;word-break:break-word;min-height:180px;max-height:340px;overflow-y:auto">'+bodyPreview+'</div>'
+    +'</div>';
+
+  // Tab bar
+  var tabBar='<div style="display:flex;gap:0;border:1px solid var(--brd);border-radius:7px;overflow:hidden;margin-bottom:14px;width:fit-content">'
+    +'<button type="button" class="btn '+(tab==='edit'?'btn-dk':'btn-gh')+'" style="border-radius:0;border:none;padding:7px 18px;font-size:12px" onclick="A.mcTab(\'edit\')">✏️ Edit</button>'
+    +'<button type="button" class="btn '+(tab==='preview'?'btn-dk':'btn-gh')+'" style="border-radius:0;border:none;padding:7px 18px;font-size:12px;border-left:1px solid var(--brd)" onclick="A.mcTab(\'preview\')">👁 Preview</button>'
+    +'</div>';
+
+  // Context chips
+  var ctxInfo='';
+  if(ctx.clientName) ctxInfo+='<span><strong>Client:</strong> '+H(ctx.clientName)+'</span> ';
+  if(ctx.invNum)     ctxInfo+='<span><strong>Invoice #:</strong> '+H(ctx.invNum)+'</span> ';
+  if(ctx.invAmount)  ctxInfo+='<span><strong>Amount:</strong> '+H(ctx.invAmount)+'</span> ';
+  if(ctx.entriesCount!=null) ctxInfo+='<span><strong>Entries:</strong> '+H(String(ctx.entriesCount))+'</span> ';
+  if(ctx.hoursTotal) ctxInfo+='<span><strong>Hours:</strong> '+H(ctx.hoursTotal)+'h</span>';
+  var ctxBar=ctxInfo?'<div style="display:flex;gap:14px;flex-wrap:wrap;background:var(--bg);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--ink2);margin-bottom:12px">'+ctxInfo+'</div>':'';
+
+  return '<div class="ov"><div class="modal modal-lg" style="max-height:92vh;display:flex;flex-direction:column"><div class="modal-hd">'
+    +'<h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' '+(titles[purpose]||'Send Email')+' <span style="font-size:12px;font-weight:400;color:var(--ink3);background:var(--bg);padding:2px 9px;border-radius:12px;border:1px solid var(--brd)">Review &amp; Edit</span></h2>'
+    +'<button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
+    +'<div class="modal-bd" style="overflow-y:auto;flex:1">'
+    +ctxBar
+    +tabBar
+    +(tab==='edit' ? editPanel : previewPanel)
+    +'</div>'
+    +'<div class="modal-ft" style="gap:8px;flex-shrink:0">'
+    +'<button class="btn btn-gh" onclick="A.backToPicker()">← Presets</button>'
+    +'<button class="btn btn-gh" onclick="A.mcReset()">↺ Reset</button>'
+    +'<button class="btn btn-bl" onclick="A.sendFromDraft()">'+IC.mail+' Open Mail App</button>'
+    +'</div></div></div>';
+}
+
+// ── Screen 1: Preset picker ────────────────────────────────────────────────
+function _buildMailPicker(ctx){
+  var purpose=ctx.purpose||'general';
+  var titles={invoice_client:'Email Invoice to Client',billing_staff:'Send Entries to Billing Staff',partner_approval:'Submit for Partner Approval',general:'Send Billing Report'};
   var filtered=ST.mailPresets.filter(function(mp){
     return (mp.purpose||'general')===purpose||(mp.purpose||'general')==='general';
   });
   var ctxInfo='';
   if(ctx.clientName) ctxInfo+='<span><strong>Client:</strong> '+H(ctx.clientName)+'</span> ';
-  if(ctx.invNum) ctxInfo+='<span><strong>Invoice #:</strong> '+H(ctx.invNum)+'</span> ';
-  if(ctx.invAmount) ctxInfo+='<span><strong>Amount:</strong> '+H(ctx.invAmount)+'</span> ';
+  if(ctx.invNum)     ctxInfo+='<span><strong>Invoice #:</strong> '+H(ctx.invNum)+'</span> ';
+  if(ctx.invAmount)  ctxInfo+='<span><strong>Amount:</strong> '+H(ctx.invAmount)+'</span> ';
   if(ctx.entriesCount!=null) ctxInfo+='<span><strong>Entries:</strong> '+H(String(ctx.entriesCount))+'</span> ';
   if(ctx.hoursTotal) ctxInfo+='<span><strong>Hours:</strong> '+H(ctx.hoursTotal)+'h</span>';
   return '<div class="ov"><div class="modal modal-md"><div class="modal-hd">'
@@ -3226,11 +3419,11 @@ function buildMailCompose(){
       +'<span style="font-size:11px;color:var(--ink3);margin-left:8px">(auto-filled from record; preset &ldquo;To&rdquo; overrides if set)</span>'
       +'</div>':'')
     +(filtered.length>0
-      ? '<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Choose a preset to send</div>'
+      ? '<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Choose a preset to review &amp; send</div>'
         +filtered.map(function(mp){
           var realIdx=ST.mailPresets.indexOf(mp);
           var toDisplay=(mp.to&&mp.to.length)?mp.to:(ctx.toEmail||'');
-          return '<div class="crow" style="cursor:pointer;margin-bottom:8px;align-items:flex-start" onclick="A.sendFromCompose('+realIdx+')">'
+          return '<div class="crow" style="cursor:pointer;margin-bottom:8px;align-items:flex-start" onclick="A.previewFromCompose('+realIdx+')">'
             +'<div style="width:36px;height:36px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;margin-top:2px">'+IC.mail+'</div>'
             +'<div style="flex:1;min-width:0">'
             +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><strong style="font-size:13px;color:var(--ink)">'+H(mp.name||'Preset '+(realIdx+1))+'</strong>'
@@ -3251,6 +3444,13 @@ function buildMailCompose(){
     +'<button class="btn btn-gh" onclick="A.closeM()">Cancel</button>'
     +'<button class="btn btn-gh" onclick="ST.modal=\'settings\';ST.settingsTab=\'email\';render()">'+IC.plus+' Manage Presets</button>'
     +'</div></div></div>';
+}
+
+// Contextual mail compose modal — router between the two screens
+function buildMailCompose(){
+  var ctx=ST.mailCompose||{};
+  if(ctx._preview)  return _buildMailPreview(ctx);
+  return _buildMailPicker(ctx);
 }
 
 
@@ -3312,6 +3512,7 @@ function render(){
   else if(ST.modal==='help') overlays=buildHelp();
   else if(ST.modal==='settings') overlays=buildSettings();
   else if(ST.modal==='mailpreset') overlays=buildMailPreset();
+  else if(ST.modal==='mailph') overlays=buildMailPH();
   else if(ST.modal==='mailsend') overlays=buildMailSend();
   else if(ST.modal==='mailcompose') overlays=buildMailCompose();
   else if(ST.modal==='importData') overlays=buildImportModal();
@@ -3480,6 +3681,48 @@ var A={
   closeMailPreset:function(){
     ST.modal='settings'; ST.settingsTab='email'; render();
   },
+  openMailPH:function(idx){
+    if(idx!=null&&ST.mailPlaceholders[idx]){
+      ST.mphf=Object.assign({},ST.mailPlaceholders[idx],{editIdx:idx,errs:{}});
+    } else {
+      ST.mphf={editIdx:null,key:'',label:'',value:'',errs:{}};
+    }
+    ST.modal='mailph'; render();
+  },
+  closeMailPH:function(){
+    ST.mphf={}; ST.modal='settings'; ST.settingsTab='email'; render();
+  },
+  saveMailPH:function(){
+    var key=((document.getElementById('mph-key')||{}).value||'').trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
+    var label=((document.getElementById('mph-label')||{}).value||'').trim();
+    var value=((document.getElementById('mph-value')||{}).value||'').trim();
+    var errs={};
+    if(!key) errs.key='Token key is required.';
+    else {
+      var reserved=['client','matter','firm','user','initials','date','due_date','invoice_num','amount','entries_count','hours_total','filename','cc_list'];
+      if(reserved.indexOf(key)!==-1) errs.key='{'+key+'} is a built-in placeholder and cannot be overridden.';
+      // Check duplicate key among custom placeholders (excluding self)
+      var editIdx=ST.mphf.editIdx;
+      var dupe=ST.mailPlaceholders.some(function(p,i){ return p.key===key && i!==editIdx; });
+      if(dupe) errs.key='A custom placeholder with this key already exists.';
+    }
+    if(!label) errs.label='Label is required.';
+    if(Object.keys(errs).length){ ST.mphf.errs=errs; render(); return; }
+    var ph={id:uid(),key:key,label:label,value:value};
+    if(ST.mphf.editIdx!=null){
+      ph.id=ST.mailPlaceholders[ST.mphf.editIdx].id||ph.id;
+      ST.mailPlaceholders[ST.mphf.editIdx]=ph;
+    } else {
+      ST.mailPlaceholders.push(ph);
+    }
+    save(); toast('Placeholder saved','ok');
+    ST.mphf={}; ST.modal='settings'; ST.settingsTab='email'; render();
+  },
+  delMailPH:function(idx){
+    if(!confirm('Delete this placeholder?')) return;
+    ST.mailPlaceholders.splice(idx,1);
+    save(); toast('Placeholder deleted','warn'); render();
+  },
   saveMailPreset:function(){
     var name=(document.getElementById('mp-name')||{}).value||'';
     var purpose=(document.getElementById('mp-purpose')||{}).value||'general';
@@ -3521,66 +3764,18 @@ var A={
     save(); toast('Preset duplicated','ok'); render();
   },
   openMailSend:function(){
-    ST.mailCompose={purpose:'general',toEmail:'',clientName:'',invId:null,invNum:null,invAmount:null,entriesCount:null};
+    ST.mailCompose={purpose:'general',toEmail:'',clientName:'',invId:null,invNum:null,invAmount:null,entriesCount:null,_preview:false,_draft:null,_mailto:null,_preset:null};
     ST.modal='mailcompose'; render();
   },
-  _fireMail:function(mailto,label){
-    console.log('[_fireMail] showing send modal, uri length:', mailto.length);
-    // Programmatic mailto triggers are silently blocked by most browsers.
-    // Show a modal with a real <a> the user clicks — the only guaranteed approach.
-    var displayTo = decodeURIComponent(mailto.replace(/^mailto:/,'').split('?')[0]);
-    var overlay=document.createElement('div');
-    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center';
-    overlay.innerHTML='<div style="background:var(--white,#fff);border-radius:12px;padding:28px 28px 22px;max-width:420px;width:90vw;box-shadow:0 8px 40px rgba(0,0,0,.22);position:relative">'
-      +'<button onclick="this.closest(\'[data-mail-overlay]\').remove()" style="position:absolute;top:10px;right:12px;background:none;border:none;cursor:pointer;font-size:20px;color:#999;line-height:1">×</button>'
-      +'<div style="font-size:18px;margin-bottom:6px">📧</div>'
-      +'<div style="font-weight:600;font-size:15px;margin-bottom:4px">'+(label||'Send Email')+'</div>'
-      +'<div style="font-size:12px;color:#777;margin-bottom:18px">To: '+displayTo+'</div>'
-      +'<a href="'+mailto+'" style="display:block;text-align:center;padding:11px 20px;background:#2563eb;color:#fff;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;margin-bottom:10px">'
-      +'Open Mail App</a>'
-      +'<p style="font-size:11px;color:#999;text-align:center;margin:0">Click the button above to open your default mail app.<br>If nothing happens, no mail client may be configured.</p>'
-      +'</div>';
-    overlay.setAttribute('data-mail-overlay','1');
-    overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
-    document.body.appendChild(overlay);
-  },
+
+  // From the settings email tab "Send via Email" button on a preset card —
+  // goes straight to the preview/edit screen (no picker needed, preset already chosen)
   sendMailPreset:function(i){
     var mp=ST.mailPresets[i];
-    if(!mp){ console.warn('[sendMailPreset] preset index',i,'not found. mailPresets:',ST.mailPresets); return; }
-    var fname=exportFilename();
-    var now=new Date();
-    var dateStr=now.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-    var due=new Date(now); due.setDate(due.getDate()+30);
-    var dueStr=due.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-    var userName=(ST.user&&ST.user.name)||'';
-    var userIni=(ST.user&&ST.user.initials)||'';
-    var firmName=ST.prefs.firmName||(ST.firmProfile&&ST.firmProfile.firmName)||'';
-    function replacePlaceholders(s){
-      return (s||'')
-        .replace(/\{filename\}/g, fname)
-        .replace(/\{date\}/g, dateStr)
-        .replace(/\{due_date\}/g, dueStr)
-        .replace(/\{client\}/g, '')
-        .replace(/\{matter\}/g, '')
-        .replace(/\{firm\}/g, firmName)
-        .replace(/\{invoice_num\}/g, '')
-        .replace(/\{amount\}/g, '')
-        .replace(/\{entries_count\}/g, '')
-        .replace(/\{hours_total\}/g, '')
-        .replace(/\{user\}/g, userName)
-        .replace(/\{initials\}/g, userIni)
-        .replace(/\{cc_list\}/g, mp.cc||'');
-    }
-    var fullBody=(mp.body||'')+(mp.signature?'\n\n'+(mp.signature):'');
-    var to=mp.to||'';
-    var subj=replacePlaceholders(mp.subject||'');
-    var body=replacePlaceholders(fullBody);
-    var mailto='mailto:'+to+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
-    if(mp.cc) mailto+='&cc='+encodeURIComponent(mp.cc);
-    if(mp.bcc) mailto+='&bcc='+encodeURIComponent(mp.bcc);
-    console.log('[sendMailPreset] firing mailto, to:',to,'subject:',subj,'uri length:',mailto.length);
-    A._fireMail(mailto, mp.name||'Send Email');
-    A.closeM();
+    if(!mp) return;
+    ST.mailCompose={purpose:mp.purpose||'general',toEmail:mp.to||'',clientName:'',invId:null,invNum:null,invAmount:null,entriesCount:null,_preview:false,_draft:null,_mailto:null,_preset:null,clientId:null,matterId:null};
+    ST.modal='mailcompose';
+    A.previewFromCompose(i);
   },
 
   // Open contextual email compose for an invoice (called from invoice list, print preview, client card)
@@ -3600,12 +3795,15 @@ var A={
     ST.mailCompose={
       purpose:'invoice_client',
       toEmail:cl.email||'',
+      clientId:cl.id||null,
+      matterId:null,
       clientName:cl.name||'',
       invId:invId,
       invNum:String(inv.number||inv.id),
       invAmount:$m(total),
       entriesCount:null,
-      hoursTotal:null
+      hoursTotal:null,
+      _preview:false, _draft:null, _mailto:null, _preset:null
     };
     ST.modal='mailcompose'; render();
   },
@@ -3636,57 +3834,100 @@ var A={
     ST.mailCompose={
       purpose:purpose,
       toEmail:toEmail,
+      clientId:ST.tsClientFilter||null,
+      matterId:ST.tsMatterFilter||null,
       clientName:clName,
       invId:null,
       invNum:null,
       invAmount:null,
       entriesCount:target.length,
-      hoursTotal:hrs.toFixed(1)
+      hoursTotal:hrs.toFixed(1),
+      _preview:false, _draft:null, _mailto:null, _preset:null
     };
     ST.modal='mailcompose'; render();
   },
 
-  // Send from the contextual compose modal using a chosen preset
-  sendFromCompose:function(i){
+  // Resolve a preset's placeholders and open the preview/edit screen
+  previewFromCompose:function(i){
     var mp=ST.mailPresets[i];
     if(!mp){ toast('Preset not found','warn'); return; }
     var ctx=ST.mailCompose||{};
-    var fname=exportFilename();
-    var now=new Date();
-    var dateStr=now.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-    var due=new Date(now); due.setDate(due.getDate()+30);
-    var dueStr=due.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-    var userName=(ST.user&&ST.user.name)||'';
-    var userIni=(ST.user&&ST.user.initials)||'';
-    var firmName=ST.prefs.firmName||(ST.firmProfile&&ST.firmProfile.firmName)||'';
-    function replacePlaceholders(s){
-      return (s||'')
-        .replace(/\{filename\}/g, fname)
-        .replace(/\{date\}/g, dateStr)
-        .replace(/\{due_date\}/g, dueStr)
-        .replace(/\{client\}/g, ctx.clientName||'')
-        .replace(/\{matter\}/g, ctx.matterName||'')
-        .replace(/\{firm\}/g, firmName)
-        .replace(/\{invoice_num\}/g, ctx.invNum||'')
-        .replace(/\{amount\}/g, ctx.invAmount||'')
-        .replace(/\{entries_count\}/g, ctx.entriesCount!=null?String(ctx.entriesCount):'')
-        .replace(/\{hours_total\}/g, ctx.hoursTotal||'')
-        .replace(/\{user\}/g, userName)
-        .replace(/\{initials\}/g, userIni)
-        .replace(/\{cc_list\}/g, mp.cc||'');
-    }
+    var map=_phMap(ctx, mp);
     var fullBody=(mp.body||'')+(mp.signature?'\n\n'+(mp.signature):'');
     var toRaw=(mp.to&&mp.to.trim().length)?mp.to:(ctx.toEmail||'');
-    var mailto='mailto:'+toRaw
-      +'?subject='+encodeURIComponent(replacePlaceholders(mp.subject||''))
-      +'&body='+encodeURIComponent(replacePlaceholders(fullBody));
-    if(mp.cc) mailto+='&cc='+encodeURIComponent(mp.cc);
-    if(mp.bcc) mailto+='&bcc='+encodeURIComponent(mp.bcc);
-    if(mp.replyTo) mailto+='&reply-to='+encodeURIComponent(mp.replyTo);
-    console.log('[sendFromCompose] firing mailto, to:',toRaw,'subject:',replacePlaceholders(mp.subject||''),'uri length:',mailto.length);
-    A._fireMail(mailto, mp.name||'Send Email');
-    A.closeM();
+    var draft={
+      to:   toRaw,
+      subj: _applyPH(mp.subject||'', map),
+      body: _applyPH(fullBody, map),
+      cc:   mp.cc||'',
+      bcc:  mp.bcc||'',
+      replyTo: mp.replyTo||''
+    };
+    ST.mailCompose._preview=true;
+    ST.mailCompose._pvTab='edit';
+    ST.mailCompose._draft=draft;
+    ST.mailCompose._origDraft=Object.assign({},draft); // snapshot for reset
+    ST.mailCompose._preset=mp;
+    ST.mailCompose._mailto=null;
+    render();
   },
+
+  // Called oninput on any draft field — sync state without full re-render.
+  // Only touches fields whose elements are actually in the DOM so that calling
+  // this while on the preview tab (where the inputs are absent) never clobbers
+  // the draft with empty strings.
+  mcLive:function(){
+    if(!ST.mailCompose||!ST.mailCompose._draft) return;
+    var d=ST.mailCompose._draft;
+    [['mc-to','to'],['mc-subj','subj'],['mc-cc','cc'],
+     ['mc-bcc','bcc'],['mc-rt','replyTo'],['mc-body','body']].forEach(function(p){
+      var el=document.getElementById(p[0]);
+      if(el) d[p[1]]=el.value;
+    });
+  },
+
+  // Switch edit/preview tab — sync fields first so values survive re-render
+  mcTab:function(tab){
+    A.mcLive();
+    ST.mailCompose._pvTab=tab;
+    render();
+  },
+
+  // Reset draft to original resolved-preset values
+  mcReset:function(){
+    if(!ST.mailCompose) return;
+    ST.mailCompose._draft=Object.assign({},ST.mailCompose._origDraft||{});
+    ST.mailCompose._pvTab='edit';
+    render();
+  },
+
+  // Build mailto from current draft and advance to the open-app screen
+  sendFromDraft:function(){
+    A.mcLive();
+    var ctx=ST.mailCompose||{};
+    var d=ctx._draft||{};
+    if(!d.to){ toast('Recipient (To) is required','warn'); return; }
+    var mailto='mailto:'+d.to  // to-address is path, not a query value — must not be percent-encoded
+      +'?subject='+encodeURIComponent(d.subj||'')
+      +'&body='+encodeURIComponent(d.body||'');
+    if(d.cc)      mailto+='&cc='+encodeURIComponent(d.cc);
+    if(d.bcc)     mailto+='&bcc='+encodeURIComponent(d.bcc);
+    if(d.replyTo) mailto+='&reply-to='+encodeURIComponent(d.replyTo);
+    var a=document.createElement('a'); a.href=mailto; a.click();
+  },
+
+  // Navigate back to picker, clearing draft
+  backToPicker:function(){
+    if(!ST.mailCompose) return;
+    ST.mailCompose._preview=false;
+    ST.mailCompose._draft=null;
+    ST.mailCompose._mailto=null;
+    ST.mailCompose._preset=null;
+    render();
+  },
+
+  // Legacy alias kept for any callers that may exist in presets settings view
+  sendFromCompose:function(i){ A.previewFromCompose(i); },
 
 
 
@@ -5310,7 +5551,8 @@ document.addEventListener('keydown',function(e){
     Store.getMeta('descpresets'),
     Store.getMeta('mailpresets'),
     Store.getMeta('itmode'),
-    Store.getAll('invoices')
+    Store.getAll('invoices'),
+    Store.getMeta('mailplaceholders')
   ]).then(function(res){
     // res values are already parsed native JS objects — no JSON.parse needed
     try{if(res[0])ST.user=res[0];}catch(e){}
@@ -5338,6 +5580,7 @@ document.addEventListener('keydown',function(e){
     try{if(res[7])ST.mailPresets=res[7];}catch(e){}
     try{if(res[8]){ST.itMode=!!res[8].itMode;if(res[8].firmProfile)ST.firmProfile=res[8].firmProfile;}}catch(e){}
     try{if(res[9]&&res[9].length)ST.invoices=res[9];}catch(e){}
+    try{if(res[10]&&res[10].length)ST.mailPlaceholders=res[10];}catch(e){}
     applyPrefs();
     if(!ST.user){
       // First run: show profile import prompt
