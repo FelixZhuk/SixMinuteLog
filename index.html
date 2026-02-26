@@ -439,6 +439,63 @@ body.dark .splash-features{background:#263347}
 /* Loading */
 #loading{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);flex-direction:column;gap:12px;color:var(--ink3);font-size:1rem;font-weight:300}
 
+/* ── Mobile responsive ────────────────────────────────────────────────── */
+/* Prevent page-level horizontal overflow; tables scroll within .tscroll */
+html,body{overflow-x:hidden;max-width:100vw}
+.main{min-width:0;overflow-x:hidden}
+.twrap{min-width:0}
+/* Ensure tscroll is a proper isolated scroll container */
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+/* Prevent any direct child of main from busting out of viewport */
+#app>*{min-width:0}
+
+@media(max-width:640px){
+  /* Layout */
+  .main{padding:14px 10px}
+  .header-inner{padding:10px 12px;gap:8px}
+  .logo h1{font-size:1rem}
+  .logo-sub{display:none}
+  .header-btns{gap:6px}
+  .header-btns .btn{padding:7px 11px;font-size:12px}
+  /* Nav tabs: compact, icon+label both retained but smaller */
+  .nav{padding:0 4px}
+  .nav-btn{padding:8px 10px;font-size:12px;gap:4px}
+  .nav-btn svg{width:14px;height:14px}
+  /* Stats: 2-up minimum */
+  .srow{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px}
+  .sc{padding:10px 12px}
+  .sc-val{font-size:1.2rem}
+  /* Cards: single column */
+  .cgrid{grid-template-columns:1fr}
+  /* Form rows: stack */
+  .frow.c2,.frow.c3{grid-template-columns:1fr}
+  /* Action footer */
+  .fa{flex-wrap:wrap}
+  .fa .btn{flex:1;min-width:0;justify-content:center}
+  /* Modals: bottom-sheet */
+  .ov{padding:8px 0 0;align-items:flex-end}
+  .modal{border-radius:16px 16px 0 0;max-height:92vh;width:100%}
+  .modal-sm,.modal-md,.modal-lg,.modal-xl{max-width:100%}
+  .modal-hd{padding:14px 16px}
+  .modal-bd{padding:16px}
+  .modal-ft{padding:12px 16px;flex-wrap:wrap}
+  .modal-ft .btn{flex:1;justify-content:center}
+  /* Filter bars: wrap and stretch */
+  .ts-filters{flex-wrap:wrap}
+  .ts-filters select,.ts-filters input{flex:1;min-width:110px;max-width:100%}
+  /* Active timer banner: stack */
+  .active-tmr-banner{flex-direction:column;align-items:flex-start;gap:6px;padding:12px 14px}
+  .active-tmr-banner .atb-clock{font-size:1.8rem;min-width:0}
+  .atb-stop{align-self:stretch;text-align:center;padding:8px 0}
+  /* FAB */
+  #fab{width:46px;height:46px;font-size:19px;bottom:18px;right:16px}
+  /* Tables: compact cell padding + smaller font so more fits before scrolling */
+  th{padding:7px 9px;font-size:10px}
+  td{padding:7px 9px;font-size:12px}
+  /* Tighten action buttons inside table cells */
+  .tda{gap:2px}
+  .tda button{padding:4px}
+}
 /* Invoice */
 @media print{
   .header,.nav,.header-btns,button,.modal-hd,.modal-ft,.tda,.fab{display:none!important}
@@ -487,7 +544,6 @@ body.dark .splash-features{background:#263347}
 // |  "// === TOAST"         toast(msg,type)                    |
 // |  "// === ICONS"         IC object SVG strings              |
 // |  "// === FIELD BUILDER" field(), stats()                   |
-// |  "// === EXPORT FILENAME" exportFilename()                 |
 // |  "// === VIEWS"         tab view functions                 |
 // |  "// === MODALS"        modal builder functions            |
 // |  "// === MAIN RENDER"   TABS[], views{}, render()          |
@@ -761,7 +817,23 @@ var ST={
     appName:'SixMinuteLog.com',
     darkMode:null,
     layout:'comfortable',
-    revenueSplit:false
+    revenueSplit:false,
+    analyticsEnabled:false,
+    // Quick-export preset — drives the header CSV button
+    csvQuick:{
+      dataset:'entries',
+      datePreset:'month',
+      cols:{date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false},
+      clCols:{name:true,email:true,phone:true,rate:true,contact:false},
+      maCols:{name:true,client:true,desc:true,rate:true,contact:false},
+      ctCols:{name:true,role:true,email:true,phone:true,rate:false,ownPct:false},
+      groupBy:'none',
+      includeTotals:true,
+      includeGrandTotal:true,
+      dateFormat:'iso',
+      currencySymbol:true,
+      filenamePrefix:''
+    }
   },
   // User-defined description suggestions shown as chips in entry forms (bl-descpresets)
   descPresets:[
@@ -819,7 +891,32 @@ var ST={
   },
   itf:{},  // IT admin form state
   firstRun:false,  // true if no user set on init
-  pref:{}   // partner review entry form state
+  pref:{},   // partner review entry form state
+  // === CSV EXPORT WIZARD STATE (transient, not persisted) ===
+  csvX:{
+    dataset:'entries',        // entries | clients | matters | contacts
+    // ── Date range ──
+    dateFrom:'', dateTo:'',
+    // ── Entry filters ──
+    allClients:true, clientIds:{},
+    allMatters:true, matterIds:{},
+    // ── Entry columns ──
+    cols:{date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false},
+    // ── Client columns ──
+    clCols:{name:true,email:true,phone:true,rate:true,contact:false},
+    // ── Matter columns ──
+    maCols:{name:true,client:true,desc:true,rate:true,contact:false},
+    // ── Contact columns ──
+    ctCols:{name:true,role:true,email:true,phone:true,rate:false,ownPct:false},
+    // ── Structure ──
+    groupBy:'none',           // none | client | matter | date-month | date-week
+    includeTotals:true,
+    includeGrandTotal:true,
+    // ── Output ──
+    dateFormat:'iso',         // iso | us | uk | long
+    currencySymbol:true,
+    filenamePrefix:''
+  }
 };
 
 // === HELPERS
@@ -886,6 +983,9 @@ function msToHMS(ms){
 }
 function $d(s){if(!s)return '';var d=new Date(s+'T00:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function H(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Interactive contact link helpers — use in all display-side email/phone output
+function mailLink(email,style){if(!email)return '';return '<a href="mailto:'+H(email)+'" style="'+(style||'')+'color:inherit;text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(email)+'</a>';}
+function telLink(phone,style){if(!phone)return '';var stripped=phone.replace(/[^\d+]/g,'');return '<a href="tel:'+H(stripped)+'" style="'+(style||'')+'color:inherit;text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(phone)+'</a>';}
 function pad2(n){return String(n).padStart(2,'0');}
 
 // Phone: format live as user types
@@ -966,12 +1066,6 @@ function autoRate(cid,mid,ctid,date){
     // 4. No attorney selected — use logged-in user's rate
     if(ST.user&&ST.user.rate) return ST.user.rate;
   }
-  // 5. Matter default rate
-  var m2=ST.matters.find(function(x){return x.id==mid;});
-  if(m2&&m2.rate) return m2.rate;
-  // 6. Client default rate
-  var cl2=ST.clients.find(function(x){return x.id==cid;});
-  if(cl2&&cl2.rate) return cl2.rate;
   return '';
 }
 
@@ -1053,8 +1147,8 @@ function syncForm(){
     if(by!==undefined) ST.ef.byContactId=by;
   }
   if(ST.modal==='cf'){
-    var n=g('cf-n'),e=g('cf-e'),p=g('cf-p'),r=g('cf-r'),op=g('cf-op');
-    ST.cf.name=n; ST.cf.email=e; ST.cf.phone=p; ST.cf.rate=r;
+    var n=g('cf-n'),e=g('cf-e'),p=g('cf-p'),op=g('cf-op');
+    ST.cf.name=n; ST.cf.email=e; ST.cf.phone=p;
     if(op!==undefined) ST.cf.ownPct=op;
     // Preserve new-person draft
     var pn=g('cf-pn'),pro=g('cf-pro'),pe=g('cf-pe'),pp=g('cf-pp');
@@ -1065,8 +1159,8 @@ function syncForm(){
     if(pp!==undefined) ST.cf.newPerson.phone=pp;
   }
   if(ST.modal==='mf'){
-    var n=g('mf-n'),desc=g('mf-desc'),r=g('mf-r');
-    ST.mf.name=n; ST.mf.description=desc; ST.mf.rate=r;
+    var n=g('mf-n'),desc=g('mf-desc');
+    ST.mf.name=n; ST.mf.description=desc;
   }
   if(ST.modal==='ctf'){
     var n=g('ctf-n'),ro=g('ctf-ro'),e=g('ctf-e'),p=g('ctf-p'),r=g('ctf-rate'),op=g('ctf-op');
@@ -1286,30 +1380,6 @@ function stats(arr){
   }).join('')+'</div>';
 }
 
-// === EXPORT FILENAME GENERATOR
-function exportFilename(){
-  var s=ST.settings;
-  var parts=[];
-  if(s.te) parts.push('entries');
-  if(s.cl) parts.push('clients');
-  if(s.ma) parts.push('matters');
-  if(s.co) parts.push('contacts');
-  if(s.su) parts.push('summary');
-  if(s.split) parts.push('split');
-  var label=parts.length===0?'empty'
-    :parts.length>=6?'full'
-    :parts.join('+');
-  var now=new Date();
-  var ds=now.toISOString().split('T')[0];
-  var ts=pad2(now.getHours())+pad2(now.getMinutes());
-  // Date range suffix
-  var range='';
-  if(s.expFrom&&s.expTo) range='_'+s.expFrom+'_to_'+s.expTo;
-  else if(s.expFrom) range='_from_'+s.expFrom;
-  else if(s.expTo) range='_to_'+s.expTo;
-  return 'billing-'+label+'_'+ds+'_'+ts+range+'.csv';
-}
-
 // === VIEWS
 
 // == Timesheet ==
@@ -1341,10 +1411,6 @@ function vTimesheet(){
   var hrs=fe.reduce(function(s,e){return s+Number(e.hours);},0);
   var bill=fe.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
 
-  // For attorneys: track how many of MY entries are still pending (need submission)
-  var myPending=(role==='attorney')
-    ? fe.filter(function(e){return (e.status||'pending')==='pending';}).length : 0;
-
   var fopts=['all','today','week','month','year'].map(function(v){
     var l={all:'All Time',today:'Today',week:'This Week',month:'This Month',year:'This Year'}[v];
     return '<option value="'+v+'"'+(ST.tsFilter===v?' selected':'')+'>'+l+'</option>';
@@ -1356,17 +1422,7 @@ function vTimesheet(){
   var noticeH='';
   if(role==='billing_staff'){
     noticeH='<div class="role-notice">'+IC.shield
-      +' <span><strong>Billing mode:</strong> You can add entries on behalf of attorneys, edit any entry, assign ABA codes &amp; matter numbers, then use <strong>Send to Partner</strong> to forward for approval.</span></div>';
-  } else if(role==='attorney'&&myPending>0){
-    noticeH='<div class="role-notice">'+IC.clock
-      +' <span><strong>'+myPending+' unsent entr'+(myPending===1?'y':'ies')+'.</strong> Review your entries below, then click <strong>Submit Timesheet</strong> to send to billing.</span></div>';
-  } else if(role==='attorney'&&fe.length>0&&myPending===0){
-    noticeH='<div class="good">'+IC.check+' All entries submitted. Check the <strong>Approvals</strong> tab for partner decisions.</div>';
-  } else if(role==='partner'&&fe.length>0){
-    var myApproved=fe.filter(function(e){return (e.status||'approved')==='approved';}).length;
-    var allApp=ST.entries.filter(function(e){return (e.status||'approved')==='pending';}).length;
-    noticeH='<div class="role-notice">'+IC.shield
-      +' <span>Your entries are shown here. '+(allApp>0?'<strong>'+allApp+' entries from others</strong> await your review in the <strong>Approvals</strong> tab.':'All team entries approved.')+'</span></div>';
+      +' <span><strong>Billing mode:</strong> Add entries on behalf of attorneys, assign ABA codes &amp; matter numbers, then use <strong>📤 Send to Partner</strong> to export a review package for the partner\'s instance.</span></div>';
   }
 
   // ── Table ─────────────────────────────────────────────────────────────────
@@ -1526,7 +1582,7 @@ function vTimesheet(){
       ?' <span title="Showing this year. Select All Time to load full history." style="color:var(--amber);cursor:help">('+ST._totalEntryCount+' total — partial)</span>':'')
     +'</p></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+actionBtns+'</div></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
+    +'<div class="ts-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
     +'<select onchange="A.setTsF(this.value)" style="'+selectStyle+'">'+fopts+'</select>'
     +(ST.clients.length>0?'<select onchange="A.setTsClF(this.value)" style="'+selectStyle+'">'+clFilterOpts+'</select>':'')
     +(ST.matters.length>0?'<select onchange="A.setTsMaF(this.value)" style="'+selectStyle+'">'+maFilterOpts+'</select>':'')
@@ -1550,9 +1606,9 @@ function entryForm(){
   var existingStatus=ST.editId?(ST.entries.find(function(e){return e.id==ST.editId;})||{}).status||'pending':null;
   var statusNotice='';
   if(existingStatus==='approved'){
-    statusNotice='<div class="good" style="margin-bottom:14px">'+IC.check+' This entry has been <strong>approved</strong> by a partner. Edits will reset it to pending.</div>';
+    statusNotice='<div class="good" style="margin-bottom:14px">'+IC.check+' This entry has been <strong>approved</strong> (imported from a review package). Edits will reset it to pending.</div>';
   } else if(existingStatus==='rejected'){
-    statusNotice='<div class="danger" style="margin-bottom:14px">This entry was <strong>rejected</strong>. Edit and re-submit via the Submit Timesheet button.</div>';
+    statusNotice='<div class="danger" style="margin-bottom:14px">This entry was <strong>rejected</strong>. Edit the entry and export an updated package for review.</div>';
   }
   // Billing staff: "Logged By" attorney/timekeeper selector
   // Attorney/partner: no such field — entry always attributed to themselves
@@ -1575,8 +1631,8 @@ function entryForm(){
     +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d})+field('Hours','ef-h',{type:'number',ph:'1.0',val:f.hours||'',req:true,err:f.errs&&f.errs.h,hint:'e.g. 1.5 or 0.25',step:'0.01',min:'0.01'})+'</div>'
     +'<div class="frow c2">'+field('Client','ef-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl})+field('Matter','ef-ma',{type:'select',opts:maOpts,val:f.matterId||'',hint:matHint})+'</div>'
     +(role==='billing_staff'
-      ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'150.00',val:f.rate||'',req:true,err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Uses attorney\'s rate on entry date by default':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
-      :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'150.00',val:f.rate||'',req:true,err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule > Matter > Client':'Priority: Matter-attorney > Client-attorney > Attorney schedule > Matter > Client'})+'</div>')
+      ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Auto-filled from attorney rate schedule on entry date':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
+      :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule':'Priority: Matter-attorney > Client-attorney > Attorney schedule'})+'</div>')
     +'<div class="frow c2">'+field('ABA/UTBMS Code','ef-aba',{type:'select',opts:ABA_TASK_CODES,val:f.abaCode||'',hint:'Optional task code for billing compliance'})+'<div></div></div>'
     +'<div class="frow">'+field('Description','ef-desc',{type:'textarea',rows:2,ph:'Describe the work performed...',val:f.description||''})+'</div>'
     +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ef-desc\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'')
@@ -1598,11 +1654,11 @@ function vClients(){
       var mc=function(c){return ST.matters.filter(function(m){return m.clientId==c.id;}).length;};
       return mc(b)-mc(a);
     }
-    if(ST.clSort==='rate') return Number(b.rate||0)-Number(a.rate||0);
+    if(ST.clSort==='rate') return 0;
     return a.name.localeCompare(b.name); // alpha
   });
   var selectStyle='padding:7px 11px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--white);color:var(--ink)';
-  var sortOpts=[['alpha','Name A\u2013Z'],['matters','Most Matters'],['rate','Rate \u2193']].map(function(x){return '<option value="'+x[0]+'"'+(ST.clSort===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('');
+  var sortOpts=[['alpha','Name A\u2013Z'],['matters','Most Matters']].map(function(x){return '<option value="'+x[0]+'"'+(ST.clSort===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('');
   if(ST.clients.length===0){
     cardsH='<div class="empty"><div class="empty-ico">&#128188;</div><p>No clients yet</p><small>Add your first client to get started</small></div>';
   } else if(list.length===0){
@@ -1623,13 +1679,12 @@ function vClients(){
         +(latestApproved?'<button onclick="A.emailInvoice('+latestApproved.id+')" title="Email latest invoice to client" style="color:var(--blue)">'+IC.mail+'</button>':'')
         +'<button onclick="A.editCl('+c.id+')" title="Edit">'+IC.edit+'</button><button onclick="A.delCl('+c.id+')" title="Delete">'+IC.trash+'</button></div></div>'
         +'<h3>'+H(c.name)+'</h3>'
-        +(c.email?'<p style="font-size:12px">'+H(c.email)+'</p>':'')
-        +(c.phone?'<p style="font-size:12px">'+H(c.phone)+'</p>':'')
+        +(c.email?'<p style="font-size:12px">'+mailLink(c.email)+'</p>':'')
+        +(c.phone?'<p style="font-size:12px">'+telLink(c.phone)+'</p>':'')
         +(cppl.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Client Contacts</div>'
-          +cppl.map(function(p){return '<div style="font-size:12px;padding:2px 0"><strong>'+H(p.name)+'</strong>'+(p.role?' <span style="color:var(--ink3)">&middot; '+H(p.role)+'</span>':'')+(p.email?'<br><span style="color:var(--ink2)">'+H(p.email)+'</span>':'')+(p.phone?'<span style="color:var(--ink3);font-size:11px"> '+H(p.phone)+'</span>':'')+'</div>';}).join('')+'</div>':'')
+          +cppl.map(function(p){return '<div style="font-size:12px;padding:2px 0"><strong>'+H(p.name)+'</strong>'+(p.role?' <span style="color:var(--ink3)">&middot; '+H(p.role)+'</span>':'')+(p.email?'<br>'+mailLink(p.email,'color:var(--ink2);'):'')+(p.phone?'<span style="color:var(--ink3);font-size:11px"> '+telLink(p.phone)+'</span>':'')+'</div>';}).join('')+'</div>':'')
         +(linkedCts.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Firm Team</div>'
-          +linkedCts.map(function(ct){return '<p style="font-size:12px;margin:2px 0">&#128203; '+H(ct.name)+(ct.role?' <span style="color:var(--ink3)">&middot; '+H(ct.role)+'</span>':'')+'</p>';}).join('')+'</div>':'')
-        +(c.rate?'<div class="card-rate">Default rate <strong>'+$m(c.rate)+'/hr</strong></div>':'')
+          +linkedCts.map(function(ct){return '<p style="font-size:12px;margin:2px 0">&#128203; '+H(ct.name)+(ct.role?' <span style="color:var(--ink3)">&middot; '+H(ct.role)+'</span>':'')+(ct.email?'<br><span style="padding-left:18px">'+mailLink(ct.email,'color:var(--ink2);font-size:11px;')+'</span>':'')+(ct.phone?' '+telLink(ct.phone,'color:var(--ink3);font-size:11px;'):'')+'</p>';}).join('')+'</div>':'')
         +((c.attorneyRates&&c.attorneyRates.length)?'<div class="card-rate" style="color:var(--blue)">'+c.attorneyRates.length+' negotiated attorney rate'+(c.attorneyRates.length!==1?'s':'')+'</div>':'')
         +'<div class="card-rate" style="border-top:none;padding-top:0;margin-top:6px">'
         +(function(){var mc=ST.matters.filter(function(m){return m.clientId==c.id;}).length;return '<span style="color:var(--ink3)">'+mc+' matter'+(mc!==1?'s':'')+'</span>';})()
@@ -1677,7 +1732,7 @@ function clientForm(){
         return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 8px;font-size:12px">'
           +'<span class="avatar" style="width:18px;height:18px;font-size:9px;background:#7c3aed;color:#fff;flex-shrink:0">'+H(p.name.charAt(0).toUpperCase())+'</span>'
           +H(p.name)+(p.role?'<span style="color:var(--ink3)"> &middot; '+H(p.role)+'</span>':'')
-          +(p.email?'<span style="color:var(--ink2);font-size:11px"> '+H(p.email)+'</span>':'')
+          +(p.email?'<span style="color:var(--ink2);font-size:11px"> '+mailLink(p.email)+'</span>':'')
           +'<button type="button" onclick="A.cfRemPerson('+i+')" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;color:var(--ink3);font-size:14px;margin-left:2px" title="Remove">&times;</button>'
           +'</span>';
       }).join('')+'</div>';
@@ -1686,7 +1741,7 @@ function clientForm(){
     +'<h3>'+(ST.editId?'Edit':'New')+' Client</h3>'
     +'<div class="frow">'+field('Client Name','cf-n',{ph:'Acme Corp',val:f.name||'',req:true,err:f.errs&&f.errs.n})+'</div>'
     +'<div class="frow c2">'+field('Email','cf-e',{type:'email',ph:'billing@acme.com',val:f.email||'',err:f.errs&&f.errs.e})+field('Phone','cf-p',{type:'tel',ph:'(555) 123-4567',val:f.phone||'',oninput:"A.livePhone('cf-p')"})+'</div>'
-    +'<div class="frow c2">'+field('Default Rate ($/hr)','cf-r',{pfx:'$',ph:'250.00',val:f.rate||'',hint:'Used unless overridden by matter/contact'})+field('Firm Team','cf-ct',{type:'select',opts:ctOpts,val:'',hint:'Assign firm contacts to this client'})+'</div>'
+    +'<div class="frow">'+field('Firm Team','cf-ct',{type:'select',opts:ctOpts,val:'',hint:'Assign firm contacts to this client'})+'</div>'
     +(chipsRow?'<div class="frow" style="padding-top:0;margin-top:-8px"><div>'+chipsRow+'</div></div>':'')
     // Client-side contacts section
     +'<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
@@ -1739,7 +1794,7 @@ function vMatters(){
   var formH=ST.modal==='mf'?matterForm():'';
   var selectStyle='padding:7px 11px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--white);color:var(--ink)';
   var clFilterOpts='<option value="">All Clients</option>'+ST.clients.map(function(c){return '<option value="'+c.id+'"'+(ST.maClientFilter==c.id?' selected':'')+'>'+H(c.name)+'</option>';}).join('');
-  var sortOpts=[['alpha','Name A\u2013Z'],['client','Client A\u2013Z'],['rate','Rate \u2193']].map(function(x){return '<option value="'+x[0]+'"'+(ST.maSort===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('');
+  var sortOpts=[['alpha','Name A\u2013Z'],['client','Client A\u2013Z']].map(function(x){return '<option value="'+x[0]+'"'+(ST.maSort===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('');
   var cardsH='';
   if(ST.matters.length===0){
     cardsH='<div class="empty"><div class="empty-ico">&#128193;</div><p>No matters yet</p><small>'+(ST.clients.length===0?'Add a client first, then create matters':'Add your first matter')+'</small></div>';
@@ -1757,11 +1812,7 @@ function vMatters(){
         if(cn!==0) return cn;
         return a.name.localeCompare(b.name);
       }
-      if(ST.maSort==='rate'){
-        var ra=a.rate||(_lu.cl[a.clientId]||{}).rate||0;
-        var rb=b.rate||(_lu.cl[b.clientId]||{}).rate||0;
-        return Number(rb)-Number(ra);
-      }
+      if(ST.maSort==='rate') return 0;
       return a.name.localeCompare(b.name);
     });
     if(list.length===0){
@@ -1813,24 +1864,27 @@ function vMatters(){
 function matterCard(m){
   var cl=_lu.cl[m.clientId];
   var ct=_lu.ct[m.contactId];
-  var rate=m.rate||(cl&&cl.rate);
-  // Resolve linked client-side people
+  // Resolve linked client-side people (with full detail including phone)
   var linkedPeople=[];
   if(m.linkedClientPeopleIds&&m.linkedClientPeopleIds.length&&cl&&cl.clientPeople){
     linkedPeople=m.linkedClientPeopleIds.map(function(pid){
       return cl.clientPeople.find(function(p){return p.id==pid;});
     }).filter(Boolean);
   }
+  // Resolve all firm team contacts (support contactIds[] array + legacy contactId)
+  var ctIds=m.contactIds&&m.contactIds.length?m.contactIds:(m.contactId?[m.contactId]:[]);
+  var linkedCts=ctIds.map(function(id){return _lu.ct[id];}).filter(Boolean);
   return '<div class="card">'
     +'<div class="card-hd"><span class="chip">'+H(cl?cl.name:'Unknown')+'</span>'
     +'<div class="card-act"><button onclick="A.editMa('+m.id+')" title="Edit">'+IC.edit+'</button><button onclick="A.delMa('+m.id+')" title="Delete">'+IC.trash+'</button></div></div>'
     +'<h3>'+H(m.name)+(m.matterNumber?' <span style="font-size:11px;font-weight:400;color:var(--blue);background:var(--blue-pale);padding:2px 7px;border-radius:10px;font-family:monospace">#'+H(m.matterNumber)+'</span>':'')+'</h3>'
-    +(ct?'<p style="font-size:12px">&#128203; '+H(ct.name)+(ct.role?'<span style="color:var(--ink3)"> &middot; '+H(ct.role)+'</span>':'')+'</p>':'')
-    +(linkedPeople.length?'<div style="margin:5px 0 3px;border-top:1px solid var(--border-l);padding-top:6px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:4px">Client Contacts</div>'
-      +linkedPeople.map(function(p){return '<div style="font-size:12px;padding:2px 0"><strong>'+H(p.name)+'</strong>'+(p.role?' <span style="color:var(--ink3)">&middot; '+H(p.role)+'</span>':'')+(p.email?'<br><span style="color:var(--ink2)">'+H(p.email)+'</span>':'')+'</div>';}).join('')
+    +(m.description?'<p style="color:var(--ink3);font-size:12px;margin-bottom:4px">'+H(m.description)+'</p>':'')
+    +(linkedPeople.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Client Contacts</div>'
+      +linkedPeople.map(function(p){return '<div style="font-size:12px;padding:2px 0"><strong>'+H(p.name)+'</strong>'+(p.role?' <span style="color:var(--ink3)">&middot; '+H(p.role)+'</span>':'')+(p.email?'<br>'+mailLink(p.email,'color:var(--ink2);'):'')+(p.phone?'<span style="color:var(--ink3);font-size:11px"> '+telLink(p.phone)+'</span>':'')+'</div>';}).join('')
       +'</div>':'')
-    +(m.description?'<p style="color:var(--ink3);font-size:12px">'+H(m.description)+'</p>':'')
-    +(rate?'<div class="card-rate">'+(m.rate?'Default rate':'Client rate')+' <strong>'+$m(rate)+'/hr</strong></div>':'')
+    +(linkedCts.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Firm Team</div>'
+      +linkedCts.map(function(fct){return '<p style="font-size:12px;margin:2px 0">&#128203; '+H(fct.name)+(fct.role?'<span style="color:var(--ink3)"> &middot; '+H(fct.role)+'</span>':'')+(fct.email?'<br><span style="padding-left:18px">'+mailLink(fct.email,'color:var(--ink2);font-size:11px;')+'</span>':'')+(fct.phone?' '+telLink(fct.phone,'color:var(--ink3);font-size:11px;'):'')+'</p>';}).join('')
+      +'</div>':(!ct?'':'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Lead Attorney</div><p style="font-size:12px;margin:2px 0">&#128203; '+H(ct.name)+(ct.role?'<span style="color:var(--ink3)"> &middot; '+H(ct.role)+'</span>':'')+(ct.email?'<br><span style="padding-left:18px">'+mailLink(ct.email,'color:var(--ink2);font-size:11px;')+'</span>':'')+(ct.phone?' '+telLink(ct.phone,'color:var(--ink3);font-size:11px;'):'')+'</p></div>'))
     +((m.attorneyRates&&m.attorneyRates.length)?'<div class="card-rate" style="color:var(--blue)">'+m.attorneyRates.length+' attorney-specific rate'+(m.attorneyRates.length!==1?'s':'')+'</div>':'')
     +'</div>';
 }
@@ -1840,7 +1894,6 @@ function matterForm(){
   var clOpts=[{v:'',l:'Select client...'}].concat(ST.clients.map(function(c){return{v:c.id,l:c.name};}));
   var ctOpts=[{v:'',l:'None'}].concat(ST.contacts.map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
   var selCl=ST.clients.find(function(c){return c.id==f.clientId;});
-  var hint=selCl&&selCl.rate?'Client default: '+$m(selCl.rate)+'/hr':'Uses client default if blank';
   // Client-side people for the selected client
   var cppl=selCl&&selCl.clientPeople&&selCl.clientPeople.length?selCl.clientPeople:[];
   var linkedIds=f.linkedClientPeopleIds||[];
@@ -1868,7 +1921,6 @@ function matterForm(){
     +'<div class="frow c2">'+field('Matter Name','mf-n',{ph:'Contract Review',val:f.name||'',req:true,err:f.errs&&f.errs.n})+field('Client','mf-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl})+'</div>'
     +'<div class="frow c2">'+field('Matter Number','mf-num',{ph:'e.g. 2024-001 or 12345',val:f.matterNumber||'',hint:'Firm-assigned matter number for billing/invoice reference'})+field('Lead Attorney','mf-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+'</div>'
     +'<div class="frow">'+field('Description','mf-desc',{type:'textarea',rows:2,ph:'Brief description of this matter...',val:f.description||''})+'</div>'
-    +'<div class="frow c2">'+field('Default Billing Rate ($/hr)','mf-r',{pfx:'$',ph:'Override rate…',val:f.rate||'',hint:hint+' · Overridden by per-attorney rates below'})+'<div></div></div>'
     +cpSection
     // Per-attorney rates for this matter
     +(function(){
@@ -1932,8 +1984,8 @@ function vContacts(){
           +'<div class="card-act">'+(isMe?'<span style="font-size:11px;font-weight:600;color:var(--blue);background:rgba(37,99,235,.1);padding:2px 8px;border-radius:10px;margin-right:4px">You</span>':'')+'<button onclick="A.editCt('+c.id+')" title="Edit">'+IC.edit+'</button>'+(isMe?'':'<button onclick="A.delCt('+c.id+')" title="Delete">'+IC.trash+'</button>')+'</div></div>'
           +'<h3>'+H(c.name)+'</h3>'
           +(c.role?'<p style="color:var(--ink2)">'+H(c.role)+'</p>':'')
-          +(c.email?'<p>'+H(c.email)+'</p>':'')
-          +(c.phone?'<p>'+H(c.phone)+'</p>':'')
+          +(c.email?'<p>'+mailLink(c.email,'font-size:13px;')+'</p>':'')
+          +(c.phone?'<p>'+telLink(c.phone,'font-size:13px;')+'</p>':'')
           +(ST.prefs.revenueSplit?'<div class="split-pill"><span class="own">Own '+pct+'%</span><span class="firm">Firm '+firmPct+'%</span></div>':'')
           +(ST.prefs.revenueSplit&&c.salary!=null&&c.salary!==''?'<div class="card-rate">Salary <strong>'+$m(c.salary)+'/yr</strong></div>':'')
           +(c.rate?'<div class="card-rate">Rate <strong>'+$m(c.rate)+'/hr</strong></div>':'')
@@ -1965,7 +2017,7 @@ function contactForm(){
 
   // Rate history table rows
   var rhRows=rh.length===0
-    ?'<tr><td colspan="4" style="text-align:center;padding:10px;color:var(--ink3);font-size:11px">No rate history entries. Add one below, or use the Default Rate field.</td></tr>'
+    ?'<tr><td colspan="4" style="text-align:center;padding:10px;color:var(--ink3);font-size:11px">No rate history entries. Add entries to track rate changes over time, or use the Default Rate field for a simple single rate.</td></tr>'
     :rh.slice().sort(function(a,b){return a.effectiveDate<b.effectiveDate?1:-1;}).map(function(r,i){
         var isCur=latestHistRate&&Number(r.rate)===latestHistRate&&r.effectiveDate===rh.slice().sort(function(a,b){return a.effectiveDate<b.effectiveDate?1:-1;})[0].effectiveDate;
         return '<tr>'
@@ -1993,7 +2045,7 @@ function contactForm(){
     +'<h3>'+(ST.editId?'Edit':'New')+' Contact</h3>'
     +'<div class="frow c2">'+field('Name','ctf-n',{ph:'Jane Smith',val:f.name||'',req:true,err:f.errs&&f.errs.n})+field('Role / Title','ctf-ro',{ph:'Associate Attorney',val:f.role||''})+'</div>'
     +'<div class="frow c2">'+field('Email','ctf-e',{type:'email',ph:'jane@firm.com',val:f.email||'',err:f.errs&&f.errs.e})+field('Phone','ctf-p',{type:'tel',ph:'(555) 123-4567',val:f.phone||'',oninput:"A.livePhone('ctf-p')"})+'</div>'
-    +'<div class="frow c2">'+field('Default Rate ($/hr)','ctf-rate',{pfx:'$',ph:'175.00',val:f.rate||'',hint:'Fallback if no rate history entry applies to the entry date'})+(ST.prefs.revenueSplit?field('Personal Cut %','ctf-op',{type:'number',sfx:'%',ph:'100',val:String(pct),hint:'% of billed amount this person keeps (firm gets the rest)'}):'')+'</div>'
+    +'<div class="frow c2">'+field('Default Rate ($/hr)','ctf-rate',{pfx:'$',ph:'175.00',val:f.rate||'',hint:'Used when no rate history entry matches the entry date'})+(ST.prefs.revenueSplit?field('Personal Cut %','ctf-op',{type:'number',sfx:'%',ph:'100',val:String(pct),hint:'% of billed amount this person keeps (firm gets the rest)'}):'')+'</div>'
     +(ST.prefs.revenueSplit?'<div class="frow c2">'+field('Annual Salary','ctf-sal',{pfx:'$',ph:'120,000',val:f.salary!=null&&f.salary!==''?String(f.salary):'',hint:'Used to calculate net income and bonus/deficit vs. billed earnings'})+'<div></div>'+'</div>':'')
     +rateSection
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveCt()">'+IC.save+' Save Contact</button></div>'
@@ -2714,8 +2766,8 @@ function buildInvoicePrint(){
 
   var firmName=H(inv.firmName||ST.firmProfile&&ST.firmProfile.firmName||ST.prefs.appName||'');
   var firmAddr=H(inv.firmAddress||'');
-  var firmPhone=H(inv.firmPhone||'');
-  var firmEmail=H(inv.firmEmail||'');
+  var firmPhone=inv.firmPhone?telLink(inv.firmPhone):'';
+  var firmEmail=inv.firmEmail?mailLink(inv.firmEmail):'';
   var invNum=H(inv.number||String(inv.id));
 
   var html='<div id="inv-print-wrap" style="background:#fff;color:#222;font-family:Georgia,serif;padding:0">'
@@ -2733,8 +2785,8 @@ function buildInvoicePrint(){
     +'<div style="display:flex;justify-content:space-between;padding:20px 40px;background:#f8f8f8;border-bottom:1px solid #ddd">'
     +'<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#999;margin-bottom:4px">Bill To</div>'
     +'<div style="font-weight:700;font-size:15px">'+H(cl.name)+'</div>'
-    +(cl.email?'<div style="font-size:12px;color:#666">'+H(cl.email)+'</div>':'')
-    +(cl.phone?'<div style="font-size:12px;color:#666">'+H(cl.phone)+'</div>':'')
+    +(cl.email?'<div style="font-size:12px;color:#666">'+mailLink(cl.email)+'</div>':'')
+    +(cl.phone?'<div style="font-size:12px;color:#666">'+telLink(cl.phone)+'</div>':'')
     +'</div>'
     +'<div style="text-align:right">'
     +(mt?'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#999;margin-bottom:2px">Matter</div><div style="font-weight:600">'+H(mt.name)+'</div>':'')
@@ -3017,54 +3069,139 @@ function buildQL(){
     +clientMatterH
     +'<div class="frow c2" style="margin-bottom:12px">'
     +'<div class="fl"><label>'+(f.addToId?'Hours to Add':'Hours')+' <span class="req">*</span></label><input type="number" id="ql-h" step="0.01" min="0.01" value="'+H(f.hours||'')+'" placeholder="1.0" oninput="A.qlSet(\'hours\',this.value)"'+(f.rawMs!=null?' title="Timer-measured: '+msToHMS(f.rawMs)+' exact"':'')+'></div>'
-    +'<div class="fl"><label>Rate ($/hr) <span class="req">*</span></label><div class="pw"><span class="pfx">$</span><input type="text" id="ql-r" value="'+H(f.rate||'')+'" placeholder="150.00" oninput="A.qlSet(\'rate\',fmtCur(this.value))"></div></div></div>'
+    +'<div class="fl"><label>Rate ($/hr)</label><div class="pw"><span class="pfx">$</span><input type="text" id="ql-r" value="'+H(f.rate||'')+'" placeholder="Auto" oninput="A.qlSet(\'rate\',fmtCur(this.value))"></div></div></div>'
     +'<div class="fl" style="margin-bottom:14px"><label>Description</label>'
     +'<input type="text" id="ql-d" value="'+H(f.description||'')+'" placeholder="What did you work on?" oninput="A.qlSet(\'description\',this.value)" onkeydown="if(event.key===\'Enter\')A.saveQL()"></div>'
     +(total?'<div class="total-pill">Total: <strong>'+total+'</strong></div>':'')
     +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ql-d\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'')
     +'<div class="fa" style="margin-top:0">'
     +'<button class="btn btn-gh" onclick="A.closeQL()">Cancel</button>'
-    +'<button class="btn btn-dk" onclick="A.saveQL()"'+((!f.clientId||!f.hours||!f.rate)?' disabled':'')+'>'
+    +'<button class="btn btn-dk" onclick="A.saveQL()"'+((!f.clientId||!f.hours)?' disabled':'')+'>'
     +IC.save+' '+(f.addToId?'Add Hours':'Save Entry')
     +'</button>'
     +'</div></div></div></div>';
 }
 
 function buildHelp(){
-  var tabs=[['start','Getting Started'],['time','Time Entries'],['clients','Clients & Matters'],['export','Export & Backup'],['offline','Using Offline'],['faq','FAQ']];
+  var tabs=[['start','Getting Started'],['time','Time Entries'],['clients','Clients & Matters'],['contacts','Contacts & Rates'],['invoices','Invoices'],['roles','Roles & Workflow'],['settings','Settings'],['backup','Backup'],['faq','FAQ']];
   var content={
-    start:'<h3>Welcome to SixMinuteLog.com!</h3><p>A private billing and time-tracking app. All data stays on your device - no accounts, no cloud, no fees.</p>'
-      +'<h4>Recommended Setup Order</h4><ol><li>Go to <strong>Contacts</strong> \u2248 add yourself and team members (with hourly rates'+(ST.prefs.revenueSplit?' and personal cut %':'')+')</li>'
-      +'<li>Go to <strong>Clients</strong> \u2248 add your clients with default billing rates</li>'
-      +'<li>Go to <strong>Matters</strong> \u2248 create matters/projects per client</li>'
-      +'<li>Go to <strong>Timesheet</strong> \u2248 start logging your time!</li></ol>'
-      +'<h4>Rate Priority System</h4><p>Rates fill automatically: <strong>Matter Rate \u2248 Contact Rate \u2248 Client Rate</strong>. Always overrideable.</p>'
-      +(ST.prefs.revenueSplit?'<h4>Own vs. Firm Split</h4><p>Each contact and your user profile has a "Personal Cut %" field. The Analytics tab shows a split table breaking down who keeps what.</p>':'')
-      +'<h4>Quick Log &#9889;</h4><p>The &#9889; button opens a popup with a stopwatch. When stopped, the exact measured time is shown and stored — no forced minimum or rounding. Adjust the hours field before saving if needed for billing.</p>',
-    time:'<h3>Logging Time</h3><h4>Full Entry</h4><p>Click "New Entry". Hours accept any decimal value (e.g. 1.5, 0.25). Required: Date, Client, Hours, Rate.</p>'
-      +'<h4>Form Field Preservation</h4><p>Changing a dropdown (client, matter, team member) will not clear your other typed fields - hours, rate, description are all preserved.</p>'
-      +'<h4>Quick Log &#9889;</h4><p>Tap &#9889;, start the stopwatch, stop when done. The exact measured time is stored on the entry — hover the hours value in the timesheet to see it. You can adjust the billed hours before saving.</p>'
-      +'<h4>Precision</h4><p>Hours display to 1 decimal place in all billing views. The underlying stored value is full precision (up to 4 decimal places). Timer-measured entries also store the exact raw milliseconds for audit purposes.</p>'
-      +'<h4>Filters</h4><p>Use the dropdown to filter by Today, This Week, This Month, This Year, or All Time.</p>',
-    clients:'<h3>Clients & Matters</h3><h4>Clients</h4><p>Each client has a name, contact info, and a default billing rate.</p>'
-      +'<h4>Matters</h4><p>Matters are projects/cases linked to a client with an optional override rate.</p>'
-      +'<h4>Linking in Time Entries</h4><ol><li>Select the <strong>Client</strong> first</li><li>Matter dropdown shows only that client\'s matters</li><li>Rate auto-fills without clearing other fields</li></ol>',
-    export:'<h3>Export & Backup</h3><h4>Smart Filename</h4><p>The export filename reflects what you\'ve selected to export and includes the exact time. Example: <code>billing-entries+summary_2025-01-15_1430.csv</code></p>'
-      +'<h4>Granular Controls</h4><p>In ⚙️ Settings you can choose which sections to include, which columns to include for time entries, and optionally filter by date range.</p>'
-      +(ST.prefs.revenueSplit?'<h4>Revenue Split Export</h4><p>Enable "Revenue Split" in export settings to include a per-person own/firm breakdown in the CSV.</p>':'')
-      +'<div class="note">⚠️ Clearing browser data will erase your data. Export regularly!</div>',
-    offline:'<h3>Using Offline</h3><h4>This File IS the App</h4><p>The <code>billing-tracker.html</code> file contains everything - zero external dependencies. It works 100% offline.</p>'
-      +'<h4>How to Run</h4><ol><li>Save the HTML file anywhere</li><li>Double-click to open in browser</li><li>Bookmark it for easy access</li><li>Always use the same browser</li></ol>'
-      +'<div class="good">✅No internet required. No CDN, no cloud, nothing external.</div>',
+    start:'<h3>Welcome to SixMinuteLog.com!</h3>'
+      +'<p>A private legal billing and time-tracking app. All data stays on your device — no accounts, no cloud, no fees. Zero external dependencies.</p>'
+      +'<h4>Recommended Setup Order</h4>'
+      +'<ol>'
+      +'<li>Open <strong>⚙️ Settings → Advanced</strong> and choose your role (Attorney, Partner, or Billing Staff)</li>'
+      +'<li>Go to <strong>Contacts</strong> — add yourself and any team members with hourly rates'+(ST.prefs.revenueSplit?' and personal cut %':'')+'</li>'
+      +'<li>Go to <strong>Clients</strong> — add your clients with default billing rates</li>'
+      +'<li>Go to <strong>Matters</strong> — create matters/cases per client</li>'
+      +'<li>Go to <strong>Timesheet</strong> — start logging time!</li>'
+      +'</ol>'
+      +'<h4>Rate Priority</h4>'
+      +'<p>Rates auto-fill in this order: <strong>Matter-level attorney rate → Client-level attorney rate → Contact rate history → Contact default rate → Client default rate</strong>. Always manually overrideable.</p>'
+      +(ST.prefs.revenueSplit?'<h4>Revenue Split</h4><p>Each contact has a "Personal Cut %" field. Analytics shows the full breakdown of who keeps what vs. what goes to the firm.</p>':'')
+      +'<h4>Quick Log ⚡</h4>'
+      +'<p>The ⚡ floating button opens a quick-log panel with a built-in stopwatch. Start, stop — the measured time is pre-filled (no forced rounding). Adjust the billed hours before saving if needed.</p>',
+
+    time:'<h3>Time Entries (Timesheet Tab)</h3>'
+      +'<h4>New Entry</h4>'
+      +'<p>Click <strong>+ New Entry</strong>. Required fields: Date, Client, Hours, Rate. Matter, Description, Team Member, and ABA/UTBMS code are optional but recommended for billing compliance.</p>'
+      +'<h4>Quick Log ⚡</h4>'
+      +'<p>Tap ⚡, press Start, press Stop when done. The exact elapsed time is pre-filled. Hover the hours value in the timesheet row to see the raw measured time.</p>'
+      +'<h4>Row Timers</h4>'
+      +'<p>Each existing entry in the timesheet also has a per-row stopwatch button. Tap it to accumulate time against an existing entry.</p>'
+      +'<h4>Field Preservation</h4>'
+      +'<p>Changing a dropdown (client, matter, team member) never clears your typed fields — hours, rate, description are always preserved.</p>'
+      +'<h4>ABA / UTBMS Codes</h4>'
+      +'<p>Each entry can have an ABA Uniform Task-Based Management System code. Billing Staff can set these in bulk using the 🧾 button on each row.</p>'
+      +'<h4>Hours Precision</h4>'
+      +'<p>Stored at full precision (up to 4 decimal places); timer entries also store raw milliseconds. Billing views display 1 decimal place.</p>'
+      +'<h4>Filters</h4>'
+      +'<p>Filter by Today, This Week, This Month, This Year, or All Time using the dropdown above the table.</p>'
+      +'<h4>Entry Status</h4>'
+      +'<p>Entries progress through statuses: <strong>Pending → Submitted → Approved</strong>. Partners can approve or cut individual entries. Approved entries flow into Invoices.</p>',
+
+    clients:'<h3>Clients &amp; Matters</h3>'
+      +'<h4>Clients</h4>'
+      +'<p>Each client has a name, contact info, default billing rate, linked contacts, linked client people (non-team contacts at the client), and optional attorney-specific negotiated rates.</p>'
+      +'<h4>Attorney-Specific Rates (Clients)</h4>'
+      +'<p>Inside a client record you can add per-attorney negotiated rates. These override the client\'s default rate for that attorney on any entry linked to this client.</p>'
+      +'<h4>Matters</h4>'
+      +'<p>Matters are cases/projects linked to a client. Each matter can have its own default rate, description, linked contacts, and per-attorney rates that override all other rates.</p>'
+      +'<h4>Rate Cascade in Entries</h4>'
+      +'<ol><li>Select a <strong>Client</strong> — rate auto-fills from the client\'s rate for that attorney</li>'
+      +'<li>Select a <strong>Matter</strong> — rate updates to the matter\'s rate for that attorney if set</li>'
+      +'<li>Rate is always manually editable</li></ol>'
+      +'<h4>Invoices on Client Cards</h4>'
+      +'<p>Approved invoices appear summarised on each client card. Use the 📧 icon to email the latest invoice directly to the client.</p>',
+
+    contacts:'<h3>Contacts &amp; Rate History</h3>'
+      +'<h4>Contacts</h4>'
+      +'<p>Contacts represent your team members (attorneys, partners, billing staff). Each has a name, role/title, email, phone, default hourly rate'+(ST.prefs.revenueSplit?', personal cut %, and optional annual salary (for bonus/deficit analytics)':'')+'.</p>'
+      +'<h4>Rate History</h4>'
+      +'<p>Each contact can have a full rate history with effective dates. When an entry is logged, the system finds the most recent rate effective on or before the entry date. This ensures historical entries always bill at the correct rate even after rate changes.</p>'
+      +'<p>Add a new rate history row with an effective date to schedule a rate change. The <strong>Default Rate</strong> field is the fallback when no history row matches.</p>'
+      +'<h4>isUser Flag</h4>'
+      +'<p>One contact is marked as the current user. Their rate history is used for your own entries when no client/matter-specific rate applies.</p>',
+
+    invoices:'<h3>Invoices</h3>'
+      +'<p>The Invoices tab (visible to Partners and Billing Staff) lets you create, review, print, and email invoices built from approved time entries.</p>'
+      +'<h4>Creating an Invoice</h4>'
+      +'<ol><li>Approved entries for a client accumulate in the Invoices tab</li>'
+      +'<li>Click <strong>+ New Invoice</strong>, select the client and date range, fill firm details</li>'
+      +'<li>Review the line items — you can add notes and override the invoice number</li>'
+      +'<li>Set status to <strong>Approved</strong> to finalise</li></ol>'
+      +'<h4>Partner Review</h4>'
+      +'<p>In the <strong>Approvals</strong> tab (Partners only), each submitted entry can be approved as-is, have its hours reduced, or have its description edited. Approved entries unlock for invoicing.</p>'
+      +'<h4>Print &amp; Email</h4>'
+      +'<p>Use the 🖨 icon to open a printable invoice preview. Use the 📧 icon to send via your default email client with the invoice details pre-filled.</p>'
+      +'<h4>Email Presets</h4>'
+      +'<p>Configure reusable email templates in <strong>⚙️ Settings → Email</strong>. Templates support placeholders like <code>{client_name}</code>, <code>{invoice_number}</code>, <code>{amount_due}</code>, and more.</p>',
+
+    roles:'<h3>Roles &amp; Workflow</h3>'
+      +'<p>The app has three roles that determine what each user sees and can do.</p>'
+      +'<h4>Attorney</h4>'
+      +'<p>Logs and edits their own time entries (pending entries only). Can submit entries to a partner for approval via <strong>📤 Submit to Partner</strong>, which exports a transfer package (.json). Cannot access Invoices or Approvals tabs.</p>'
+      +'<h4>Partner</h4>'
+      +'<p>Full access. Sees all entries across the firm. Can approve, cut, or edit entries in the <strong>Approvals</strong> tab. Can create and manage invoices. Can import submission packages from attorneys.</p>'
+      +'<h4>Billing Staff</h4>'
+      +'<p>Can add and edit entries on behalf of any attorney. Assigns ABA codes and matter numbers. Can export review packages scoped to a specific partner\'s clients. Sees all entries, does not access Approvals or Invoices directly.</p>'
+      +'<h4>Submission Workflow</h4>'
+      +'<ol><li><strong>Attorney</strong> logs entries → marks as ready → uses <em>Submit to Partner</em> to download a package</li>'
+      +'<li><strong>Partner</strong> imports the package → reviews in Approvals → approves/adjusts</li>'
+      +'<li>Approved entries appear in Invoices for billing</li></ol>'
+      +'<h4>Firm Profile</h4>'
+      +'<p>Partners can build and export a <strong>Firm Profile</strong> (.json) from Settings → Advanced. This pre-configures a new attorney\'s app with clients, matters, contacts, description presets, and user profiles in one import.</p>',
+
+    settings:'<h3>Settings Overview</h3>'
+      +'<h4>Backup tab</h4><p>Download a full JSON backup, export a self-contained copy of the app HTML, or restore from a previous backup. Also export/import Firm Profiles here.</p>'
+      +'<h4>Appearance tab</h4><p>Toggle dark mode, choose layout density (Comfortable / Compact / Spacious), and set the app name shown in the header and on printed invoices.</p>'
+      +'<h4>Descriptions tab</h4><p>Manage a list of description presets (chip suggestions) that appear below the description field when logging time. Reorder by drag, edit in place, delete individually.</p>'
+      +'<h4>Email tab</h4><p>Create and manage reusable email presets with subject lines and body templates. Presets appear in the Send Email modal when emailing invoices or approval requests. Supports dynamic placeholders.</p>'
+      +'<h4>Advanced tab</h4><p>Set your role (Attorney / Partner / Billing Staff), enable/disable the Analytics tab, toggle Revenue Split mode, and access the Firm Profile builder. Also shows the "Download Claude Guide" button for regenerating the AI architecture reference file.</p>',
+
+    backup:'<h3>Backup &amp; Restore</h3>'
+      +'<h4>Full JSON Backup</h4>'
+      +'<p>Go to <strong>⚙️ Settings → Backup</strong> and click <em>Download Full Backup (.json)</em>. The file includes all clients, matters, entries, contacts, invoices, settings, and presets. The filename includes the date and time.</p>'
+      +'<h4>Save a Copy of the App</h4>'
+      +'<p>Use <em>Save App as HTML</em> to download a fresh standalone copy of the app itself (no data included). Useful for updating to a new version without losing your data.</p>'
+      +'<h4>Restoring</h4>'
+      +'<p>Use <strong>Restore / Import Data</strong> to load a previously saved JSON backup. This replaces all current data — make sure to back up first.</p>'
+      +'<h4>Firm Profile Import</h4>'
+      +'<p>A Firm Profile is a configuration-only export (no time entries). Import one to pre-populate clients, matters, contacts, and presets on a fresh install.</p>'
+      +'<div class="note">⚠️ Your data lives in this browser\'s IndexedDB. Clearing browser data, switching browsers, or using a different device will not carry your data over. Download a JSON backup regularly and keep it safe.</div>',
+
     faq:'<h3>FAQ</h3>'+[
-      ['Where is my data stored?','In your browser\'s IndexedDB — a local database built into every modern browser. Nothing is ever uploaded or sent anywhere. Preferences are also cached in localStorage for instant startup.'],
-      ['Why doesn\'t changing a dropdown clear my typed fields?','Fixed! The app now saves all field values before re-rendering on any dropdown change.'],
-      ...(ST.prefs.revenueSplit?[['How does the revenue split work?','Set a "Personal Cut %" on each contact (e.g. 65 means they keep 65%, firm gets 35%). Analytics shows the full breakdown.']]:[] ),
-      ['Hours precision — what is stored vs. displayed?','Hours are stored at full precision (up to 4 decimal places). Timer entries also store exact raw milliseconds. In billing views, 1 decimal place is shown (e.g. 1.3h). Hover a timer-derived hours value in the timesheet to see the exact stored time.'],
-      ['How do I customize the export filename?','The filename auto-generates based on what sections you\'ve selected to export, plus the date and time.'],
-      ['What browsers work?','Chrome is most reliable. Firefox, Edge, and Safari all work too.'],
-      ['Can I use this offline?','Yes - the file has zero external dependencies. Download and double-click.'],
-    ].map(function(q){return '<div class="faq-item"><strong>'+H(q[0])+'</strong><p>'+H(q[1])+'</p></div>';}).join('')
+      ['Where is my data stored?','In your browser\'s IndexedDB — a local database built into every modern browser. Nothing is ever uploaded or sent anywhere. App preferences are also cached in localStorage for instant startup.'],
+      ['Can I use this on multiple devices or browsers?','Not automatically. Export a JSON backup on one device and Restore it on another. Each browser instance keeps its own independent database.'],
+      ['Why doesn\'t changing a dropdown clear my typed fields?','By design. The app snapshots all form values before every re-render, so switching the client or matter dropdown never loses your typed hours, rate, or description.'],
+      ...(ST.prefs.revenueSplit?[['How does the revenue split work?','Set a "Personal Cut %" on each contact (e.g. 65 means they keep 65%, the firm gets 35%). Analytics shows the full breakdown per person and in total.']]:[] ),
+      ['What are ABA / UTBMS codes?','Uniform Task-Based Management System codes are standard codes for legal billing compliance. Set them per entry in the New Entry form, or in bulk via the 🧾 button (Billing Staff).'],
+      ['How do attorney rate histories work?','Each contact can have rate history rows with effective dates. The system picks the most recent rate effective on or before the entry date. This ensures past entries always reflect the rate that was in effect at the time.'],
+      ['What is a Firm Profile?','A Firm Profile is a configuration snapshot (clients, matters, contacts, presets, user templates) that a partner can export and distribute so attorneys can onboard instantly with a single import.'],
+      ['Hours precision — what is stored vs. displayed?','Hours are stored at full precision (up to 4 decimal places). Timer entries also store exact raw milliseconds. Billing views display 1 decimal place. Hover a timer-sourced hours value in the timesheet to see the raw measured time.'],
+      ['How do I download a backup?','Go to ⚙️ Settings → Backup → Download Full Backup (.json). You can also use the Backup & Export button in the header area.'],
+      ['What browsers work best?','Chrome is most reliable for IndexedDB stability. Firefox, Edge, and Safari all work. Always use the same browser profile for consistent data access.'],
+      ['Can I use this offline?','Yes — the file has zero external dependencies, no CDN, no internet required. Download the HTML file and double-click it to open.'],
+    ].map(function(q){return '<div class="faq-item"><strong>'+H(q[0])+'</strong><p>'+q[1]+'</p></div>';}).join('')
   };
   return '<div class="ov"><div class="modal modal-lg"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.help+' Help & Guide</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
     +'<div class="help-lay"><div class="help-nav">'+tabs.map(function(t){return '<button class="'+(ST.helpTab===t[0]?'on':'')+'" onclick="A.setHT(\''+t[0]+'\')">'+H(t[1])+'</button>';}).join('')+'</div>'
@@ -3072,75 +3209,310 @@ function buildHelp(){
 }
 
 function buildExportModal(){
-  var s=ST.settings;
-  var fname=exportFilename();
-  var presets=[['Full','full'],['Billing','billing'],['Dirs','dirs'],['Summary','sum'],['W/Split','wsplit'],['T+Split','tsplit']];
-  var sections=[
-    ['te','Time Entries','Individual billing records'],
-    ['cl','Clients','Client info & rates'],
-    ['ma','Matters','Matter details'],
-    ['co','Contacts','Team directory'],
-    ['su','Summary','Totals & counts'],
-    ['split','Revenue Split','Own vs. firm per person']
-  ];
-  var colRows=[
-    ['tc_date','Date'],['tc_client','Client'],['tc_matter','Matter'],['tc_team','Team Member'],
-    ['tc_desc','Description'],['tc_hours','Hours'],['tc_rate','Rate'],['tc_amount','Amount'],['tc_by','Created By']
-  ];
-  return '<div class="ov"><div class="modal modal-lg"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.dl+' Backup &amp; Export</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
-  +'<div class="modal-bd">'
-  +'<div class="note" style="margin-bottom:14px">This exports <strong>your own data</strong> — backups and CSV files for records or migration. To send entries to a colleague, use the <strong>📤 Submit Timesheet</strong> button on the Timesheet tab.</div>'
-  +'<div class="set-section">'
-  +'<h3 style="margin-bottom:10px">Quick Export</h3>'
-  +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">'
-  +'<button class="btn btn-dk" style="flex-direction:column;padding:12px 8px;gap:3px;height:auto" onclick="A.exportJSON();A.closeM()">'+IC.save+'<span style="font-size:12px;font-weight:500">Full Backup</span><span style="font-size:10px;opacity:.8">.json &mdash; everything</span></button>'
-  +'<button class="btn btn-gr" style="flex-direction:column;padding:12px 8px;gap:3px;height:auto" onclick="A.exportCSV();A.closeM()">'+IC.dl+'<span style="font-size:12px;font-weight:500">Export CSV</span><span style="font-size:10px;opacity:.8">using settings below</span></button>'
-  +'<button class="btn btn-gh" style="flex-direction:column;padding:12px 8px;gap:3px;height:auto" onclick="A.openMailSend()">'+IC.mail+'<span style="font-size:12px;font-weight:500">Email CSV</span><span style="font-size:10px;opacity:.8">via mail preset</span></button>'
-  +'</div></div>'
-  +'<div class="set-section">'
-  +'<h3 style="margin-bottom:8px">CSV Presets</h3>'
-  +'<div class="preset-grid">'
-  +presets.map(function(p){return '<button class="preset-btn" onclick="A.applyPreset(\''+p[1]+'\')">'+'<strong>'+H(p[0])+'</strong></button>';}).join('')
-  +'</div></div>'
-  +'<div class="set-section">'
-  +'<h3 style="margin-bottom:8px">Sections to Include</h3>'
-  +sections.map(function(r){return '<label class="crow" style="margin-bottom:6px"><input type="checkbox" '+(s[r[0]]?'checked':'')+' onchange="A.togExp(\''+r[0]+'\',this.checked)"><div><strong>'+H(r[1])+'</strong><span>'+H(r[2])+'</span></div></label>';}).join('')
-  +(s.te?'<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 6px">Time entry columns</div>'
-    +'<div class="sub-checks">'
-    +colRows.map(function(r){return '<label class="sub-check"><input type="checkbox" '+(s[r[0]]?'checked':'')+' onchange="A.togExp(\''+r[0]+'\',this.checked)"> '+H(r[1])+'</label>';}).join('')
-    +'</div>':'')
-  +'</div>'
-  +'<div class="set-section">'
-  +'<h3 style="margin-bottom:8px">Date Range <span style="font-size:11px;color:var(--ink3);font-weight:400">(time entries only)</span></h3>'
-  +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-  +'<div class="fl"><label>From</label><input type="date" id="exp-from" value="'+H(s.expFrom||'')+'" onchange="(function(el){ST.settings.expFrom=el.value;save();})(this)"></div>'
-  +'<div class="fl"><label>To</label><input type="date" id="exp-to" value="'+H(s.expTo||'')+'" onchange="(function(el){ST.settings.expTo=el.value;save();})(this)"></div>'
-  +'</div></div>'
-  +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
-  +'<h3 style="margin-bottom:8px">Export by Data Type</h3>'
-  +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px">Export one data type as its own CSV file.</p>'
-  +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-  +[['clients','Clients'],['matters','Matters'],['entries','Time Entries'],['contacts','Contacts'],['settings','Settings']].map(function(t){
-    return '<button class="btn btn-gh" style="justify-content:flex-start" onclick="A.exportEntityCSV(\''+t[0]+'\')">'+IC.dl+' '+H(t[1])+'</button>';
-  }).join('')
-  +'</div></div>'
-  +'</div>'
-  +'<div class="modal-ft" style="justify-content:space-between;align-items:center">'
-  +'<div class="exp-name-preview" style="margin:0;flex:1;margin-right:12px">'+H(fname)+'</div>'
-  +'<div style="display:flex;gap:8px">'
-  +'<button class="btn btn-gh" onclick="A.closeM()">Close</button>'
-  +'<button class="btn btn-dk" onclick="A.exportJSON();A.closeM()">'+IC.save+' Backup</button>'
-  +'<button class="btn btn-gr" onclick="A.exportCSV();A.closeM()">'+IC.dl+' Export CSV</button>'
-  +'</div></div>'
-  +'</div></div>';
-}
+  var x=ST.csvX;
+  var ds=x.dataset;
 
+  // ── Dataset selector buttons ──
+  var dsBtns=['entries','clients','matters','contacts'].map(function(d){
+    var lbls={entries:'Time Entries',clients:'Clients',matters:'Matters',contacts:'Contacts'};
+    var on=ds===d;
+    return '<button class="btn'+(on?' btn-dk':' btn-gh')+'" style="flex:1;justify-content:center;font-size:12px;padding:8px 6px" onclick="A.csvXDataset(\''+d+'\')">'+lbls[d]+'</button>';
+  }).join('');
+
+  // ── Helpers ──
+  function chkBox(id,checked,onchange,label,hint){
+    return '<label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;padding:5px 0;line-height:1.4">'
+      +'<input type="checkbox" '+(checked?'checked':'')+' onchange="'+onchange+'" style="margin-top:1px;flex-shrink:0;width:13px;height:13px;cursor:pointer">'
+      +'<span><strong>'+label+'</strong>'+(hint?'<br><span style="color:var(--ink3);font-size:11px">'+hint+'</span>':'')+'</span></label>';
+  }
+  function colGrid(cols){
+    return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">'+cols+'</div>';
+  }
+  function section(title,body,noBorder){
+    return '<div class="set-section"'+(noBorder?' style="border-bottom:none;margin-bottom:0;padding-bottom:0"':'')+'>'
+      +'<h3 style="margin-bottom:10px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2)">'+title+'</h3>'
+      +body+'</div>';
+  }
+
+  var body='';
+
+  // ── TIME ENTRIES ──
+  if(ds==='entries'){
+    // Date range
+    body+=section('Date Range',
+      '<div class="frow c2">'
+      +'<div class="fl"><label>From</label><input type="date" id="csvx-dfrom" value="'+H(x.dateFrom||'')+'" onchange="A.csvXOpt(\'dateFrom\',this.value)"></div>'
+      +'<div class="fl"><label>To</label><input type="date" id="csvx-dto" value="'+H(x.dateTo||'')+'" onchange="A.csvXOpt(\'dateTo\',this.value)"></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
+      +['today','week','month','quarter','year','all'].map(function(p){
+        var lbl={today:'Today',week:'This Week',month:'This Month',quarter:'This Quarter',year:'This Year',all:'All Time'}[p];
+        return '<button class="btn btn-gh" style="font-size:11px;padding:4px 10px" onclick="A.csvXPreset(\''+p+'\')">'+lbl+'</button>';
+      }).join('')+'</div>'
+    );
+
+    // Client filter
+    var clOpts=ST.clients.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+    var clBody=chkBox('csvx-allcl',x.allClients,'A.csvXAllClients(this.checked)','All clients','');
+    if(!x.allClients){
+      clBody+='<div style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:4px 8px;margin-top:6px;background:var(--bg)">';
+      if(clOpts.length===0) clBody+='<p style="font-size:11px;color:var(--ink3);padding:4px 0">No clients yet</p>';
+      clOpts.forEach(function(c){
+        clBody+=chkBox('','!!x.clientIds["'+c.id+'"]','',(x.clientIds[c.id]?'checked':'')+'  — actually use inline','')+' ';
+        // rebuild properly:
+      });
+      clBody='<div style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:4px 8px;margin-top:6px;background:var(--bg)">';
+      clOpts.forEach(function(c){
+        var ck=x.clientIds[c.id]?'checked':'';
+        clBody+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:3px 0">'
+          +'<input type="checkbox" '+ck+' onchange="A.csvXTogClient('+c.id+',this.checked)" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
+          +H(c.name)+'</label>';
+      });
+      clBody+='</div>';
+    }
+    body+=section('Clients', clBody);
+
+    // Matter filter
+    var maOpts=ST.matters.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+    var maBody=chkBox('csvx-allma',x.allMatters,'A.csvXAllMatters(this.checked)','All matters','');
+    if(!x.allMatters){
+      maBody+='<div style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:4px 8px;margin-top:6px;background:var(--bg)">';
+      maOpts.forEach(function(m){
+        var cl=_lu.cl[m.clientId];
+        var ck=x.matterIds[m.id]?'checked':'';
+        maBody+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:3px 0">'
+          +'<input type="checkbox" '+ck+' onchange="A.csvXTogMatter('+m.id+',this.checked)" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
+          +H(m.name)+(cl?' <span style="color:var(--ink3);font-size:11px">'+H(cl.name)+'</span>':'')+'</label>';
+      });
+      maBody+='</div>';
+    }
+    body+=section('Matters', maBody);
+
+    // Columns
+    var c=x.cols;
+    body+=section('Columns',colGrid(
+      chkBox('','c.date','A.csvXTogCol(\'date\')','Date',''+(c.date?'checked':''))
+      +chkBox('','c.client','A.csvXTogCol(\'client\')','Client',''+(c.client?'checked':''))
+      +chkBox('','c.matter','A.csvXTogCol(\'matter\')','Matter',''+(c.matter?'checked':''))
+      +chkBox('','c.contact','A.csvXTogCol(\'contact\')','Billing Contact',''+(c.contact?'checked':''))
+      +chkBox('','c.hours','A.csvXTogCol(\'hours\')','Hours',''+(c.hours?'checked':''))
+      +chkBox('','c.rate','A.csvXTogCol(\'rate\')','Rate',''+(c.rate?'checked':''))
+      +chkBox('','c.amount','A.csvXTogCol(\'amount\')','Amount',''+(c.amount?'checked':''))
+      +chkBox('','c.desc','A.csvXTogCol(\'desc\')','Description',''+(c.desc?'checked':''))
+      +chkBox('','c.by','A.csvXTogCol(\'by\')','Created By',''+(c.by?'checked':''))
+      +chkBox('','c.abaCode','A.csvXTogCol(\'abaCode\')','ABA Task Code',''+(c.abaCode?'checked':''))
+      +chkBox('','c.entryId','A.csvXTogCol(\'entryId\')','Entry ID',''+(c.entryId?'checked':''))
+    ));
+    // Rebuild columns section with correct checked state
+    var c2=x.cols;
+    function cRow(colKey,label){
+      return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:4px 0">'
+        +'<input type="checkbox" '+(c2[colKey]?'checked':'')+' onchange="A.csvXTogCol(\''+colKey+'\')" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
+        +label+'</label>';
+    }
+    // Redo body properly (clear the above attempt at columns)
+    // I'll redo the whole entries body cleanly below.
+  }
+
+  // ─── Rebuild entries body cleanly ───
+  body='';
+
+  if(ds==='entries'){
+    // Date range
+    var drBody='<div class="frow c2">'
+      +'<div class="fl"><label>From</label><input type="date" id="csvx-dfrom" value="'+H(x.dateFrom||'')+'" onchange="A.csvXOpt(\'dateFrom\',this.value)"></div>'
+      +'<div class="fl"><label>To</label><input type="date" id="csvx-dto" value="'+H(x.dateTo||'')+'" onchange="A.csvXOpt(\'dateTo\',this.value)"></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px">'
+      +['today','week','month','quarter','year','all'].map(function(p){
+        var lbl={today:'Today',week:'This Week',month:'This Month',quarter:'This Quarter',year:'This Year',all:'All Time'}[p];
+        return '<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXPreset(\''+p+'\')">'+lbl+'</button>';
+      }).join('')+'</div>';
+    body+=section('Date Range',drBody);
+
+    // Client filter
+    var clOpts2=ST.clients.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+    var clBd='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:3px 0">'
+      +'<input type="checkbox" '+(x.allClients?'checked':'')+' onchange="A.csvXAllClients(this.checked)" style="width:13px;height:13px;cursor:pointer">'
+      +'<strong>All clients</strong></label>';
+    if(!x.allClients && clOpts2.length>0){
+      clBd+='<div style="max-height:110px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:4px 8px;margin-top:6px;background:var(--bg)">';
+      clOpts2.forEach(function(c){
+        clBd+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:2px 0">'
+          +'<input type="checkbox" '+(x.clientIds[c.id]?'checked':'')+' onchange="A.csvXTogClient('+c.id+',this.checked)" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
+          +H(c.name)+'</label>';
+      });
+      clBd+='</div>';
+    } else if(!x.allClients){
+      clBd+='<p style="font-size:11px;color:var(--ink3);margin-top:6px">No clients in database.</p>';
+    }
+    body+=section('Filter by Client',clBd);
+
+    // Matter filter
+    var maOpts2=ST.matters.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+    var maBd='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:3px 0">'
+      +'<input type="checkbox" '+(x.allMatters?'checked':'')+' onchange="A.csvXAllMatters(this.checked)" style="width:13px;height:13px;cursor:pointer">'
+      +'<strong>All matters</strong></label>';
+    if(!x.allMatters && maOpts2.length>0){
+      maBd+='<div style="max-height:110px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:4px 8px;margin-top:6px;background:var(--bg)">';
+      maOpts2.forEach(function(m){
+        var cl=_lu.cl[m.clientId];
+        maBd+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:2px 0">'
+          +'<input type="checkbox" '+(x.matterIds[m.id]?'checked':'')+' onchange="A.csvXTogMatter('+m.id+',this.checked)" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
+          +H(m.name)+(cl?' <span style="color:var(--ink3);font-size:11px">— '+H(cl.name)+'</span>':'')+'</label>';
+      });
+      maBd+='</div>';
+    } else if(!x.allMatters){
+      maBd+='<p style="font-size:11px;color:var(--ink3);margin-top:6px">No matters in database.</p>';
+    }
+    body+=section('Filter by Matter',maBd);
+
+    // Columns
+    function eCol(k,lbl){ return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:4px 0"><input type="checkbox" '+(x.cols[k]?'checked':'')+' onchange="A.csvXTogCol(\''+k+'\')" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'+lbl+'</label>'; }
+    body+=section('Columns',
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">'
+      +eCol('date','Date')
+      +eCol('client','Client')
+      +eCol('matter','Matter')
+      +eCol('contact','Billing Contact')
+      +eCol('hours','Hours')
+      +eCol('rate','Rate')
+      +eCol('amount','Amount')
+      +eCol('desc','Description')
+      +eCol('by','Created By')
+      +eCol('abaCode','ABA Task Code')
+      +eCol('entryId','Entry ID')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:8px">'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllCols(true)">Select All</button>'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllCols(false)">Clear</button>'
+      +'</div>'
+    );
+
+    // Grouping & structure
+    var grpOpts=[
+      {v:'none',l:'Flat list (no grouping)'},
+      {v:'client',l:'Group by Client'},
+      {v:'matter',l:'Group by Matter'},
+      {v:'date-month',l:'Group by Month'},
+      {v:'date-week',l:'Group by Week'}
+    ].map(function(o){
+      return '<option value="'+o.v+'"'+(x.groupBy===o.v?' selected':'')+'>'+o.l+'</option>';
+    }).join('');
+    var strBd='<div class="fl" style="margin-bottom:10px"><label>Group by</label>'
+      +'<select onchange="A.csvXOpt(\'groupBy\',this.value)">'+grpOpts+'</select></div>';
+    if(x.groupBy!=='none'){
+      strBd+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-bottom:6px">'
+        +'<input type="checkbox" '+(x.includeTotals?'checked':'')+' onchange="A.csvXOpt(\'includeTotals\',this.checked)" style="width:13px;height:13px;cursor:pointer">Include subtotal rows per group</label>'
+        +'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer">'
+        +'<input type="checkbox" '+(x.includeGrandTotal?'checked':'')+' onchange="A.csvXOpt(\'includeGrandTotal\',this.checked)" style="width:13px;height:13px;cursor:pointer">Include grand total row</label>';
+    } else {
+      strBd+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer">'
+        +'<input type="checkbox" '+(x.includeGrandTotal?'checked':'')+' onchange="A.csvXOpt(\'includeGrandTotal\',this.checked)" style="width:13px;height:13px;cursor:pointer">Include grand total row at end</label>';
+    }
+    body+=section('Structure', strBd);
+  }
+
+  // ── CLIENTS ──
+  if(ds==='clients'){
+    function clCol(k,lbl){ return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:4px 0"><input type="checkbox" '+(x.clCols[k]?'checked':'')+' onchange="A.csvXTogClCol(\''+k+'\')" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'+lbl+'</label>'; }
+    body+=section('Columns',
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">'
+      +clCol('name','Name')
+      +clCol('email','Email')
+      +clCol('phone','Phone')
+      +clCol('rate','Default Rate')
+      +clCol('contact','Primary Contact')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:8px">'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllClCols(true)">Select All</button>'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllClCols(false)">Clear</button>'
+      +'</div>',true
+    );
+  }
+
+  // ── MATTERS ──
+  if(ds==='matters'){
+    function maCol(k,lbl){ return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:4px 0"><input type="checkbox" '+(x.maCols[k]?'checked':'')+' onchange="A.csvXTogMaCol(\''+k+'\')" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'+lbl+'</label>'; }
+    body+=section('Columns',
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">'
+      +maCol('name','Name')
+      +maCol('client','Client')
+      +maCol('desc','Description')
+      +maCol('rate','Default Rate')
+      +maCol('contact','Billing Contact')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:8px">'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllMaCols(true)">Select All</button>'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllMaCols(false)">Clear</button>'
+      +'</div>',true
+    );
+  }
+
+  // ── CONTACTS ──
+  if(ds==='contacts'){
+    function ctCol(k,lbl){ return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:4px 0"><input type="checkbox" '+(x.ctCols[k]?'checked':'')+' onchange="A.csvXTogCtCol(\''+k+'\')" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'+lbl+'</label>'; }
+    body+=section('Columns',
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">'
+      +ctCol('name','Name')
+      +ctCol('role','Role')
+      +ctCol('email','Email')
+      +ctCol('phone','Phone')
+      +ctCol('rate','Rate')
+      +ctCol('ownPct','Ownership %')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:8px">'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllCtCols(true)">Select All</button>'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="A.csvXAllCtCols(false)">Clear</button>'
+      +'</div>',true
+    );
+  }
+
+  // ── OUTPUT FORMAT (shared) ──
+  var dfOpts=[
+    {v:'iso',l:'ISO (2025-01-31)'},
+    {v:'us',l:'US (01/31/2025)'},
+    {v:'uk',l:'UK (31/01/2025)'},
+    {v:'long',l:'Long (January 31, 2025)'}
+  ].map(function(o){return '<option value="'+o.v+'"'+(x.dateFormat===o.v?' selected':'')+'>'+o.l+'</option>';}).join('');
+  var outBd='<div class="frow c2">'
+    +'<div class="fl"><label>Date format</label><select onchange="A.csvXOpt(\'dateFormat\',this.value)">'+dfOpts+'</select></div>'
+    +'<div class="fl"><label>Filename prefix <span style="font-size:10px;color:var(--ink3)">(optional)</span></label>'
+    +'<input type="text" placeholder="e.g. acme_" value="'+H(x.filenamePrefix||'')+'" onchange="A.csvXOpt(\'filenamePrefix\',this.value)"></div>'
+    +'</div>'
+    +(ds==='entries'?'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:6px">'
+      +'<input type="checkbox" '+(x.currencySymbol?'checked':'')+' onchange="A.csvXOpt(\'currencySymbol\',this.checked)" style="width:13px;height:13px;cursor:pointer">Include $ symbol in currency fields (uncheck for numeric-only)</label>':'');
+  body+=section('Output Format', outBd, true);
+
+  // ── Row count preview ──
+  var rowCount=A._csvXCount();
+  var preview='<div style="background:var(--bg2);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink2);display:flex;align-items:center;justify-content:space-between;margin-bottom:0">'
+    +'<span>'+IC.list+' <strong style="color:var(--ink)">'+rowCount+'</strong> row'+(rowCount!==1?'s':'')+' will be exported'
+    +(ds==='entries'&&(x.dateFrom||x.dateTo)?'&ensp;<span style="color:var(--ink3)">'+(x.dateFrom?'from '+H(x.dateFrom):'')+(x.dateTo?' to '+H(x.dateTo):'')+'</span>':'')
+    +'</span></div>';
+
+  return '<div class="ov"><div class="modal" style="max-width:680px;width:96vw;max-height:92vh;display:flex;flex-direction:column">'
+    +'<div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.dl+' Export to CSV</h2>'
+    +'<button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
+    +'<div style="padding:14px 20px 0;border-bottom:1px solid var(--border)">'
+    +'<div style="display:flex;gap:6px;margin-bottom:14px">'+dsBtns+'</div>'
+    +'</div>'
+    +'<div class="modal-bd" style="flex:1;overflow-y:auto;padding-top:16px">'+body+'</div>'
+    +'<div style="padding:12px 20px;border-top:1px solid var(--border);background:var(--white);display:flex;flex-direction:column;gap:10px">'
+    +preview
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button class="btn btn-gh" onclick="A.closeM()">Cancel</button>'
+    +'<button class="btn btn-dk" onclick="A.csvExport()"'+(rowCount===0?' disabled title="No data to export"':'')+'>'+IC.dl+' Export CSV</button>'
+    +'</div>'
+    +'</div>'
+    +'</div></div>';
+}
 
 function buildImportModal(){
   return '<div class="ov"><div class="modal modal-md"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.ul+' Restore / Import Data</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
   +'<div class="modal-bd">'
 
-  +'<div class="note" style="margin-bottom:16px">These options import <strong>your own data</strong> — backups, CSV exports, and firm profiles. To receive a submission from a colleague, use the <strong>📥 Receive Submission</strong> button on the Timesheet or Approvals tab.</div>'
+  +'<div class="note" style="margin-bottom:16px">These options import <strong>your own data</strong> — JSON backups and firm profiles. To receive a submission from a colleague, use the <strong>📥 Receive Submission</strong> button on the Timesheet or Approvals tab.</div>'
 
   // Firm Profile
   +'<div class="set-section">'
@@ -3158,103 +3530,246 @@ function buildImportModal(){
   +'<button class="btn btn-dk" onclick="document.getElementById(\'imp-json\').click()">'+IC.ul+' Choose Backup File (.json)</button>'
   +'</div>'
 
-  // Combined CSV
-  +'<div class="set-section">'
-  +'<h3 style="display:flex;align-items:center;gap:7px">'+IC.doc+' Combined CSV Import</h3>'
-  +'<p style="font-size:12px;color:var(--ink2);margin-bottom:12px;line-height:1.6">Import a combined export CSV (containing TIME ENTRIES, CLIENTS, MATTERS, CONTACTS sections). <strong style="color:var(--amber)">Replaces matched data types.</strong></p>'
-  +'<input type="file" id="imp-csv-all" accept=".csv" style="display:none" onchange="A.importCSV(this)">'
-  +'<button class="btn btn-gh" onclick="document.getElementById(\'imp-csv-all\').click()">'+IC.ul+' Choose Combined CSV</button>'
-  +'</div>'
-
-  // Individual CSV imports
-  +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
-  +'<h3 style="display:flex;align-items:center;gap:7px">'+IC.chart+' Import Individual CSV</h3>'
-  +'<p style="font-size:12px;color:var(--ink2);margin-bottom:14px;line-height:1.6">Import a single-entity CSV. Each import <strong style="color:var(--amber)">replaces that entity type only</strong>. Import clients before matters, matters before entries.</p>'
-  +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-  +(function(){
-    var ents=[
-      {t:'clients',  l:'Clients (.csv)'},
-      {t:'matters',  l:'Matters (.csv)'},
-      {t:'entries',  l:'Time Entries (.csv)'},
-      {t:'contacts', l:'Contacts (.csv)'},
-      {t:'settings', l:'Settings (.csv)'}
-    ];
-    return ents.map(function(e){
-      return '<input type="file" id="imp-ent-'+e.t+'" accept=".csv" data-etype="'+e.t+'" style="display:none" onchange="A.importEntityCSV(this,this.dataset.etype)">'
-        +'<button class="btn btn-gh" style="justify-content:flex-start" onclick="document.getElementById(\'imp-ent-'+e.t+'\').click()">'+IC.ul+' '+H(e.l)+'</button>';
-    }).join('');
-  })()
-  +'</div>'
-  +'</div>'
-
   +'</div>'
   +'<div class="modal-ft"><button class="btn btn-gh" onclick="A.closeM()">Close</button></div>'
   +'</div></div>';
 }
-
 function buildSettings(){
   var s=ST.settings;
   var stab=ST.settingsTab||'export';
-  var fname=exportFilename();
-  var presets=ST.prefs.revenueSplit?[['Full Export','full'],['Billing Only','billing'],['Clients & Contacts','dirs'],['Summary Only','sum'],['With Split','wsplit'],['Time + Split','tsplit']]:[['Full Export','full'],['Billing Only','billing'],['Clients & Contacts','dirs'],['Summary Only','sum']];
-  var teColRows=[
-    ['tc_date','Date'],['tc_client','Client'],['tc_matter','Matter'],['tc_team','Team Member'],
-    ['tc_desc','Description'],['tc_hours','Hours'],['tc_rate','Rate'],['tc_amount','Amount'],['tc_by','Created By']
-  ];
-  var settingsTabs=[['export','Export'],['appearance','Appearance'],['descriptions','Descriptions'],['email','Email'],['advanced','Advanced'],['itadmin','IT Admin']];
+  var settingsTabs=[['export','Backup'],['appearance','Appearance'],['descriptions','Descriptions'],['email','Email'],['advanced','Advanced']];
   var tabNav='<div class="set-tabs">'+settingsTabs.map(function(t){return '<button class="set-tab'+(stab===t[0]?' on':'')+'" onclick="A.setStab(\''+t[0]+'\')">'+H(t[1])+'</button>';}).join('')+'</div>';
   var body='';
 
   if(stab==='export'){
-    body+='<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
-      +'<div class="preset-grid">'
-      +presets.map(function(p){return '<button class="preset-btn" onclick="A.applyPreset(\''+p[1]+'\')"><strong>'+H(p[0])+'</strong></button>';}).join('')
+    var q=ST.prefs.csvQuick;
+    var qds=q.dataset;
+
+    // ── Dataset selector ──
+    var qDsBtns=['entries','clients','matters','contacts'].map(function(d){
+      var lbls={entries:'Time Entries',clients:'Clients',matters:'Matters',contacts:'Contacts'};
+      return '<button class="btn'+(qds===d?' btn-dk':' btn-gh')+'" style="flex:1;justify-content:center;font-size:12px;padding:7px 4px" onclick="A.csvQPref(\'dataset\',\''+d+'\')">'+lbls[d]+'</button>';
+    }).join('');
+
+    // ── Column checkbox helper ──
+    function qCB(colKey,label,colObj,onchangeFn){
+      return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:4px 0">'
+        +'<input type="checkbox" '+(colObj[colKey]?'checked':'')+' onchange="'+onchangeFn+'(\''+colKey+'\')" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
+        +label+'</label>';
+    }
+    function qColGrid(cols){ return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">'+cols+'</div>'; }
+    function qSelectAll(onAll,onClear){
+      return '<div style="display:flex;gap:6px;margin-top:7px">'
+        +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="'+onAll+'">All</button>'
+        +'<button class="btn btn-gh" style="font-size:11px;padding:4px 9px" onclick="'+onClear+'">Clear</button>'
+        +'</div>';
+    }
+
+    // ── Date preset (entries only) ──
+    var qDatePresets=['today','week','month','quarter','year','all'];
+    var qDateLabels={today:'Today',week:'This Week',month:'This Month',quarter:'This Quarter',year:'This Year',all:'All Time'};
+    var qDateBtns=qDatePresets.map(function(p){
+      return '<button class="btn'+(q.datePreset===p?' btn-dk':' btn-gh')+'" style="font-size:11px;padding:5px 10px" onclick="A.csvQPref(\'datePreset\',\''+p+'\')">'+qDateLabels[p]+'</button>';
+    }).join('');
+
+    // ── Grouping options (entries only) ──
+    var qGrpOpts=[
+      {v:'none',l:'No grouping'},
+      {v:'client',l:'By Client'},
+      {v:'matter',l:'By Matter'},
+      {v:'date-month',l:'By Month'},
+      {v:'date-week',l:'By Week'}
+    ].map(function(o){
+      return '<option value="'+o.v+'"'+(q.groupBy===o.v?' selected':'')+'>'+o.l+'</option>';
+    }).join('');
+
+    // ── Date format ──
+    var qDfOpts=[
+      {v:'iso',l:'ISO  2025-01-31'},
+      {v:'us', l:'US   01/31/2025'},
+      {v:'uk', l:'UK   31/01/2025'},
+      {v:'long',l:'Long  January 31, 2025'}
+    ].map(function(o){
+      return '<option value="'+o.v+'"'+(q.dateFormat===o.v?' selected':'')+'>'+o.l+'</option>';
+    }).join('');
+
+    body+='<div class="set-section">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      +'<h3 style="margin:0">Quick CSV Export</h3>'
+      +'<button class="btn btn-dk" style="gap:6px;padding:7px 14px" onclick="A.csvQuickExport()">'+IC.dl+' Download CSV now</button>'
       +'</div>'
-      +'<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Sections to include</div>'
-      +(ST.prefs.revenueSplit?[['te','Time Entries','Individual billing records'],['cl','Clients','Client info & rates'],['ma','Matters','Matter details'],['co','Contacts','Team directory'],['su','Summary','Totals & counts'],['split','Revenue Split','Own vs. firm per person']]:[['te','Time Entries','Individual billing records'],['cl','Clients','Client info & rates'],['ma','Matters','Matter details'],['co','Contacts','Team directory'],['su','Summary','Totals & counts']])
-        .map(function(r){return '<label class="crow"><input type="checkbox" '+(s[r[0]]?'checked':'')+' onchange="A.togExp(\''+r[0]+'\',this.checked)"><div><strong>'+H(r[1])+'</strong><span>'+H(r[2])+'</span></div></label>';}).join('')
-      +(s.te?'<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 8px">Time entry columns</div>'
-      +'<div class="sub-checks">'
-      +teColRows.map(function(r){return '<label class="sub-check"><input type="checkbox" '+(s[r[0]]?'checked':'')+' onchange="A.togExp(\''+r[0]+'\',this.checked)"> '+H(r[1])+'</label>';}).join('')
-      +'</div>':'')
-      +'<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 8px">Date range (for time entries)</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-      +'<div class="fl"><label>From</label><input type="date" id="exp-from" value="'+H(s.expFrom||'')+'" onchange="A.setExpDate(\'expFrom\',this.value)"></div>'
-      +'<div class="fl"><label>To</label><input type="date" id="exp-to" value="'+H(s.expTo||'')+'" onchange="A.setExpDate(\'expTo\',this.value)"></div>'
+      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Configure what the <strong>CSV</strong> button in the header downloads. Settings are saved automatically. For a one-off custom export use the <button class="btn btn-gh" style="font-size:11px;padding:3px 9px;display:inline-flex" onclick="A.openExportModal()">Export wizard…</button>.</p>'
+
+      // Dataset
+      +'<div style="margin-bottom:16px">'
+      +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Dataset</div>'
+      +'<div style="display:flex;gap:6px">'+qDsBtns+'</div>'
       +'</div>'
-      +'<div style="margin-top:12px"><div style="font-size:11px;color:var(--ink3);margin-bottom:5px">Export filename preview</div>'
-      +'<div class="exp-name-preview">'+H(fname)+'</div>'
-      +'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">'
-      +'<button class="btn btn-gr" onclick="ST.modal=\'exportModal\';render()">'+IC.dl+' Backup &amp; Export</button>'
-      +(ST.mailPresets.length>0?'<button class="btn btn-bl" onclick="A.openMailSend()">'+IC.mail+' Send via Email</button>':'')
-      +'</div></div></div>'
-      // JSON Backup section
-      +'<div class="set-section" style="margin-top:16px">'
+
+      // Date range (entries only)
+      +(qds==='entries'
+        ?'<div style="margin-bottom:16px">'
+          +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Date Range</div>'
+          +'<div style="display:flex;gap:5px;flex-wrap:wrap">'+qDateBtns+'</div>'
+          +'</div>'
+        :'')
+
+      // Columns
+      +'<div style="margin-bottom:16px">'
+      +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Columns</div>'
+      +(qds==='entries'
+        ?qColGrid(
+           qCB('date','Date',q.cols,'A.csvQTogCol')
+          +qCB('client','Client',q.cols,'A.csvQTogCol')
+          +qCB('matter','Matter',q.cols,'A.csvQTogCol')
+          +qCB('contact','Billing Contact',q.cols,'A.csvQTogCol')
+          +qCB('hours','Hours',q.cols,'A.csvQTogCol')
+          +qCB('rate','Rate',q.cols,'A.csvQTogCol')
+          +qCB('amount','Amount',q.cols,'A.csvQTogCol')
+          +qCB('desc','Description',q.cols,'A.csvQTogCol')
+          +qCB('by','Created By',q.cols,'A.csvQTogCol')
+          +qCB('abaCode','ABA Task Code',q.cols,'A.csvQTogCol')
+          +qCB('entryId','Entry ID',q.cols,'A.csvQTogCol')
+        )
+        +qSelectAll('A.csvQAllCols(true)','A.csvQAllCols(false)')
+        :'')
+      +(qds==='clients'
+        ?qColGrid(
+           qCB('name','Name',q.clCols,'A.csvQTogClCol')
+          +qCB('email','Email',q.clCols,'A.csvQTogClCol')
+          +qCB('phone','Phone',q.clCols,'A.csvQTogClCol')
+          +qCB('rate','Default Rate',q.clCols,'A.csvQTogClCol')
+          +qCB('contact','Primary Contact',q.clCols,'A.csvQTogClCol')
+        )
+        +qSelectAll('A.csvQAllClCols(true)','A.csvQAllClCols(false)')
+        :'')
+      +(qds==='matters'
+        ?qColGrid(
+           qCB('name','Name',q.maCols,'A.csvQTogMaCol')
+          +qCB('client','Client',q.maCols,'A.csvQTogMaCol')
+          +qCB('desc','Description',q.maCols,'A.csvQTogMaCol')
+          +qCB('rate','Default Rate',q.maCols,'A.csvQTogMaCol')
+          +qCB('contact','Billing Contact',q.maCols,'A.csvQTogMaCol')
+        )
+        +qSelectAll('A.csvQAllMaCols(true)','A.csvQAllMaCols(false)')
+        :'')
+      +(qds==='contacts'
+        ?qColGrid(
+           qCB('name','Name',q.ctCols,'A.csvQTogCtCol')
+          +qCB('role','Role',q.ctCols,'A.csvQTogCtCol')
+          +qCB('email','Email',q.ctCols,'A.csvQTogCtCol')
+          +qCB('phone','Phone',q.ctCols,'A.csvQTogCtCol')
+          +qCB('rate','Rate',q.ctCols,'A.csvQTogCtCol')
+          +qCB('ownPct','Ownership %',q.ctCols,'A.csvQTogCtCol')
+        )
+        +qSelectAll('A.csvQAllCtCols(true)','A.csvQAllCtCols(false)')
+        :'')
+      +'</div>'
+
+      // Grouping & structure (entries only)
+      +(qds==='entries'
+        ?'<div style="margin-bottom:16px">'
+          +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Structure</div>'
+          +'<div class="frow c2">'
+          +'<div class="fl"><label style="font-size:12px">Group by</label><select onchange="A.csvQPref(\'groupBy\',this.value)">'+qGrpOpts+'</select></div>'
+          +'</div>'
+          +(q.groupBy!=='none'
+            ?'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:7px"><input type="checkbox" '+(q.includeTotals?'checked':'')+' onchange="A.csvQPref(\'includeTotals\',this.checked)" style="width:13px;height:13px;cursor:pointer">Subtotal rows per group</label>'
+            :'')
+          +'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:6px"><input type="checkbox" '+(q.includeGrandTotal?'checked':'')+' onchange="A.csvQPref(\'includeGrandTotal\',this.checked)" style="width:13px;height:13px;cursor:pointer">'+(q.groupBy!=='none'?'Grand total row':'Total row at end')+'</label>'
+          +'</div>'
+        :'')
+
+      // Output format
+      +'<div style="margin-bottom:0">'
+      +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Output Format</div>'
+      +'<div class="frow c2">'
+      +'<div class="fl"><label style="font-size:12px">Date format</label><select onchange="A.csvQPref(\'dateFormat\',this.value)">'+qDfOpts+'</select></div>'
+      +'<div class="fl"><label style="font-size:12px">Filename prefix <span style="font-size:10px;color:var(--ink3)">(optional)</span></label>'
+      +'<input type="text" placeholder="e.g. acme_" value="'+H(q.filenamePrefix||'')+'" onchange="A.csvQPref(\'filenamePrefix\',this.value)"></div>'
+      +'</div>'
+      +(qds==='entries'
+        ?'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:7px"><input type="checkbox" '+(q.currencySymbol?'checked':'')+' onchange="A.csvQPref(\'currencySymbol\',this.checked)" style="width:13px;height:13px;cursor:pointer">Include $ symbol in currency fields</label>'
+        :'')
+      +'</div>'
+
+      +'</div>'
+
+      +'<div class="set-section">'
       +'<h3 style="margin-bottom:8px">Full Backup</h3>'
       +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Export everything (clients, matters, entries, contacts, settings, preferences) as a single JSON file. Perfect for complete backups before browser changes.</p>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
       +'<button class="btn btn-dk" onclick="A.exportJSON()">'+IC.dl+' Download Full Backup (.json)</button>'
-      +'</div>'
-      // Individual CSV exports section
+      +'</div></div>'
       +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
-      +'<h3 style="margin-bottom:8px">Export Individual CSV</h3>'
-      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Export a single data type as CSV. Use these for selective imports or sharing specific data.</p>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-      +[['clients','Clients'],['matters','Matters'],['entries','Time Entries'],['contacts','Contacts'],['settings','Settings']].map(function(t){
-        return '<button class="btn btn-gh" style="justify-content:flex-start" onclick="A.exportEntityCSV(\''+t[0]+'\')">'+IC.dl+' '+t[1]+'</button>';
-      }).join('')
+      +'<h3 style="margin-bottom:8px">Restore</h3>'
+      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Restore a previously downloaded JSON backup file.</p>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +'<button class="btn btn-gh" onclick="ST.modal=\'importData\';render()">'+IC.ul+' Restore / Import…</button>'
+      +'</div></div>'
+
+    // ── Firm Profile Builder ─────────────────────────────────────────────────────────────────────────────────────
+    var fp=ST.firmProfile||{};
+    var itUsers=fp.users||[];
+    body+='<div class="set-section" style="margin-top:8px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      +'<h3 style="margin:0">Firm Profile Builder</h3>'
+      +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
+      +'<input type="checkbox" '+(ST.itMode?'checked':'')+' onchange="A.togITMode(this.checked)">'
+      +'<span>'+(ST.itMode?'<strong style="color:var(--blue)">Enabled</strong>':'Disabled')+'</span></label>'
       +'</div>'
+      +'<p style="font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:0">Build a shareable firm profile — pre-configured clients, contacts, users, and description presets — that team members can import on first setup or via Restore / Import.</p>'
       +'</div>'
+      +(ST.itMode?
+        '<div class="set-section">'
+        +'<h3>Pre-configured Users</h3>'
+        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.5">Users defined here appear as selectable profiles when a new user imports the firm profile. Each gets their own name, initials, role, rate, and ownership %.</p>'
+        +(itUsers.length>0
+          ? itUsers.map(function(u,i){
+              return '<div class="crow" style="margin-bottom:8px;background:var(--bg);border-radius:8px;padding:10px 14px">'
+                +'<div style="flex:1"><strong style="font-size:13px">'+H(u.name)+'</strong>'
+                +'<div style="font-size:11px;color:var(--ink3)">'+H(u.initials||'')+(u.role?' | '+H(u.role):'')+(u.rate?' | $'+H(u.rate)+'/hr':'')+(u.ownPct!=null?' | '+H(String(u.ownPct))+'% cut':'')+'</div></div>'
+                +'<button class="btn-ic" onclick="A.editITUser('+i+')" title="Edit">'+IC.edit+'</button>'
+                +'<button class="btn-ic" onclick="A.delITUser('+i+')" title="Delete">'+IC.trash+'</button>'
+                +'</div>';
+            }).join('')
+          : '<div class="empty" style="padding:16px"><p>No users configured</p></div>'
+        )
+        +'<button class="btn btn-dk" style="margin-top:10px" onclick="A.openITUser(null)">'+IC.plus+' Add User</button>'
+        +'</div>'
+        +'<div class="set-section">'
+        +'<h3>Data to Bundle into Profile</h3>'
+        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.5">Choose which current app data to bundle into the exported profile. New users who import the profile will receive this data as a starting point.</p>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
+        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-clients" '+(fp.includeClients?'checked':'')+' onchange="A.togITInclude(\'includeClients\',this.checked)"><div><strong>Clients</strong><span>'+ST.clients.length+' in app</span></div></label>'
+        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-matters" '+(fp.includeMatters?'checked':'')+' onchange="A.togITInclude(\'includeMatters\',this.checked)"><div><strong>Matters</strong><span>'+ST.matters.length+' in app</span></div></label>'
+        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-contacts" '+(fp.includeContacts?'checked':'')+' onchange="A.togITInclude(\'includeContacts\',this.checked)"><div><strong>Contacts</strong><span>'+ST.contacts.length+' in app</span></div></label>'
+        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-presets" '+(fp.includePresets?'checked':'')+' onchange="A.togITInclude(\'includePresets\',this.checked)"><div><strong>Description Presets</strong><span>'+ST.descPresets.length+' in app</span></div></label>'
+        +'</div>'
+        +'</div>'
+        +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
+        +'<h3>Export &amp; Share</h3>'
+        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Download the firm profile as a <code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">.json</code> file. Share it with your team — they import it via Backup → Restore / Import.</p>'
+        +'<button class="btn btn-gr" onclick="A.exportFirmProfile()">'+IC.dl+' Download Firm Profile (.json)</button>'
+        +'</div>'
+      : '')
+    ;
   }
 
   if(stab==='appearance'){
     var p=ST.prefs;
     var layouts=[['comfortable','Comfortable','Default balanced spacing'],['compact','Compact','Dense UI for more data'],['spacious','Spacious','Relaxed layout, larger text']];
-    body+='<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
-      +'<h3>App Name</h3>'
-      +'<div style="display:flex;gap:10px;align-items:center;margin-bottom:18px">'
-      +'<input type="text" id="pref-name" value="'+H(p.appName||'SixMinuteLog.com')+'" placeholder="SixMinuteLog.com" style="flex:1;padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink)">'
-      +'<button class="btn btn-dk" onclick="A.saveAppName()">Save</button>'
+    var fp2=ST.firmProfile||{};
+    body+='<div class="set-section">'
+      +'<h3>Firm Identity</h3>'
+      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Set your firm name and the name that appears in the app header and exports.</p>'
+      +'<div class="frow c2" style="margin-bottom:12px">'
+      +'<div class="fl"><label>Firm Name</label><input type="text" id="it-firmname" value="'+H(fp2.firmName||'')+'" placeholder="e.g. Smith &amp; Associates LLP" style="padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink);width:100%;box-sizing:border-box" /></div>'
+      +'<div class="fl"><label>App Name</label><input type="text" id="pref-name" value="'+H(p.appName||'SixMinuteLog.com')+'" placeholder="SixMinuteLog.com" style="padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink);width:100%;box-sizing:border-box" /></div>'
       +'</div>'
+      +'<button class="btn btn-dk" onclick="A.saveAppName()">Save Firm Identity</button>'
+      +'</div>'
+      +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
       +'<h3>Dark Mode</h3>'
       +'<div class="preset-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:18px">'
       +[['null','Auto','Follows your browser or OS setting'],['false','Light','Always use light theme'],['true','Dark','Always use dark theme']].map(function(opt){
@@ -3378,11 +3893,8 @@ function buildSettings(){
       +'<div style="font-size:12px;color:var(--ink3)">'+(ST.user&&ST.user.initials?ST.user.initials+' \u00b7 ':'')+( ST.prefs.revenueSplit&&ST.user&&ST.user.ownPct!=null?ST.user.ownPct+'% personal cut\u00b7 ':'')+(ST.user?roleBadge(ST.user.role):'')+' '+'</div></div>'
       +'<button class="btn btn-gh" onclick="A.chgUser()" style="font-size:13px">Edit Profile</button>'
       +'</div></div>'
-      +'<div class="set-section"><h3>Display Options</h3>'
-      +'<label class="crow"><input type="checkbox" '+(s.te_group?'checked':'')+' onchange="A.togExp(\'te_group\',this.checked)"><div><strong>Group entries by client</strong><span>Adds a sub-header row between each client\'s entries in export</span></div></label>'
-      +'</div>'
-      +'<div class="set-section"><h3>Advanced Features</h3>'
-      +'<label class="crow"><input type="checkbox" '+(ST.prefs.revenueSplit?'checked':'')+' onchange="A.togRevenueSplit(this.checked)"><div><strong>Revenue Split &amp; Personal Cut</strong><span>Track own vs. firm portions, per-person earnings, and split analytics. Adds Personal Cut % fields to contacts and your profile.</span></div></label>'
+      +'<div class="set-section"><h3>Analytics &amp; Reporting</h3>'
+      +'<label class="crow"><input type="checkbox" '+(ST.prefs.analyticsEnabled?'checked':'')+' onchange="A.togAnalytics(this.checked)"><div><strong>Enable Analytics Tab</strong><span>Show the Analytics tab in the navigation. Includes billing summaries, client breakdowns, revenue split, and per-person earnings.</span></div></label>'
       +'</div>'
       +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
       +'<div class="danger"><h3>Danger Zone</h3><p>Permanently delete all data. Export a backup first!</p>'
@@ -3390,69 +3902,12 @@ function buildSettings(){
       +'</div>';
   }
 
-  if(stab==='itadmin'){
-    var fp=ST.firmProfile||{};
-    var itUsers=fp.users||[];
-    body+='<div class="set-section">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
-      +'<h3 style="margin:0">IT Admin Mode</h3>'
-      +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
-      +'<input type="checkbox" '+(ST.itMode?'checked':'')+' onchange="A.togITMode(this.checked)">'
-      +'<span>'+(ST.itMode?'<strong style="color:var(--blue)">Enabled</strong>':'Disabled')+'</span></label>'
-      +'</div>'
-      +'<p style="font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:0">IT Admin mode lets you build a firm profile package (app name, firm name, pre-configured clients, contacts, users, description presets) that can be exported and imported by other users on first setup or via Settings.</p>'
-      +'</div>'
-      +(ST.itMode?
-        '<div class="set-section">'
-        +'<h3>Firm Identity</h3>'
-        +'<div class="frow c2" style="margin-bottom:12px">'
-        +'<div class="fl"><label>Firm Name</label><input type="text" id="it-firmname" value="'+H(fp.firmName||'')+'" placeholder="e.g. Smith &amp; Associates LLP" /></div>'
-        +'<div class="fl"><label>App Name</label><input type="text" id="it-appname" value="'+H(fp.appName||ST.prefs.appName||'SixMinuteLog.com')+'" placeholder="SixMinuteLog.com" /></div>'
-        +'</div>'
-        +'<button class="btn btn-dk" onclick="A.saveITFirm()">'+IC.save+' Save Firm Identity</button>'
-        +'</div>'
-        +'<div class="set-section">'
-        +'<h3>Pre-configured Users</h3>'
-        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.5">Users defined here will appear as selectable profiles when a new user imports the firm profile for the first time. Each gets their own name, initials, role, rate, and ownership %.</p>'
-        +(itUsers.length>0
-          ? itUsers.map(function(u,i){
-              return '<div class="crow" style="margin-bottom:8px;background:var(--bg);border-radius:8px;padding:10px 14px">'
-                +'<div style="flex:1"><strong style="font-size:13px">'+H(u.name)+'</strong>'
-                +'<div style="font-size:11px;color:var(--ink3)">'+H(u.initials||'')+(u.role?' | '+H(u.role):'')+(u.rate?' | $'+H(u.rate)+'/hr':'')+(u.ownPct!=null?' | '+H(String(u.ownPct))+'% cut':'')+'</div></div>'
-                +'<button class="btn-ic" onclick="A.editITUser('+i+')" title="Edit">'+IC.edit+'</button>'
-                +'<button class="btn-ic" onclick="A.delITUser('+i+')" title="Delete">'+IC.trash+'</button>'
-                +'</div>';
-            }).join('')
-          : '<div class="empty" style="padding:16px"><p>No users configured</p></div>'
-        )
-        +'<button class="btn btn-dk" style="margin-top:10px" onclick="A.openITUser(null)">'+IC.plus+' Add User</button>'
-        +'</div>'
-        +'<div class="set-section">'
-        +'<h3>Pre-configured Data to Include in Profile</h3>'
-        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.5">Choose which current app data to bundle into the exported profile. New users who import the profile will receive this data as a starting point.</p>'
-        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
-        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-clients" '+(fp.includeClients?'checked':'')+' onchange="A.togITInclude(\'includeClients\',this.checked)"><div><strong>Clients</strong><span>'+ST.clients.length+' in app</span></div></label>'
-        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-matters" '+(fp.includeMatters?'checked':'')+' onchange="A.togITInclude(\'includeMatters\',this.checked)"><div><strong>Matters</strong><span>'+ST.matters.length+' in app</span></div></label>'
-        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-contacts" '+(fp.includeContacts?'checked':'')+' onchange="A.togITInclude(\'includeContacts\',this.checked)"><div><strong>Contacts</strong><span>'+ST.contacts.length+' in app</span></div></label>'
-        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-presets" '+(fp.includePresets?'checked':'')+' onchange="A.togITInclude(\'includePresets\',this.checked)"><div><strong>Description Presets</strong><span>'+ST.descPresets.length+' in app</span></div></label>'
-        +'</div>'
-        +'</div>'
-        +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
-        +'<h3>Export &amp; Share Profile</h3>'
-        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Download the firm profile as a <code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">.json</code> file. Share it with your team - they import it on first launch or via Settings &rarr; Import.</p>'
-        +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
-        +'<button class="btn btn-gr" onclick="A.exportFirmProfile()">'+IC.dl+' Download Firm Profile (.json)</button>'
-        +'</div>'
-        +'</div>'
-      : '')
-    ;
-  }
-
   return '<div class="ov"><div class="modal modal-lg"><div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">'+IC.gear+' Settings</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
     +'<div class="modal-bd">'+tabNav+body+'</div>'
     +'<div class="modal-ft" style="flex-wrap:wrap;gap:8px">'
     +'<button class="btn btn-gh" onclick="A.closeM()">Close</button>'
     +'<button class="btn btn-gh" onclick="A.dlManifest()" title="Regenerate CLAUDE_BILLING.md" style="color:var(--purple);border-color:var(--purple)">'+IC.dl+' Claude Guide</button>'
+    +'<button class="btn btn-gh" onclick="A.downloadApp()" title="Download app as .html for offline use" style="color:var(--ink2)">&#128190; Save App</button>'
     +'</div></div></div>';
 }
 
@@ -3591,30 +4046,66 @@ var BUILTIN_PH=[
   ['{amount}',      'Invoice total',       '$3,250.00',              'Auto-filled when sending an invoice email'],
   ['{entries_count}','Number of entries',  '8',                      'Auto-filled from visible timesheet'],
   ['{hours_total}', 'Total hours',         '12.5',                   'Auto-filled from visible timesheet'],
-  ['{filename}',    'Export filename',     'billing-entries_2026-01-24.csv', 'Generated from current export settings'],
+  ['{filename}',    'Backup filename',     'billing-backup_2026-01-24_1430.json', 'Generated at backup time'],
   ['{cc_list}',     'CC recipients list',  '',                       'Taken from the preset CC field']
 ];
 
 // Linkable record fields: [fieldKey, displayLabel, groupLabel]
 var LINKED_FIELDS=[
-  ['client_name',          'Name',                   'Client'],
-  ['client_email',         'Email',                  'Client'],
-  ['client_phone',         'Phone',                  'Client'],
-  ['client_rate',          'Default Rate',           'Client'],
-  ['client_contact_name',  'Rep Name',               'Client Representative'],
-  ['client_contact_role',  'Rep Role / Title',       'Client Representative'],
-  ['client_contact_email', 'Rep Email',              'Client Representative'],
-  ['client_contact_phone', 'Rep Phone',              'Client Representative'],
-  ['matter_name',          'Name',                   'Matter'],
-  ['matter_contact_name',  'Contact Name',           'Matter Contact'],
-  ['matter_contact_role',  'Contact Role / Title',   'Matter Contact'],
-  ['matter_contact_email', 'Contact Email',          'Matter Contact'],
-  ['matter_contact_phone', 'Contact Phone',          'Matter Contact'],
-  ['user_name',            'Full Name',              'My Profile'],
-  ['user_initials',        'Initials',               'My Profile'],
-  ['user_email',           'Email',                  'My Profile'],
-  ['user_phone',           'Phone',                  'My Profile'],
+  ['client_name',              'Name',                         'Client'],
+  ['client_email',             'Email',                        'Client'],
+  ['client_phone',             'Phone',                        'Client'],
+  ['client_rate',              'Default Rate',                 'Client'],
+  // Client People = client-side contacts (the actual "representatives")
+  // These are stored in client.clientPeople[]
+  ['client_people_names',      'All Names (comma-separated)',  'Client People (Client-Side Contacts)'],
+  ['client_people_emails',     'All Emails',                   'Client People (Client-Side Contacts)'],
+  ['client_people_phones',     'All Phones',                   'Client People (Client-Side Contacts)'],
+  ['client_person1_name',      'Person 1 — Name',              'Client People (Client-Side Contacts)'],
+  ['client_person1_role',      'Person 1 — Role',              'Client People (Client-Side Contacts)'],
+  ['client_person1_email',     'Person 1 — Email',             'Client People (Client-Side Contacts)'],
+  ['client_person1_phone',     'Person 1 — Phone',             'Client People (Client-Side Contacts)'],
+  ['client_person2_name',      'Person 2 — Name',              'Client People (Client-Side Contacts)'],
+  ['client_person2_role',      'Person 2 — Role',              'Client People (Client-Side Contacts)'],
+  ['client_person2_email',     'Person 2 — Email',             'Client People (Client-Side Contacts)'],
+  ['client_person2_phone',     'Person 2 — Phone',             'Client People (Client-Side Contacts)'],
+  // Firm contacts assigned to client (contactIds[]) — primary is first in list
+  ['client_contact_name',      'Primary Contact Name',         'Client Firm Contacts (Primary)'],
+  ['client_contact_role',      'Primary Contact Role',         'Client Firm Contacts (Primary)'],
+  ['client_contact_email',     'Primary Contact Email',        'Client Firm Contacts (Primary)'],
+  ['client_contact_phone',     'Primary Contact Phone',        'Client Firm Contacts (Primary)'],
+  ['client_contacts_names',    'All Names (comma-separated)',  'Client Firm Contacts (All)'],
+  ['client_contacts_emails',   'All Emails',                   'Client Firm Contacts (All)'],
+  ['matter_name',              'Name',                         'Matter'],
+  ['matter_contact_name',      'Lead Attorney Name',           'Matter Contact'],
+  ['matter_contact_role',      'Lead Attorney Role',           'Matter Contact'],
+  ['matter_contact_email',     'Lead Attorney Email',          'Matter Contact'],
+  ['matter_contact_phone',     'Lead Attorney Phone',          'Matter Contact'],
+  ['user_name',                'Full Name',                    'My Profile'],
+  ['user_initials',            'Initials',                     'My Profile'],
+  ['user_email',               'Email',                        'My Profile'],
+  ['user_phone',               'Phone',                        'My Profile'],
 ];
+// Descriptions shown as hints in the linked-field picker
+var LINKED_FIELD_HINTS={
+  'client_people_names':   'Client-side contacts (people at the client org) — all names joined',
+  'client_people_emails':  'All emails from client-side contacts',
+  'client_people_phones':  'All phones from client-side contacts',
+  'client_person1_name':   'First client-side contact. Add contacts in the Client form.',
+  'client_person1_role':   'Role/title of first client-side contact',
+  'client_person1_email':  'Email of first client-side contact',
+  'client_person1_phone':  'Phone of first client-side contact',
+  'client_person2_name':   'Second client-side contact (if any)',
+  'client_person2_role':   'Role/title of second client-side contact',
+  'client_person2_email':  'Email of second client-side contact',
+  'client_person2_phone':  'Phone of second client-side contact',
+  'client_contact_name':   'First firm team member assigned to this client. "Primary" = first listed.',
+  'client_contact_role':   'Role of the primary firm contact on this client',
+  'client_contact_email':  'Email of the primary firm contact on this client',
+  'client_contact_phone':  'Phone of the primary firm contact on this client',
+  'client_contacts_names': 'All firm team members assigned to this client, comma-separated',
+  'client_contacts_emails':'All firm team member emails, comma-separated',
+};
 function _lfLabel(key){
   var f=LINKED_FIELDS.find(function(x){return x[0]===key;});
   return f ? f[2]+' \u2192 '+f[1] : key;
@@ -3639,7 +4130,7 @@ function _phMap(ctx, mp){
   var due=new Date(now); due.setDate(due.getDate()+30);
   var dueStr=due.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   var map={
-    '{filename}': exportFilename(),
+    '{filename}': (function(){var n=new Date();return 'billing-backup_'+n.getFullYear()+'-'+pad2(n.getMonth()+1)+'-'+pad2(n.getDate())+'_'+pad2(n.getHours())+pad2(n.getMinutes())+'.json';})(),
     '{date}':     dateStr,
     '{due_date}': dueStr,
     '{client}':   ctx.clientName||'',
@@ -3653,10 +4144,19 @@ function _phMap(ctx, mp){
     '{initials}': (ST.user&&ST.user.initials)||'',
     '{cc_list}':  mp.cc||''
   };
-  var _cl=null,_clCt=null,_ma=null,_maCt=null;
+  var _cl=null,_clCt=null,_clCts=null,_clPeople=null,_ma=null,_maCt=null;
   function _getClient(){
-    if(_cl===null){_cl=ST.clients.find(function(c){return c.id==ctx.clientId;})||{};
-      _clCt=_cl.contactId?ST.contacts.find(function(c){return c.id==_cl.contactId;})||{}:{};}
+    if(_cl===null){
+      _cl=ST.clients.find(function(c){return c.id==ctx.clientId;})||{};
+      // Resolve primary firm contact: prefer contactIds[0], fall back to legacy contactId
+      var primaryCtId=(_cl.contactIds&&_cl.contactIds.length)?_cl.contactIds[0]:(_cl.contactId||null);
+      _clCt=primaryCtId?ST.contacts.find(function(c){return c.id==primaryCtId;})||{}:{};
+      // All firm contacts linked to client
+      var allCtIds=(_cl.contactIds&&_cl.contactIds.length)?_cl.contactIds:(_cl.contactId?[_cl.contactId]:[]);
+      _clCts=allCtIds.map(function(id){return ST.contacts.find(function(c){return c.id==id;});}).filter(Boolean);
+      // Client-side people (client.clientPeople[])
+      _clPeople=(_cl.clientPeople&&_cl.clientPeople.length)?_cl.clientPeople:[];
+    }
     return _cl;}
   function _getMatter(){
     if(_ma===null){_ma=ST.matters.find(function(m){return m.id==ctx.matterId;})||{};
@@ -3668,10 +4168,28 @@ function _phMap(ctx, mp){
       case 'client_email':         return _getClient().email||'';
       case 'client_phone':         return _getClient().phone||'';
       case 'client_rate':          return _getClient().rate?'$'+_getClient().rate+'/hr':'';
+      // Primary firm contact (first in contactIds[], fallback to legacy contactId)
       case 'client_contact_name':  _getClient(); return (_clCt&&_clCt.name)||'';
       case 'client_contact_role':  _getClient(); return (_clCt&&_clCt.role)||'';
       case 'client_contact_email': _getClient(); return (_clCt&&_clCt.email)||'';
       case 'client_contact_phone': _getClient(); return (_clCt&&_clCt.phone)||'';
+      // All firm contacts joined
+      case 'client_contacts_names':  _getClient(); return _clCts.map(function(c){return c.name;}).join(', ');
+      case 'client_contacts_emails': _getClient(); return _clCts.map(function(c){return c.email;}).filter(Boolean).join(', ');
+      // Client-side people (client.clientPeople[]) — list fields
+      case 'client_people_names':  _getClient(); return _clPeople.map(function(p){return p.name;}).join(', ');
+      case 'client_people_emails': _getClient(); return _clPeople.map(function(p){return p.email;}).filter(Boolean).join(', ');
+      case 'client_people_phones': _getClient(); return _clPeople.map(function(p){return p.phone;}).filter(Boolean).join(', ');
+      // Client-side person 1 (index 0)
+      case 'client_person1_name':  _getClient(); return (_clPeople[0]&&_clPeople[0].name)||'';
+      case 'client_person1_role':  _getClient(); return (_clPeople[0]&&_clPeople[0].role)||'';
+      case 'client_person1_email': _getClient(); return (_clPeople[0]&&_clPeople[0].email)||'';
+      case 'client_person1_phone': _getClient(); return (_clPeople[0]&&_clPeople[0].phone)||'';
+      // Client-side person 2 (index 1)
+      case 'client_person2_name':  _getClient(); return (_clPeople[1]&&_clPeople[1].name)||'';
+      case 'client_person2_role':  _getClient(); return (_clPeople[1]&&_clPeople[1].role)||'';
+      case 'client_person2_email': _getClient(); return (_clPeople[1]&&_clPeople[1].email)||'';
+      case 'client_person2_phone': _getClient(); return (_clPeople[1]&&_clPeople[1].phone)||'';
       case 'matter_name':          return _getMatter().name||'';
       case 'matter_contact_name':  _getMatter(); return (_maCt&&_maCt.name)||'';
       case 'matter_contact_role':  _getMatter(); return (_maCt&&_maCt.role)||'';
@@ -3718,7 +4236,7 @@ var MAIL_QUICK_TEMPLATES=[
    'Best,\n{user}'],
   ['General / Custom','general',
    'Billing Report \u2014 {filename}',
-   'Please find the attached billing data for your records.\n\nFile: {filename}\nDate: {date}',
+   'Please find the attached billing backup for your records.\n\nFile: {filename}\nDate: {date}',
    '{user}']
 ];
 
@@ -3754,7 +4272,7 @@ function _mpPreview(){
   // Override built-ins with richer samples where real data isn't meaningful
   map['{date}']='January 2026';
   map['{due_date}']='February 15, 2026';
-  map['{filename}']='billing-entries_2026-01-24.csv';
+  map['{filename}']='billing-backup_2026-01-24_1430.json';
   if(!map['{firm}']) map['{firm}']='Smith & Associates LLP';
   if(!map['{user}']) map['{user}']='Sarah Johnson';
   if(!map['{initials}']) map['{initials}']='SJ';
@@ -3896,6 +4414,10 @@ function buildMailPH(){
     lfGroups[grp].forEach(function(x){lfOpts+='<option value="'+H(x[0])+'"'+(f.linkedField===x[0]?' selected':'')+'>'+H(x[1])+'</option>';});
     lfOpts+='</optgroup>';
   });
+  // Hint text for the currently selected linked field
+  var lfHint=(f.linkedField&&LINKED_FIELD_HINTS[f.linkedField])
+    ? '<div style="font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:4px 8px;margin-top:4px">ℹ '+H(LINKED_FIELD_HINTS[f.linkedField])+'</div>'
+    : '';
   var sourceToggle='<div class="fl" style="margin-bottom:14px"><label>Value source</label>'
     +'<div style="display:flex;gap:6px">'
     +'<button type="button" class="btn '+(src==='static'?'btn-bl':'btn-gh')+'" style="flex:1;font-size:12px" onclick="A.mphSetSource(\'static\')">Static text</button>'
@@ -3905,8 +4427,9 @@ function buildMailPH(){
     +'</div></div>';
   var valueSection=src==='linked'
     ? '<div class="fl" style="margin-bottom:4px"><label>Linked field <span class="req">*</span></label>'
-      +'<select id="mph-lf" style="width:100%">'+lfOpts+'</select>'
+      +'<select id="mph-lf" style="width:100%" onchange="A.mphPreviewLF(this.value)">'+lfOpts+'</select>'
       +(f.errs&&f.errs.linkedField?'<div class="note" style="margin-top:4px">'+H(f.errs.linkedField)+'</div>':'')
+      +lfHint
       +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Resolves from whichever client/matter is active when the email is sent.</div></div>'
     : '<div class="fl" style="margin-bottom:4px"><label>Static value <span style="font-size:11px;color:var(--ink3)">\u2014 inserted verbatim when sending</span></label>'
       +'<textarea id="mph-value" rows="3" placeholder="e.g. John Smith, Managing Partner">'+H(f.value||'')+'</textarea>'
@@ -4348,16 +4871,105 @@ function buildEntryLookup(){
   _lu.en=en;
 }
 
+// === MORPH
+// Incremental DOM patching (no CDN, no external deps).
+// Walks old/new DOM trees and updates only what changed.
+// Preserves focused elements and cursor position naturally,
+// eliminating the old _dFocusSel hack entirely.
+// Keyed reconciliation: elements with id= are matched by id across the list,
+// preventing O(n) mismatch when rows are added/removed.
+var _morphBuf=document.createElement('div');
+
+function _mAttrs(o,n){
+  // Remove attrs absent from new node
+  for(var i=o.attributes.length-1;i>=0;i--){
+    var nm=o.attributes[i].name;
+    if(!n.hasAttribute(nm)) o.removeAttribute(nm);
+  }
+  // Add/update attrs from new node
+  for(var j=0;j<n.attributes.length;j++){
+    var a=n.attributes[j];
+    if(o.getAttribute(a.name)!==a.value) o.setAttribute(a.name,a.value);
+  }
+}
+
+function _mEl(o,n){
+  var focused=(document.activeElement===o);
+  _mAttrs(o,n);
+  // Sync form-control values — skip focused element to avoid cursor jump
+  if(!focused){
+    if(o.tagName==='INPUT'&&o.type!=='checkbox'&&o.type!=='radio'){
+      var nv=n.hasAttribute('value')?n.getAttribute('value'):'';
+      if(o.value!==nv) o.value=nv;
+    }
+    if(o.tagName==='INPUT'&&(o.type==='checkbox'||o.type==='radio')){
+      var nc2=n.hasAttribute('checked');
+      if(o.checked!==nc2) o.checked=nc2;
+    }
+    if(o.tagName==='TEXTAREA'){
+      // textarea value lives as child text in HTML; textContent gives decoded string
+      var tv=n.textContent;
+      if(o.value!==tv) o.value=tv;
+    }
+  }
+  // Recurse children (skip textarea — its content is the value, not children)
+  if(o.tagName!=='TEXTAREA') _mKids(o,n);
+  // Select: after options are patched, align .value to the selected option
+  if(!focused&&o.tagName==='SELECT'){
+    var sel=n.querySelector('option[selected]');
+    var sv=sel?sel.value:(n.getAttribute('value')||'');
+    if(sv!==''&&o.value!==sv) o.value=sv;
+  }
+}
+
+function _mKids(o,n){
+  var nc=n.childNodes,i,nk,rn,match,oid={};
+  // Build id-keyed index of current children for O(1) keyed matching
+  var cur=o.firstChild;
+  while(cur){if(cur.nodeType===1&&cur.id)oid[cur.id]=cur;cur=cur.nextSibling;}
+
+  for(i=0;i<nc.length;i++){
+    nk=nc[i];
+    rn=o.childNodes[i]||null; // live NodeList — updates as we insert/move nodes
+    if(nk.nodeType===3){       // text node
+      if(rn&&rn.nodeType===3){
+        if(rn.textContent!==nk.textContent) rn.textContent=nk.textContent;
+      } else {
+        o.insertBefore(document.createTextNode(nk.textContent),rn);
+      }
+    } else if(nk.nodeType===1){ // element node
+      match=null;
+      if(nk.id&&oid[nk.id]){match=oid[nk.id];delete oid[nk.id];}
+      if(match){
+        // Keyed match found — move to current position if needed
+        if(match!==rn) o.insertBefore(match,rn);
+        if(match.tagName===nk.tagName) _mEl(match,nk);
+        else { var cl=nk.cloneNode(true); o.replaceChild(cl,match); }
+      } else if(rn&&rn.nodeType===1&&rn.tagName===nk.tagName&&!rn.id){
+        // Unkeyed structural match — update in-place
+        _mEl(rn,nk);
+      } else {
+        // No match — insert clone
+        o.insertBefore(nk.cloneNode(true),rn);
+      }
+    }
+  }
+  // Trim extra old children
+  while(o.childNodes.length>nc.length) o.removeChild(o.lastChild);
+}
+
+function morph(el,html){
+  _morphBuf.innerHTML=html;
+  _mKids(el,_morphBuf);
+  _morphBuf.innerHTML=''; // release references
+}
+
+// dRender: debounced render for search/filter inputs.
+// No focus-restore hack needed — morph preserves the active element naturally.
 var _dRenderTimer=null;
-var _dFocusId='',_dFocusSel=0;
 function dRender(){
-  var a=document.activeElement;
-  if(a&&a.id&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA')){_dFocusId=a.id;_dFocusSel=a.selectionStart||0;}
   clearTimeout(_dRenderTimer);
-  _dRenderTimer=setTimeout(function(){
-    render();
-    if(_dFocusId){var el=document.getElementById(_dFocusId);if(el){el.focus();try{el.setSelectionRange(_dFocusSel,_dFocusSel);}catch(e){}}_dFocusId='';} 
-  },200);
+  _dRenderTimer=setTimeout(render,200);
 }
 
 function render(){
@@ -4366,7 +4978,10 @@ function render(){
   // render, and in INIT. Calling it on every render was wasted DOM classList work.
   var views={timesheet:vTimesheet,clients:vClients,matters:vMatters,contacts:vContacts,analytics:vAnalytics,approvals:vApprovals,invoices:vInvoices};
   var role=myRole();
-  var visTabs=TABS.filter(function(t){return (!t.roleOnly||t.roleOnly===role)&&(!t.roleExclude||t.roleExclude.indexOf(role)===-1);});
+  var visTabs=TABS.filter(function(t){
+    if(t.id==='analytics'&&!ST.prefs.analyticsEnabled) return false;
+    return (!t.roleOnly||t.roleOnly===role)&&(!t.roleExclude||t.roleExclude.indexOf(role)===-1);
+  });
   var nav=visTabs.map(function(t){
     var pcount=(t.id==='approvals'&&role==='partner')?(ST.entries.filter(function(e){return (e.status||'approved')==='pending';}).length + (ST.invoices||[]).filter(function(i){return i.status==='review';}).length):0;
     var badge=pcount>0?' <span style="background:var(--amber);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+pcount+'</span>':'';
@@ -4374,6 +4989,7 @@ function render(){
   }).join('');
   var tabDef=TABS.find(function(t){return t.id===ST.tab;});
   if(tabDef&&tabDef.roleOnly&&tabDef.roleOnly!==role){ST.tab="timesheet";}
+  if(ST.tab==='analytics'&&!ST.prefs.analyticsEnabled){ST.tab='timesheet';}
   var viewH=(views[ST.tab]||vTimesheet)();
   var overlays='';
   if(ST.modal==='up') overlays=buildUP();
@@ -4403,22 +5019,22 @@ function render(){
   var dmIcon=dmCur===true?IC.sun:IC.moon;
   var dmTitle=dmCur===null?'Theme: Auto (click for Dark)':dmCur===true?'Theme: Dark (click for Light)':'Theme: Light (click for Auto)';
 
-  document.getElementById('app').innerHTML=
+  morph(document.getElementById('app'),
     '<div class="header">'
     +'<div class="header-inner">'
     +'<div class="logo"><span style="font-size:1.4rem">&#9878;&#65039;</span>'
     +'<div><h1>'+appName+'</h1>'+(ST.user?'<div class="logo-sub" style="display:flex;align-items:center;gap:6px">'+H(ST.user.name)+' '+roleBadge(ST.user.role)+'</div>':'')+'</div></div>'
     +'<div class="header-btns">'
-    +'<button class="btn btn-gh" onclick="A.openImport()" title="Restore from backup or import CSV data">'+IC.ul+' Restore</button>'
-    +'<button class="btn btn-gr" onclick="ST.modal=\'exportModal\';render()" title="Backup or export data as CSV">'+IC.dl+' Backup</button>'
-    +'<button class="btn-ic" onclick="A.downloadApp()" title="Download app for offline use" style="font-size:15px">&#128190;</button>'
+    +'<button class="btn btn-gh" onclick="ST.modal=\'importData\';render()" title="Restore from backup">'+IC.ul+' Restore</button>'
+    +'<button class="btn btn-gh" onclick="A.csvQuickExport()" title="Download CSV with your saved preset (configure in Settings → Backup)">'+IC.dl+' CSV</button>'
+    +'<button class="btn btn-gr" onclick="A.exportJSON()" title="Download full backup (.json)">'+IC.dl+' Backup</button>'
     +'<button class="btn-ic" onclick="A.togDark()" title="'+dmTitle+'" style="'+( dmCur===true?'color:var(--amber)':dmCur===null?'color:var(--ink3)':'')+'">'+(dmIcon)+'</button>'
     +'<button class="btn-ic" onclick="A.openHelp()" title="Help">'+IC.help+'</button>'
     +'<button class="btn-ic" onclick="A.openSettings()" title="Settings">'+IC.gear+'</button>'
     +'</div></div>'
     +'<div class="nav">'+nav+'</div></div>'
     +'<div class="main">'+viewH+'</div>'
-    +overlays;
+    +overlays);
 
   document.getElementById('fab').style.display=((isBilling()&&ST.tab!=='timesheet')||(ST.modal&&ST.modal!=='help'&&ST.modal!=='settings'))?'none':'flex';
   if(ST.modal==='up') setTimeout(function(){var el=document.getElementById('up-n');if(el)el.focus();},50);
@@ -4504,12 +5120,13 @@ var A={
     savePrefs(); render();
   },
 
-  // == Revenue Split Feature ==
-  togRevenueSplit:function(v){
+  // == Analytics Tab (revenueSplit mirrors analyticsEnabled — no separate toggle) ==
+  togAnalytics:function(v){
+    ST.prefs.analyticsEnabled=v;
     ST.prefs.revenueSplit=v;
-    savePrefs();
-    toast(v?'Revenue split enabled — Personal Cut % fields are now visible':'Revenue split disabled','ok');
-    render();
+    if(!v&&ST.tab==='analytics') ST.tab='timesheet';
+    toast(v?'Analytics enabled':'Analytics hidden','ok');
+    savePrefs(); render();
   },
 
   // == Layout ==
@@ -4522,7 +5139,11 @@ var A={
   saveAppName:function(){
     var n=(document.getElementById('pref-name')||{}).value||'SixMinuteLog.com';
     ST.prefs.appName=n.trim()||'SixMinuteLog.com';
-    savePrefs(); toast('App name saved','ok'); render();
+    var fn=(document.getElementById('it-firmname')||{}).value||'';
+    if(!ST.firmProfile) ST.firmProfile={};
+    ST.firmProfile.firmName=fn.trim();
+    ST.firmProfile.appName=ST.prefs.appName;
+    savePrefs(); save(); toast('Firm identity saved','ok'); render();
   },
 
   // == Settings Tab ==
@@ -4605,6 +5226,26 @@ var A={
     var lf=((document.getElementById('mph-lf')||{}).value||ST.mphf.linkedField||'');
     ST.mphf=Object.assign({},ST.mphf,{source:src,key:key,label:label,value:value,linkedField:lf,errs:{}});
     render();
+  },
+  // Live-update the hint below the linked-field dropdown without a full re-render
+  mphPreviewLF:function(val){
+    ST.mphf=Object.assign({},ST.mphf,{linkedField:val});
+    var hint=LINKED_FIELD_HINTS[val]||'';
+    // Find or create hint element
+    var sel=document.getElementById('mph-lf');
+    if(!sel) return;
+    var existing=sel.parentNode.querySelector('.lf-hint-box');
+    if(hint){
+      if(!existing){
+        existing=document.createElement('div');
+        existing.className='lf-hint-box';
+        existing.style.cssText='font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:4px 8px;margin-top:4px';
+        sel.parentNode.insertBefore(existing,sel.nextSibling);
+      }
+      existing.textContent='\u2139 '+hint;
+    } else if(existing){
+      existing.remove();
+    }
   },
   closeMailPH:function(){
     ST.mphf={}; ST.modal='settings'; ST.settingsTab='email'; render();
@@ -4966,7 +5607,7 @@ var A={
     if(!f.date) errs.d='Required';
     if(!f.clientId) errs.cl='Select a client';
     if(!f.hours||isNaN(Number(f.hours))||Number(f.hours)<=0) errs.h='Enter hours';
-    if(!f.rate||Number(f.rate)<=0) errs.r='Enter rate';
+    // rate is optional — blank/0 is allowed (unrated entry)
     if(entRole==='billing_staff'&&!f.byContactId) errs.by='Select the attorney for this entry';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
@@ -4989,7 +5630,7 @@ var A={
     }
     var entry={id:ST.editId||uid(),date:f.date,
       clientId:Number(f.clientId),matterId:Number(f.matterId)||'',contactId:Number(f.contactId)||'',
-      hours:hrs,rate:Number(f.rate),description:f.description||'',abaCode:f.abaCode||'',
+      hours:hrs,rate:f.rate?Number(f.rate):0,description:f.description||'',abaCode:f.abaCode||'',
       createdBy:createdBy,createdByIni:createdByIni,
       // Track who actually entered this (billing staff vs. the timekeeper)
       enteredBy:(entRole==='billing_staff'&&ST.user)?ST.user.name:undefined,
@@ -5365,7 +6006,7 @@ var A={
   },
   saveCl:function(){
     var f=ST.cf;
-    f.name=g('cf-n'); f.email=g('cf-e'); f.phone=g('cf-p'); f.rate=fmtCur(g('cf-r')||'');
+    f.name=g('cf-n'); f.email=g('cf-e'); f.phone=g('cf-p');
     // Sync new-person draft fields
     var pn=g('cf-pn')||''; if(pn.trim())f.newPerson={name:pn,role:g('cf-pro')||'',email:g('cf-pe')||'',phone:g('cf-pp')||''};
     var errs={};
@@ -5373,7 +6014,7 @@ var A={
     if(f.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) errs.e='Invalid email';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
-    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',rate:f.rate?Number(f.rate):'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     if(ST.editId){ST.clients=ST.clients.map(function(x){return x.id==ST.editId?c:x;});toast('Client updated');}
     else{ST.clients=ST.clients.concat([c]);toast('Client added');}
     saveOne('clients',c); A.closeF();
@@ -5385,13 +6026,13 @@ var A={
   editMa:function(id){var m=ST.matters.find(function(x){return x.id==id;});if(!m)return;ST.editId=id;ST.mf=Object.assign({},m,{matterNumber:m.matterNumber||'',linkedClientPeopleIds:m.linkedClientPeopleIds||[],attorneyRates:(m.attorneyRates||[]).map(function(r){return Object.assign({},r);}),errs:{}});ST.modal='mf';render();},
   saveMa:function(){
     var f=ST.mf;
-    f.name=g('mf-n'); f.clientId=g('mf-cl'); f.description=g('mf-desc'); f.rate=fmtCur(g('mf-r')||''); f.contactId=g('mf-ct'); f.matterNumber=g('mf-num')||'';
+    f.name=g('mf-n'); f.clientId=g('mf-cl'); f.description=g('mf-desc'); f.contactId=g('mf-ct'); f.matterNumber=g('mf-num')||'';
     var errs={};
     if(!f.name||!f.name.trim()) errs.n='Name required';
     if(!f.clientId) errs.cl='Select a client';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
-    var m={id:ST.editId||uid(),name:f.name.trim(),clientId:Number(f.clientId),matterNumber:f.matterNumber.trim(),description:f.description||'',rate:f.rate?Number(f.rate):'',contactId:Number(f.contactId)||'',linkedClientPeopleIds:f.linkedClientPeopleIds||[],attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    var m={id:ST.editId||uid(),name:f.name.trim(),clientId:Number(f.clientId),matterNumber:f.matterNumber.trim(),description:f.description||'',contactId:Number(f.contactId)||'',linkedClientPeopleIds:f.linkedClientPeopleIds||[],attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     if(ST.editId){ST.matters=ST.matters.map(function(x){return x.id==ST.editId?m:x;});toast('Matter updated');}
     else{ST.matters=ST.matters.concat([m]);toast('Matter added');}
     saveOne('matters',m); A.closeF();
@@ -5539,7 +6180,7 @@ var A={
   saveQL:function(){
     syncForm();
     var f=ST.ql;
-    if(!f.clientId||!f.hours||!f.rate){toast('Fill in client, hours and rate','err');return;}
+    if(!f.clientId||!f.hours){toast('Fill in client and hours','err');return;}
     stopTmr();
     var hrs=Number(f.hours);
     var qlRole=myRole();
@@ -5556,7 +6197,7 @@ var A={
       }
     }
     var entry={id:uid(),date:today(),clientId:Number(f.clientId),matterId:Number(f.matterId)||'',contactId:'',
-      hours:hrs,rawMs:(f.rawMs!=null?f.rawMs:null),rate:Number(f.rate),description:f.description||'',
+      hours:hrs,rawMs:(f.rawMs!=null?f.rawMs:null),rate:f.rate?Number(f.rate):0,description:f.description||'',
       createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?',
       status:qlStatus,finalized:false};
     ST.entries=ST.entries.concat([entry]);
@@ -5625,26 +6266,6 @@ var A={
   // Help / Settings
   openHelp:function(){ST.modal='help';render();},
   openSettings:function(){ST.modal='settings';render();},
-  applyPreset:function(k){
-    var p={
-      full: {te:true,cl:true,ma:true,co:true,su:true,split:false,tc_date:true,tc_client:true,tc_matter:true,tc_team:true,tc_desc:true,tc_hours:true,tc_rate:true,tc_amount:true,tc_by:false},
-      billing:{te:true,cl:false,ma:false,co:false,su:true,split:false,tc_date:true,tc_client:true,tc_matter:true,tc_team:false,tc_desc:true,tc_hours:true,tc_rate:true,tc_amount:true,tc_by:false},
-      dirs: {te:false,cl:true,ma:true,co:true,su:false,split:false},
-      sum:  {te:false,cl:false,ma:false,co:false,su:true,split:false},
-      wsplit:{te:true,cl:true,ma:false,co:true,su:true,split:true,tc_date:true,tc_client:true,tc_matter:true,tc_team:true,tc_desc:false,tc_hours:true,tc_rate:true,tc_amount:true,tc_by:false},
-      tsplit:{te:true,cl:false,ma:false,co:false,su:true,split:true,tc_date:true,tc_client:true,tc_matter:false,tc_team:true,tc_desc:false,tc_hours:true,tc_rate:false,tc_amount:true,tc_by:false}
-    };
-    if(p[k]){
-      ST.settings=Object.assign({},ST.settings,p[k]);
-      render();
-    }
-  },
-  togExp:function(k,v){
-    syncForm();
-    ST.settings[k]=v;
-    render();
-  },
-  setExpDate:function(k,v){ST.settings[k]=v;render();},
 
   // Reset
   resetAll:function(){
@@ -5660,9 +6281,7 @@ var A={
   // ─ Download helper (works without URL.createObjectURL) ─
   _dlData:function(content, fname, mime){
     // Blob+createObjectURL: reliable for large files, no encoding corruption.
-    // UTF-8 BOM added for CSV so Excel opens with correct encoding.
-    var bom=(mime==='text/csv')?'\uFEFF':'';
-    var blob=new Blob([bom+content],{type:mime+';charset=utf-8'});
+    var blob=new Blob([content],{type:mime+';charset=utf-8'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url; a.download=fname; a.style.display='none';
@@ -5671,142 +6290,437 @@ var A={
     setTimeout(function(){URL.revokeObjectURL(url);},2000);
   },
 
-  // Export modal - now opens workflow-aware export modal
-  openExportModal:function(){ ST.modal='exportModal'; render(); },
+  // ═══════════════════════════════════════════════════════
+  // CSV EXPORT WIZARD ACTIONS
+  // ═══════════════════════════════════════════════════════
+
+  openExportModal:function(){
+    // Reset to fresh defaults when opening
+    var today0=today();
+    var fy=new Date(); fy.setMonth(0); fy.setDate(1);
+    var fyStr=fy.getFullYear()+'-01-01';
+    ST.csvX=Object.assign(ST.csvX,{
+      dataset:'entries',
+      dateFrom:fyStr, dateTo:today0,
+      allClients:true, clientIds:{},
+      allMatters:true, matterIds:{},
+      cols:{date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false},
+      clCols:{name:true,email:true,phone:true,rate:true,contact:false},
+      maCols:{name:true,client:true,desc:true,rate:true,contact:false},
+      ctCols:{name:true,role:true,email:true,phone:true,rate:false,ownPct:false},
+      groupBy:'none', includeTotals:true, includeGrandTotal:true,
+      dateFormat:'iso', currencySymbol:true, filenamePrefix:''
+    });
+    ST.modal='exportModal'; render();
+  },
+
+  csvXDataset:function(ds){ syncForm(); ST.csvX.dataset=ds; render(); },
+
+  csvXOpt:function(k,v){
+    syncForm();
+    ST.csvX[k]=v;
+    render();
+  },
+
+  csvXPreset:function(p){
+    syncForm();
+    var t=new Date(); var x=ST.csvX;
+    function iso(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+    if(p==='today'){ x.dateFrom=iso(t); x.dateTo=iso(t); }
+    else if(p==='week'){
+      var mon=new Date(t); mon.setDate(t.getDate()-((t.getDay()+6)%7));
+      var sun=new Date(mon); sun.setDate(mon.getDate()+6);
+      x.dateFrom=iso(mon); x.dateTo=iso(sun);
+    } else if(p==='month'){
+      var m1=new Date(t.getFullYear(),t.getMonth(),1);
+      var m2=new Date(t.getFullYear(),t.getMonth()+1,0);
+      x.dateFrom=iso(m1); x.dateTo=iso(m2);
+    } else if(p==='quarter'){
+      var q=Math.floor(t.getMonth()/3);
+      var q1=new Date(t.getFullYear(),q*3,1);
+      var q2=new Date(t.getFullYear(),q*3+3,0);
+      x.dateFrom=iso(q1); x.dateTo=iso(q2);
+    } else if(p==='year'){
+      x.dateFrom=t.getFullYear()+'-01-01'; x.dateTo=t.getFullYear()+'-12-31';
+    } else {
+      x.dateFrom=''; x.dateTo='';
+    }
+    render();
+  },
+
+  csvXAllClients:function(v){ syncForm(); ST.csvX.allClients=v; if(v) ST.csvX.clientIds={}; render(); },
+  csvXTogClient:function(id,v){ syncForm(); ST.csvX.allClients=false; ST.csvX.clientIds[id]=v; render(); },
+  csvXAllMatters:function(v){ syncForm(); ST.csvX.allMatters=v; if(v) ST.csvX.matterIds={}; render(); },
+  csvXTogMatter:function(id,v){ syncForm(); ST.csvX.allMatters=false; ST.csvX.matterIds[id]=v; render(); },
+
+  csvXTogCol:function(k){ syncForm(); ST.csvX.cols[k]=!ST.csvX.cols[k]; render(); },
+  csvXAllCols:function(v){ syncForm(); var c=ST.csvX.cols; Object.keys(c).forEach(function(k){c[k]=v;}); render(); },
+  csvXTogClCol:function(k){ syncForm(); ST.csvX.clCols[k]=!ST.csvX.clCols[k]; render(); },
+  csvXAllClCols:function(v){ syncForm(); var c=ST.csvX.clCols; Object.keys(c).forEach(function(k){c[k]=v;}); render(); },
+  csvXTogMaCol:function(k){ syncForm(); ST.csvX.maCols[k]=!ST.csvX.maCols[k]; render(); },
+  csvXAllMaCols:function(v){ syncForm(); var c=ST.csvX.maCols; Object.keys(c).forEach(function(k){c[k]=v;}); render(); },
+  csvXTogCtCol:function(k){ syncForm(); ST.csvX.ctCols[k]=!ST.csvX.ctCols[k]; render(); },
+  csvXAllCtCols:function(v){ syncForm(); var c=ST.csvX.ctCols; Object.keys(c).forEach(function(k){c[k]=v;}); render(); },
+
+  // Returns count of rows that will be exported (for preview)
+  _csvXCount:function(){
+    var x=ST.csvX; var ds=x.dataset;
+    if(ds==='entries') return A._csvXFilterEntries().length;
+    if(ds==='clients') return ST.clients.length;
+    if(ds==='matters') return ST.matters.length;
+    if(ds==='contacts') return ST.contacts.length;
+    return 0;
+  },
+
+  _csvXFilterEntries:function(){
+    var x=ST.csvX;
+    var rows=ST.entries;
+    if(x.dateFrom) rows=rows.filter(function(e){return e.date>=x.dateFrom;});
+    if(x.dateTo)   rows=rows.filter(function(e){return e.date<=x.dateTo;});
+    if(!x.allClients){
+      var cids=x.clientIds;
+      rows=rows.filter(function(e){return cids[e.clientId];});
+    }
+    if(!x.allMatters){
+      var mids=x.matterIds;
+      rows=rows.filter(function(e){return mids[e.matterId];});
+    }
+    return rows;
+  },
+
+  // ── Shared CSV generation engine ──
+  // cfg mirrors the shape of ST.csvX.
+  // For 'entries', cfg must have dateFrom/dateTo already resolved (strings or '').
+  // Returns the CSV string (with BOM).
+  _runCsvExport:function(cfg){
+    buildLookups();
+    var x=cfg; var ds=x.dataset;
+    var csv='';
+
+    function esc(v){
+      if(v===null||v===undefined) return '';
+      var s=String(v);
+      if(s.indexOf(',')!==-1||s.indexOf('"')!==-1||s.indexOf('\n')!==-1||s.indexOf('\r')!==-1){
+        return '"'+s.replace(/"/g,'""')+'"';
+      }
+      return s;
+    }
+    function row(cells){ return cells.map(esc).join(',')+'\r\n'; }
+
+    function fmtDate(d){
+      if(!d) return '';
+      var p=d.split('-'); if(p.length!==3) return d;
+      var y=p[0],m=p[1],dd=p[2];
+      if(x.dateFormat==='us') return m+'/'+dd+'/'+y;
+      if(x.dateFormat==='uk') return dd+'/'+m+'/'+y;
+      if(x.dateFormat==='long'){
+        var mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
+        return mn[parseInt(m,10)-1]+' '+parseInt(dd,10)+', '+y;
+      }
+      return d;
+    }
+    function fmtMoney(v){
+      var n=parseFloat(v)||0;
+      var s=n.toFixed(2);
+      return x.currencySymbol?'$'+s:s;
+    }
+    function fmtHours(v){ return (parseFloat(v)||0).toFixed(2); }
+
+    function groupKey(e){
+      if(x.groupBy==='client'){ var cl=_lu.cl[e.clientId]; return cl?cl.name:'(No Client)'; }
+      if(x.groupBy==='matter'){ var ma=_lu.ma[e.matterId]; return ma?ma.name:'(No Matter)'; }
+      if(x.groupBy==='date-month'){ var p=e.date.split('-'); return p[0]+'-'+p[1]; }
+      if(x.groupBy==='date-week'){
+        var dt=new Date(e.date+'T00:00:00');
+        var mon=new Date(dt); mon.setDate(dt.getDate()-((dt.getDay()+6)%7));
+        return 'Week of '+mon.toISOString().split('T')[0];
+      }
+      return '';
+    }
+
+    if(ds==='entries'){
+      // Filter entries using cfg
+      var rows=ST.entries;
+      if(x.dateFrom) rows=rows.filter(function(e){return e.date>=x.dateFrom;});
+      if(x.dateTo)   rows=rows.filter(function(e){return e.date<=x.dateTo;});
+      if(!x.allClients && x.clientIds){
+        var _cids=x.clientIds;
+        rows=rows.filter(function(e){return _cids[e.clientId];});
+      }
+      if(!x.allMatters && x.matterIds){
+        var _mids=x.matterIds;
+        rows=rows.filter(function(e){return _mids[e.matterId];});
+      }
+
+      var c=x.cols||{};
+      var hdr=[];
+      if(c.date) hdr.push('Date');
+      if(c.client) hdr.push('Client');
+      if(c.matter) hdr.push('Matter');
+      if(c.contact) hdr.push('Billing Contact');
+      if(c.hours) hdr.push('Hours');
+      if(c.rate) hdr.push('Rate');
+      if(c.amount) hdr.push('Amount');
+      if(c.desc) hdr.push('Description');
+      if(c.abaCode) hdr.push('ABA Code');
+      if(c.by) hdr.push('Created By');
+      if(c.entryId) hdr.push('Entry ID');
+
+      var entries=rows.slice().sort(function(a,b){
+        if(x.groupBy&&x.groupBy!=='none'){
+          var ka=groupKey(a),kb=groupKey(b);
+          if(ka!==kb) return ka.localeCompare(kb);
+        }
+        return new Date(a.date)-new Date(b.date);
+      });
+
+      csv='\uFEFF';
+      csv+=row(hdr);
+
+      function entRow(e){
+        var cl=_lu.cl[e.clientId]; var mt=_lu.ma[e.matterId]; var ct=_lu.ct[e.contactId];
+        var cells=[];
+        if(c.date) cells.push(fmtDate(e.date));
+        if(c.client) cells.push(cl?cl.name:'');
+        if(c.matter) cells.push(mt?mt.name:'');
+        if(c.contact) cells.push(ct?ct.name:'');
+        if(c.hours) cells.push(fmtHours(e.hours));
+        if(c.rate) cells.push(fmtMoney(e.rate));
+        if(c.amount) cells.push(fmtMoney(Number(e.hours)*Number(e.rate)));
+        if(c.desc) cells.push(e.description||'');
+        if(c.abaCode) cells.push(e.abaCode||'');
+        if(c.by) cells.push(e.createdBy||e.createdByIni||'');
+        if(c.entryId) cells.push(String(e.id));
+        return row(cells);
+      }
+
+      function totalRow(label,ents){
+        var hrs=ents.reduce(function(s,e){return s+Number(e.hours);},0);
+        var amt=ents.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
+        var cells=[];
+        // Align label at first text-ish column, totals under hours/amount
+        var preAmt=0;
+        if(c.date) preAmt++;
+        if(c.client) preAmt++;
+        if(c.matter) preAmt++;
+        if(c.contact) preAmt++;
+        var firstCol=0;
+        while(cells.length<firstCol) cells.push('');
+        cells.push(label);
+        while(cells.length<preAmt) cells.push('');
+        if(c.hours) cells.push(fmtHours(hrs));
+        if(c.rate) cells.push('');
+        if(c.amount) cells.push(fmtMoney(amt));
+        if(c.desc) cells.push('');
+        if(c.abaCode) cells.push('');
+        if(c.by) cells.push('');
+        if(c.entryId) cells.push('');
+        return row(cells);
+      }
+
+      var grouping=x.groupBy||'none';
+      if(grouping==='none'){
+        entries.forEach(function(e){ csv+=entRow(e); });
+        if(x.includeGrandTotal && entries.length>0) csv+=totalRow('TOTAL',entries);
+      } else {
+        var groups=[]; var groupMap={};
+        entries.forEach(function(e){
+          var k=groupKey(e);
+          if(!groupMap[k]){ groupMap[k]=[]; groups.push(k); }
+          groupMap[k].push(e);
+        });
+        groups.forEach(function(k){
+          var grpEntries=groupMap[k];
+          csv+=row([k]);
+          grpEntries.forEach(function(e){ csv+=entRow(e); });
+          if(x.includeTotals) csv+=totalRow('Subtotal',grpEntries);
+          csv+=row([]);
+        });
+        if(x.includeGrandTotal && entries.length>0) csv+=totalRow('GRAND TOTAL',entries);
+      }
+      return {csv:csv, rowCount:entries.length, dateFrom:x.dateFrom, dateTo:x.dateTo};
+    }
+
+    else if(ds==='clients'){
+      var ch=x.clCols||{};
+      var hdr2=[];
+      if(ch.name) hdr2.push('Name');
+      if(ch.email) hdr2.push('Email');
+      if(ch.phone) hdr2.push('Phone');
+      if(ch.rate) hdr2.push('Default Rate');
+      if(ch.contact) hdr2.push('Primary Contact');
+      csv='\uFEFF'+row(hdr2);
+      ST.clients.slice().sort(function(a,b){return a.name.localeCompare(b.name);}).forEach(function(c){
+        var ct=_lu.ct[c.contactId];
+        var cells=[];
+        if(ch.name) cells.push(c.name||'');
+        if(ch.email) cells.push(c.email||'');
+        if(ch.phone) cells.push(c.phone||'');
+        if(ch.rate) cells.push(c.rate?fmtMoney(c.rate):'');
+        if(ch.contact) cells.push(ct?ct.name:'');
+        csv+=row(cells);
+      });
+      return {csv:csv, rowCount:ST.clients.length};
+    }
+
+    else if(ds==='matters'){
+      var mh=x.maCols||{};
+      var hdr3=[];
+      if(mh.name) hdr3.push('Matter Name');
+      if(mh.client) hdr3.push('Client');
+      if(mh.desc) hdr3.push('Description');
+      if(mh.rate) hdr3.push('Default Rate');
+      if(mh.contact) hdr3.push('Billing Contact');
+      csv='\uFEFF'+row(hdr3);
+      ST.matters.slice().sort(function(a,b){return a.name.localeCompare(b.name);}).forEach(function(m){
+        var cl2=_lu.cl[m.clientId]; var ct2=_lu.ct[m.contactId];
+        var cells=[];
+        if(mh.name) cells.push(m.name||'');
+        if(mh.client) cells.push(cl2?cl2.name:'');
+        if(mh.desc) cells.push(m.description||'');
+        if(mh.rate) cells.push(m.rate?fmtMoney(m.rate):'');
+        if(mh.contact) cells.push(ct2?ct2.name:'');
+        csv+=row(cells);
+      });
+      return {csv:csv, rowCount:ST.matters.length};
+    }
+
+    else if(ds==='contacts'){
+      var kh=x.ctCols||{};
+      var hdr4=[];
+      if(kh.name) hdr4.push('Name');
+      if(kh.role) hdr4.push('Role');
+      if(kh.email) hdr4.push('Email');
+      if(kh.phone) hdr4.push('Phone');
+      if(kh.rate) hdr4.push('Rate');
+      if(kh.ownPct) hdr4.push('Ownership %');
+      csv='\uFEFF'+row(hdr4);
+      ST.contacts.slice().sort(function(a,b){return a.name.localeCompare(b.name);}).forEach(function(ct){
+        var cells=[];
+        if(kh.name) cells.push(ct.name||'');
+        if(kh.role) cells.push(ct.role||'');
+        if(kh.email) cells.push(ct.email||'');
+        if(kh.phone) cells.push(ct.phone||'');
+        if(kh.rate) cells.push(ct.rate?fmtMoney(ct.rate):'');
+        if(kh.ownPct) cells.push(ct.ownPct!==undefined?String(ct.ownPct)+'%':'');
+        csv+=row(cells);
+      });
+      return {csv:csv, rowCount:ST.contacts.length};
+    }
+
+    return {csv:'\uFEFF', rowCount:0};
+  },
+
+  // Core export runner (called from Export wizard modal)
+  csvExport:function(){
+    var result=A._runCsvExport(ST.csvX);
+    var x=ST.csvX;
+    var now=new Date();
+    var stamp=now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+    var prefix=(x.filenamePrefix||'').replace(/[^a-zA-Z0-9_\-]/g,'_');
+    var dsLabel={entries:'time-entries',clients:'clients',matters:'matters',contacts:'contacts'}[x.dataset]||x.dataset;
+    var dateSuffix=(x.dataset==='entries'&&(x.dateFrom||x.dateTo))
+      ?(x.dateFrom?'_'+x.dateFrom:'')+(x.dateTo&&x.dateTo!==x.dateFrom?'_to_'+x.dateTo:'')
+      :'';
+    var fname=(prefix||'export')+'_'+dsLabel+dateSuffix+'_'+stamp+'.csv';
+    A._dlData(result.csv, fname, 'text/csv');
+    toast(result.rowCount+' rows exported to '+fname, 'ok');
+    A.closeM();
+  },
+
+  // ── Quick-export: direct download from header button ──
+  // Reads ST.prefs.csvQuick, resolves datePreset → dateFrom/dateTo, fires immediately.
+  csvQuickExport:function(){
+    var q=ST.prefs.csvQuick;
+    if(!q){ toast('No quick export preset configured','warn'); return; }
+
+    // Resolve datePreset to actual date strings
+    var dateFrom='', dateTo='';
+    var t=new Date();
+    function iso(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+    var p=q.datePreset||'month';
+    if(p==='today'){ dateFrom=iso(t); dateTo=iso(t); }
+    else if(p==='week'){
+      var mon=new Date(t); mon.setDate(t.getDate()-((t.getDay()+6)%7));
+      var sun=new Date(mon); sun.setDate(mon.getDate()+6);
+      dateFrom=iso(mon); dateTo=iso(sun);
+    } else if(p==='month'){
+      dateFrom=t.getFullYear()+'-'+pad2(t.getMonth()+1)+'-01';
+      dateTo=iso(new Date(t.getFullYear(),t.getMonth()+1,0));
+    } else if(p==='quarter'){
+      var qn=Math.floor(t.getMonth()/3);
+      dateFrom=iso(new Date(t.getFullYear(),qn*3,1));
+      dateTo=iso(new Date(t.getFullYear(),qn*3+3,0));
+    } else if(p==='year'){
+      dateFrom=t.getFullYear()+'-01-01';
+      dateTo=t.getFullYear()+'-12-31';
+    }
+    // p==='all' → both remain ''
+
+    // Build a complete cfg compatible with _runCsvExport
+    var cfg={
+      dataset: q.dataset||'entries',
+      dateFrom: dateFrom,
+      dateTo: dateTo,
+      allClients: true,   // quick export: no per-client filter
+      allMatters: true,
+      cols: Object.assign({date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false}, q.cols||{}),
+      clCols: Object.assign({name:true,email:true,phone:true,rate:true,contact:false}, q.clCols||{}),
+      maCols: Object.assign({name:true,client:true,desc:true,rate:true,contact:false}, q.maCols||{}),
+      ctCols: Object.assign({name:true,role:true,email:true,phone:true,rate:false,ownPct:false}, q.ctCols||{}),
+      groupBy: q.groupBy||'none',
+      includeTotals: q.includeTotals!==false,
+      includeGrandTotal: q.includeGrandTotal!==false,
+      dateFormat: q.dateFormat||'iso',
+      currencySymbol: q.currencySymbol!==false,
+      filenamePrefix: q.filenamePrefix||''
+    };
+
+    var result=A._runCsvExport(cfg);
+
+    // Generate filename
+    var now=new Date();
+    var stamp=now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+    var prefix=(cfg.filenamePrefix||'').replace(/[^a-zA-Z0-9_\-]/g,'_');
+    var dsLabel={entries:'time-entries',clients:'clients',matters:'matters',contacts:'contacts'}[cfg.dataset]||cfg.dataset;
+    var dateLabel=p!=='all'?'_'+{today:'today',week:'this-week',month:'this-month',quarter:'this-quarter',year:String(t.getFullYear())}[p]:'';
+    var fname=(prefix||'export')+'_'+dsLabel+dateLabel+'_'+stamp+'.csv';
+
+    A._dlData(result.csv, fname, 'text/csv');
+    toast(result.rowCount+' rows → '+fname, 'ok');
+  },
+
+  // ── Quick-export preset mutators (save to prefs immediately) ──
+  _csvQSave:function(){ savePrefs(); render(); },
+
+  csvQPref:function(k,v){
+    syncForm();
+    ST.prefs.csvQuick[k]=v;
+    A._csvQSave();
+  },
+
+  csvQTogCol:function(k){ syncForm(); ST.prefs.csvQuick.cols[k]=!ST.prefs.csvQuick.cols[k]; A._csvQSave(); },
+  csvQAllCols:function(v){ syncForm(); var c=ST.prefs.csvQuick.cols; Object.keys(c).forEach(function(k){c[k]=v;}); A._csvQSave(); },
+
+  csvQTogClCol:function(k){ syncForm(); ST.prefs.csvQuick.clCols[k]=!ST.prefs.csvQuick.clCols[k]; A._csvQSave(); },
+  csvQAllClCols:function(v){ syncForm(); var c=ST.prefs.csvQuick.clCols; Object.keys(c).forEach(function(k){c[k]=v;}); A._csvQSave(); },
+
+  csvQTogMaCol:function(k){ syncForm(); ST.prefs.csvQuick.maCols[k]=!ST.prefs.csvQuick.maCols[k]; A._csvQSave(); },
+  csvQAllMaCols:function(v){ syncForm(); var c=ST.prefs.csvQuick.maCols; Object.keys(c).forEach(function(k){c[k]=v;}); A._csvQSave(); },
+
+  csvQTogCtCol:function(k){ syncForm(); ST.prefs.csvQuick.ctCols[k]=!ST.prefs.csvQuick.ctCols[k]; A._csvQSave(); },
+  csvQAllCtCols:function(v){ syncForm(); var c=ST.prefs.csvQuick.ctCols; Object.keys(c).forEach(function(k){c[k]=v;}); A._csvQSave(); },
   downloadApp:function(){
     var html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
     var blob=new Blob([html],{type:'text/html;charset=utf-8'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
     a.href=url;
-    a.download='SixMinuteLog_'+today().replace(/-/g,'')+'.html';
+    a.download=(ST.prefs.appName||'SixMinuteLog').replace(/[^a-zA-Z0-9_\-]/g,'_')+'.html';
     document.body.appendChild(a);a.click();
     document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(url);},2000);
     toast('App downloaded \u2014 open the file in any browser to use offline','ok');
-  },
-
-  // Export
-  exportCSV:function(){
-    var s=ST.settings;
-    var Q=function(v){return '"'+String(v||'').replace(/"/g,'""')+'"';};
-    var R=function(a){return a.map(Q).join(',')+'\n';};
-    var csv='';
-
-    // Filter entries by date range if set
-    var ents=ST.entries;
-    if(s.expFrom) ents=ents.filter(function(e){return e.date>=s.expFrom;});
-    if(s.expTo)   ents=ents.filter(function(e){return e.date<=s.expTo;});
-
-    if(s.te&&ents.length){
-      // Build column list
-      var cols=[];
-      if(s.tc_date)   cols.push('Date');
-      if(s.tc_client) cols.push('Client');
-      if(s.tc_matter) cols.push('Matter');
-      if(s.tc_team)   cols.push('Team Member');
-      if(s.tc_desc)   cols.push('Description');
-      if(s.tc_hours)  cols.push('Hours');
-      if(s.tc_rate)   cols.push('Rate');
-      if(s.tc_amount) cols.push('Amount');
-      if(s.tc_by)     cols.push('Created By');
-
-      if(s.te_group){
-        // Group by client
-        var clIds=[...new Set(ents.map(function(e){return e.clientId;}))];
-        clIds.forEach(function(cid){
-          var cl=ST.clients.find(function(c){return c.id==cid;});
-          var clName=cl?cl.name:'Unknown';
-          csv+='TIME ENTRIES - '+clName+'\n'+R(cols);
-          ents.filter(function(e){return e.clientId==cid;})
-            .sort(function(a,b){return new Date(a.date)-new Date(b.date);})
-            .forEach(function(e){csv+=R(buildEntRow(e,s));});
-          csv+='\n';
-        });
-      } else {
-        csv+='TIME ENTRIES\n'+R(cols);
-        ents.slice().sort(function(a,b){return new Date(a.date)-new Date(b.date);}).forEach(function(e){csv+=R(buildEntRow(e,s));});
-        csv+='\n';
-      }
-    }
-    if(s.cl&&ST.clients.length){
-      csv+='CLIENTS\n'+R(['Name','Email','Phone','Default Rate']);
-      ST.clients.forEach(function(c){csv+=R([c.name,c.email||'',c.phone||'',c.rate||'']);});
-      csv+='\n';
-    }
-    if(s.ma&&ST.matters.length){
-      csv+='MATTERS\n'+R(['Client','Matter Name','Matter Number','Description','Rate']);
-      ST.matters.forEach(function(m){var cl=ST.clients.find(function(c){return c.id==m.clientId;});csv+=R([cl?cl.name:'',m.name,m.matterNumber||'',m.description||'',m.rate||'Client Default']);});
-      csv+='\n';
-    }
-    if(s.co&&ST.contacts.length){
-      csv+='CONTACTS\n'+R(['Name','Role','Email','Phone','Rate','Personal Cut %','Annual Salary']);
-      ST.contacts.forEach(function(c){csv+=R([c.name,c.role||'',c.email||'',c.phone||'',c.rate||'',c.ownPct!=null?c.ownPct:100,c.salary!=null&&c.salary!==''?c.salary:'']);});
-      csv+='\n';
-    }
-    if(s.su){
-      var hrs=ents.reduce(function(s,e){return s+Number(e.hours);},0);
-      var bill=ents.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
-      csv+='SUMMARY\n'+R(['Total Hours',hrs.toFixed(2)])+R(['Total Billing','$'+bill.toFixed(2)])+R(['Entries',String(ents.length)])+R(['Clients',String(ST.clients.length)])+R(['Matters',String(ST.matters.length)]);
-      if(s.expFrom||s.expTo) csv+=R(['Date Range',(s.expFrom||'beginning')+' to '+(s.expTo||'today')]);
-      csv+='\n';
-    }
-    if(s.split){
-      var salPeriodLblCsv=salaryPeriodLabel(ST.anFilter)||'All Time';
-      csv+='REVENUE SPLIT\n'+R(['Team Member','Personal Cut %','Hours','Total Billed','Own Portion','Firm Portion','Annual Salary','Salary ('+salPeriodLblCsv+')','Net Income (Own - Period Salary)','Status']);
-      var userPct=ST.user&&ST.user.ownPct!=null?Number(ST.user.ownPct):100;
-      var userSalExp=ST.user&&ST.user.salary!=null&&ST.user.salary!==''?Number(ST.user.salary):null;
-      var splitRows=ST.contacts.map(function(c){
-        var ces=ents.filter(function(e){return e.contactId==c.id;});
-        var chrs=ces.reduce(function(s,e){return s+Number(e.hours);},0);
-        var cbill=ces.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
-        var pct=c.ownPct!=null?Number(c.ownPct):100;
-        var own=cbill*pct/100;
-        var annSal=c.salary!=null&&c.salary!==''?Number(c.salary):null;
-        var perSal=salaryForPeriod(annSal,ST.anFilter);
-        var net=perSal!=null?own-perSal:null;
-        return [c.name,pct,chrs.toFixed(2),'$'+cbill.toFixed(2),'$'+own.toFixed(2),'$'+(cbill*(100-pct)/100).toFixed(2),
-          annSal!=null?'$'+annSal.toFixed(2):'',
-          perSal!=null?'$'+perSal.toFixed(2):'',
-          net!=null?'$'+net.toFixed(2):'',
-          net!=null?(net>=0?'Bonus':'Shortfall'):''];
-      });
-      var uEnts=ents.filter(function(e){return !ST.contacts.find(function(c){return c.id==e.contactId;});});
-      if(uEnts.length){
-        var uH=uEnts.reduce(function(s,e){return s+Number(e.hours);},0);
-        var uB=uEnts.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
-        var uOwn=uB*userPct/100;
-        var uPerSal=salaryForPeriod(userSalExp,ST.anFilter);
-        var uNet=uPerSal!=null?uOwn-uPerSal:null;
-        splitRows.push(['(Unassigned)',userPct,uH.toFixed(2),'$'+uB.toFixed(2),'$'+uOwn.toFixed(2),'$'+(uB*(100-userPct)/100).toFixed(2),
-          userSalExp!=null?'$'+userSalExp.toFixed(2):'',
-          uPerSal!=null?'$'+uPerSal.toFixed(2):'',
-          uNet!=null?'$'+uNet.toFixed(2):'',
-          uNet!=null?(uNet>=0?'Bonus':'Shortfall'):'']);
-      }
-      splitRows.forEach(function(r){csv+=R(r);});
-      csv+='\n';
-    }
-    if(!csv){toast('Nothing selected to export','warn');return;}
-    var fname=exportFilename();
-    A._dlData(csv, fname, 'text/csv');
-    toast('Exported: '+(fname.split('_')[1]||'CSV'));
-  },
-
-  // ─ Import helpers ─
-  openImport:function(){ ST.modal='importData'; render(); },
-
-  // CSV row parser (handles quoted commas and escaped quotes)
-  _parseCSVRow:function(line){
-    var vals=[],cur='',inQ=false;
-    for(var i=0;i<line.length;i++){
-      var ch=line[i];
-      if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
-      else if(ch===','&&!inQ){vals.push(cur);cur='';}
-      else cur+=ch;
-    }
-    vals.push(cur);
-    return vals;
   },
 
   // ─ Full JSON backup export ─
@@ -5827,7 +6741,8 @@ var A={
     var json=JSON.stringify(backup,null,2);
     var now=new Date();
     var stamp=now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate())+'_'+pad2(now.getHours())+pad2(now.getMinutes());
-    var fname='billing-backup_'+stamp+'.json';
+    var appSlug=(ST.prefs.appName||'backup').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    var fname=appSlug+'_'+stamp+'.json';
     A._dlData(json, fname, 'application/json');
     toast('Full backup downloaded: '+fname);
   },
@@ -5846,7 +6761,7 @@ var A={
         if(b.entries)  ST.entries=b.entries;
         if(b.contacts) ST.contacts=b.contacts;
         if(b.user)     ST.user=b.user;
-        if(b.prefs)    ST.prefs=Object.assign({appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable'},b.prefs);
+        if(b.prefs)    ST.prefs=Object.assign({appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false},b.prefs);
         if(b.settings) ST.settings=Object.assign({},ST.settings,b.settings);
         if(b.descPresets) ST.descPresets=b.descPresets;
         if(b.mailPresets) ST.mailPresets=b.mailPresets;
@@ -5858,179 +6773,6 @@ var A={
         toast('Backup restored: '+ST.clients.length+' clients, '+ST.matters.length+' matters, '+ST.entries.length+' entries');
         ST.modal=null; render();
       }catch(e){ toast('Failed to read backup file','err'); console.error(e); }
-    };
-    reader.readAsText(file); inp.value='';
-  },
-
-  // ─ Per-entity CSV export ─
-  exportEntityCSV:function(type){
-    var Q=function(v){return '"'+String(v||'').replace(/"/g,'""')+'"';};
-    var R=function(a){return a.map(Q).join(',')+'\n';};
-    var csv='',fname='';
-    var now=new Date();
-    var stamp=now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate())+'_'+pad2(now.getHours())+pad2(now.getMinutes());
-    if(type==='clients'){
-      csv+=R(['Name','Email','Phone','Default Rate']);
-      ST.clients.forEach(function(c){csv+=R([c.name,c.email||'',c.phone||'',c.rate||'']);});
-      fname='billing-clients_'+stamp+'.csv';
-    } else if(type==='matters'){
-      csv+=R(['Client Name','Matter Name','Matter Number','Description','Rate']);
-      ST.matters.forEach(function(m){
-        var cl=ST.clients.find(function(c){return c.id==m.clientId;});
-        csv+=R([cl?cl.name:'',m.name,m.matterNumber||'',m.description||'',m.rate||'']);
-      });
-      fname='billing-matters_'+stamp+'.csv';
-    } else if(type==='entries'){
-      csv+=R(['Date','Client Name','Matter Name','Matter Number','ABA Code','Team Member','Description','Hours','Rate','Status','Created By']);
-      ST.entries.forEach(function(e){
-        var cl=ST.clients.find(function(c){return c.id==e.clientId;});
-        var mt=ST.matters.find(function(m){return m.id==e.matterId;});
-        var ct=ST.contacts.find(function(c){return c.id==e.contactId;});
-        csv+=R([e.date,cl?cl.name:'',mt?mt.name:'',mt?mt.matterNumber||'':'',e.abaCode||'',ct?ct.name:'',e.description||'',e.hours,e.rate,e.status||'approved',e.createdBy||'']);
-      });
-      fname='billing-entries_'+stamp+'.csv';
-    } else if(type==='contacts'){
-      csv+=R(['Name','Role','Email','Phone','Rate','Personal Cut %','Annual Salary']);
-      ST.contacts.forEach(function(c){csv+=R([c.name,c.role||'',c.email||'',c.phone||'',c.rate||'',c.ownPct!=null?c.ownPct:100,c.salary!=null&&c.salary!==''?c.salary:'']);});
-      fname='billing-contacts_'+stamp+'.csv';
-    } else if(type==='settings'){
-      // Settings exported as simple key-value CSV
-      csv+=R(['Setting','Value']);
-      csv+=R(['App Name',ST.prefs.appName||'SixMinuteLog.com']);
-      csv+=R(['Dark Mode',ST.prefs.darkMode===null?'null':ST.prefs.darkMode?'true':'false']);
-      csv+=R(['Layout',ST.prefs.layout||'comfortable']);
-      csv+=R(['Description Presets',ST.descPresets.join('|')]);
-      fname='billing-settings_'+stamp+'.csv';
-    }
-    if(!csv){ toast('No data to export','warn'); return; }
-    A._dlData(csv, fname, 'text/csv');
-    toast('Exported: '+(fname.split('_')[1]||type));
-  },
-
-  // ─ Combined CSV import (full multi-section file) ─
-  importCSV:function(inp){
-    var file=inp.files[0]; if(!file) return;
-    var self=A;
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      var lines=ev.target.result.split(/\r?\n/);
-      var sec='',nc=[],nm=[],ne=[],nct=[];
-      var colMap={};  // track column positions per section
-      lines.forEach(function(line){
-        var l=line.trim(); if(!l) return;
-        if(l.indexOf('TIME ENTRIES')===0){sec='e';colMap={};return;}
-        if(l==='CLIENTS'){sec='c';colMap={};return;}
-        if(l==='MATTERS'){sec='m';colMap={};return;}
-        if(l==='CONTACTS'){sec='ct';colMap={};return;}
-        if(l==='SUMMARY'||l==='REVENUE SPLIT'){sec='';return;}
-        var v=self._parseCSVRow(l);
-        // Header rows - build column map
-        if(sec==='e'&&v[0]==='Date'){v.forEach(function(h,i){colMap[h]=i;});return;}
-        if(sec==='c'&&v[0]==='Name'){v.forEach(function(h,i){colMap[h]=i;});return;}
-        if(sec==='m'&&(v[0]==='Client'||v[0]==='Client Name')){v.forEach(function(h,i){colMap[h]=i;});return;}
-        if(sec==='ct'&&v[0]==='Name'){v.forEach(function(h,i){colMap[h]=i;});return;}
-        if(!v[0]) return;
-        if(sec==='c') nc.push({id:uid(),name:v[0],email:v[1]||'',phone:v[2]||'',rate:v[3]||'',createdBy:'Imported',createdByIni:'?'});
-        else if(sec==='ct') nct.push({id:uid(),name:v[0],role:v[1]||'',email:v[2]||'',phone:v[3]||'',rate:v[4]||'',ownPct:v[5]!=null?Number(v[5]):100,salary:v[6]!=null&&v[6]!==''?Number(v[6]):'',createdBy:'Imported',createdByIni:'?'});
-        else if(sec==='m'){
-          var cName=v[colMap['Client']!=null?colMap['Client']:(colMap['Client Name']!=null?colMap['Client Name']:0)]||'';
-          var mnIdx=colMap['Matter Number']!=null?colMap['Matter Number']:-1;
-          nm.push({_clientName:cName,name:v[colMap['Matter Name']!=null?colMap['Matter Name']:1]||v[1]||'',matterNumber:mnIdx>=0?(v[mnIdx]||''):'',description:v[colMap['Description']!=null?colMap['Description']:2]||'',rate:v[colMap['Rate']!=null?colMap['Rate']:3]||''});
-        }
-        else if(sec==='e'){
-          var ci=colMap['Client Name']!=null?colMap['Client Name']:(colMap['Client']!=null?colMap['Client']:1);
-          var mi=colMap['Matter Name']!=null?colMap['Matter Name']:(colMap['Matter']!=null?colMap['Matter']:2);
-          var ti=colMap['Team Member']!=null?colMap['Team Member']:3;
-          var di=colMap['Description']!=null?colMap['Description']:4;
-          var hi=colMap['Hours']!=null?colMap['Hours']:5;
-          var ri=colMap['Rate']!=null?colMap['Rate']:6;
-          var sti=colMap['Status']!=null?colMap['Status']:7;
-          var bi=colMap['Created By']!=null?colMap['Created By']:8;
-          var abai=colMap['ABA Code']!=null?colMap['ABA Code']:-1;
-          ne.push({id:uid(),date:v[0],_clientName:v[ci]||'',_matterName:v[mi]||'',_contactName:v[ti]||'',description:v[di]||'',hours:v[hi]||'',rate:v[ri]||'',status:v[sti]||'approved',createdBy:v[bi]||'Imported',createdByIni:'?',abaCode:abai>=0?(v[abai]||''):''});
-        }
-      });
-      // Resolve IDs - use newly imported clients if available, fall back to existing
-      var allClients=nc.length?nc:ST.clients;
-      var allContacts=nct.length?nct:ST.contacts;
-      // Assign IDs to matters
-      var resolvedMatters=nm.map(function(m){
-        var cl=allClients.find(function(c){return c.name.toLowerCase()===m._clientName.toLowerCase();});
-        return {id:uid(),name:m.name,clientId:cl?cl.id:'',matterNumber:m.matterNumber||'',description:m.description,rate:m.rate,createdBy:'Imported',createdByIni:'?'};
-      });
-      var allMatters=resolvedMatters.length?resolvedMatters:ST.matters;
-      // Assign IDs to entries
-      var resolvedEntries=ne.map(function(e){
-        var cl=allClients.find(function(c){return c.name.toLowerCase()===e._clientName.toLowerCase();});
-        var mt=allMatters.find(function(m){return m.name.toLowerCase()===e._matterName.toLowerCase()&&(!cl||m.clientId==cl.id);});
-        var ct=allContacts.find(function(c){return c.name.toLowerCase()===e._contactName.toLowerCase();});
-        return {id:e.id,date:e.date,clientId:cl?cl.id:'',matterId:mt?mt.id:'',contactId:ct?ct.id:'',description:e.description,hours:e.hours,rate:e.rate,status:e.status,createdBy:e.createdBy,createdByIni:e.createdByIni};
-      });
-      // Apply results
-      if(nc.length) ST.clients=nc;
-      if(resolvedMatters.length) ST.matters=resolvedMatters;
-      if(resolvedEntries.length) ST.entries=resolvedEntries;
-      if(nct.length) ST.contacts=nct;
-      ST._entriesMode='full'; ST._totalEntryCount=ST.entries.length; markLuDirty();
-      var msg='Imported: '+nc.length+' clients, '+resolvedMatters.length+' matters, '+resolvedEntries.length+' entries, '+nct.length+' contacts';
-      save(); toast(msg); ST.modal=null; render();
-    };
-    reader.readAsText(file); inp.value='';
-  },
-
-  // ─ Single-entity CSV import (clients/matters/entries/contacts/settings) ─
-  importEntityCSV:function(inp,type){
-    var file=inp.files[0]; if(!file) return;
-    var self=A;
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      var lines=ev.target.result.split(/\r?\n/);
-      var colMap={};
-      var parsed=[];
-      var isFirst=true;
-      lines.forEach(function(line){
-        var l=line.trim(); if(!l) return;
-        var v=self._parseCSVRow(l);
-        if(isFirst){isFirst=false;v.forEach(function(h,i){colMap[h]=i;});return;}
-        if(!v[0]) return;
-        parsed.push(v);
-      });
-      if(!parsed.length){ toast('No data rows found in file','warn'); inp.value=''; return; }
-      if(type==='clients'){
-        var nc=parsed.map(function(v){return {id:uid(),name:v[colMap['Name']!=null?colMap['Name']:0],email:v[colMap['Email']!=null?colMap['Email']:1]||'',phone:v[colMap['Phone']!=null?colMap['Phone']:2]||'',rate:v[colMap['Default Rate']!=null?colMap['Default Rate']:3]||'',createdBy:'Imported',createdByIni:'?'};});
-        ST.clients=nc; save(); toast('Imported '+nc.length+' clients'); ST.modal=null; render();
-      } else if(type==='matters'){
-        var nm=parsed.map(function(v){
-          var cName=v[colMap['Client Name']!=null?colMap['Client Name']:(colMap['Client']!=null?colMap['Client']:0)]||'';
-          var cl=ST.clients.find(function(c){return c.name.toLowerCase()===cName.toLowerCase();});
-          var mnIdx=colMap['Matter Number']!=null?colMap['Matter Number']:-1;
-          return {id:uid(),name:v[colMap['Matter Name']!=null?colMap['Matter Name']:1]||'',clientId:cl?cl.id:'',matterNumber:mnIdx>=0?(v[mnIdx]||''):'',description:v[colMap['Description']!=null?colMap['Description']:2]||'',rate:v[colMap['Rate']!=null?colMap['Rate']:3]||'',createdBy:'Imported',createdByIni:'?'};
-        }).filter(function(m){return m.name;});
-        ST.matters=nm; save(); toast('Imported '+nm.length+' matters'); ST.modal=null; render();
-      } else if(type==='entries'){
-        var ne=parsed.map(function(v){
-          var cName=v[colMap['Client Name']!=null?colMap['Client Name']:(colMap['Client']!=null?colMap['Client']:1)]||'';
-          var mName=v[colMap['Matter Name']!=null?colMap['Matter Name']:(colMap['Matter']!=null?colMap['Matter']:2)]||'';
-          var tName=v[colMap['Team Member']!=null?colMap['Team Member']:3]||'';
-          var cl=ST.clients.find(function(c){return c.name.toLowerCase()===cName.toLowerCase();});
-          var mt=ST.matters.find(function(m){return m.name.toLowerCase()===mName.toLowerCase()&&(!cl||m.clientId==cl.id);});
-          var ct=ST.contacts.find(function(c){return c.name.toLowerCase()===tName.toLowerCase();});
-          return {id:uid(),date:v[0],clientId:cl?cl.id:'',matterId:mt?mt.id:'',contactId:ct?ct.id:'',description:v[colMap['Description']!=null?colMap['Description']:4]||'',hours:v[colMap['Hours']!=null?colMap['Hours']:5]||'',rate:v[colMap['Rate']!=null?colMap['Rate']:6]||'',status:v[colMap['Status']!=null?colMap['Status']:7]||'approved',createdBy:v[colMap['Created By']!=null?colMap['Created By']:8]||'Imported',createdByIni:'?'};
-        }).filter(function(e){return e.date;});
-        ST.entries=ne; ST._entriesMode='full'; ST._totalEntryCount=ne.length; markLuDirty(); save(); toast('Imported '+ne.length+' entries'); ST.modal=null; render();
-      } else if(type==='contacts'){
-        var nct=parsed.map(function(v){return {id:uid(),name:v[0],role:v[colMap['Role']!=null?colMap['Role']:1]||'',email:v[colMap['Email']!=null?colMap['Email']:2]||'',phone:v[colMap['Phone']!=null?colMap['Phone']:3]||'',rate:v[colMap['Rate']!=null?colMap['Rate']:4]||'',ownPct:v[colMap['Personal Cut %']!=null?colMap['Personal Cut %']:5]!=null?Number(v[colMap['Personal Cut %']!=null?colMap['Personal Cut %']:5]):100,salary:colMap['Annual Salary']!=null&&v[colMap['Annual Salary']]!=null&&v[colMap['Annual Salary']]!==''?Number(v[colMap['Annual Salary']]):'' ,createdBy:'Imported',createdByIni:'?'};});
-        ST.contacts=nct; save(); toast('Imported '+nct.length+' contacts'); ST.modal=null; render();
-      } else if(type==='settings'){
-        parsed.forEach(function(v){
-          var k=v[0],val=v[1]||'';
-          if(k==='App Name') ST.prefs.appName=val;
-          else if(k==='Dark Mode') ST.prefs.darkMode=(val==='null'?null:(val==='true'));
-          else if(k==='Layout') ST.prefs.layout=val;
-          else if(k==='Description Presets'&&val) ST.descPresets=val.split('|').filter(Boolean);
-        });
-        save(); applyPrefs(); toast('Settings imported'); ST.modal=null; render();
-      }
     };
     reader.readAsText(file); inp.value='';
   },
@@ -6063,10 +6805,10 @@ var A={
       'TOAST':             'toast(msg,type)',
       'ICONS':             'IC object of SVG strings',
       'FIELD BUILDER':     'field(label,id,opts), stats(arr)',
-      'EXPORT FILENAME GENERATOR':'exportFilename()',
       'VIEWS':             'vTimesheet,vClients,vMatters,vContacts,vAnalytics + form builders',
       'MODALS':            'buildUP,buildQL,buildHelp,buildSettings',
-      'MAIN RENDER':       'TABS[], views{}, render()',
+      'MORPH':             'morph(el,html) — incremental DOM patcher. Diffs old DOM vs new HTML string; updates only changed nodes. Preserves focused inputs/cursor. Used by render() instead of innerHTML=. Do NOT add focus-restore hacks.',
+      'MAIN RENDER':       'TABS[], views{}, render() — calls morph() for incremental update',
       'ACTIONS':           'A object - all user actions',
       'CHANGE DELEGATION': 'document.addEventListener(\'change\',...)',
       'INIT':              'startup data loading, Promise.all'
@@ -6248,6 +6990,9 @@ tableRows,
 '6. No external deps - 100% offline, no CDN',
 '7. Prefer saveOne/delOne over save() for single-record mutations (atomic, no clear, instant)',
 '8. save() is for bulk ops only — still safe (uses syncCollection not clear+putAll)',
+'9. render() uses morph() (incremental DOM patching). Focused inputs are NEVER destroyed.',
+'   Do NOT implement focus-save/restore hacks — morph handles cursor position automatically.',
+'   The old _dFocusSel pattern has been removed. dRender() is just a debounced render().',
 '',
 '---',
 '',
@@ -6274,15 +7019,6 @@ tableRows,
     ST.itMode=on;
     if(!ST.firmProfile) ST.firmProfile={firmName:'',appName:ST.prefs.appName||'SixMinuteLog.com',clients:[],matters:[],contacts:[],descPresets:[],users:[],settings:{}};
     save(); render();
-  },
-  saveITFirm: function(){
-    var fn=g('it-firmname').trim();
-    var an=g('it-appname').trim();
-    if(!ST.firmProfile) ST.firmProfile={};
-    ST.firmProfile.firmName=fn;
-    ST.firmProfile.appName=an||'SixMinuteLog.com';
-    if(an){ ST.prefs.appName=an; savePrefs(); }
-    save(); toast('Firm identity saved'); render();
   },
   togITInclude: function(key,val){
     if(!ST.firmProfile) ST.firmProfile={};
@@ -6320,11 +7056,11 @@ tableRows,
     } else {
       ST.firmProfile.users.push(usr);
     }
-    ST.itf={}; ST.modal='settings'; ST.settingsTab='itadmin';
+    ST.itf={}; ST.modal='settings'; ST.settingsTab='export';
     save(); toast((f.editIdx!=null?'User updated':'User added')); render();
   },
   closeITUser: function(){
-    ST.itf={}; ST.modal='settings'; ST.settingsTab='itadmin'; render();
+    ST.itf={}; ST.modal='settings'; ST.settingsTab='export'; render();
   },
   exportFirmProfile: function(){
     var fp=ST.firmProfile||{};
@@ -7122,7 +7858,12 @@ document.addEventListener('keydown',function(e){
         ST.contacts=ST.contacts.concat([{id:uid(),name:ST.user.name,role:ST.user.role||'',email:ST.user.email||'',phone:ST.user.phone||'',rate:ST.user.rate||'',ownPct:ST.user.ownPct!=null?ST.user.ownPct:100,isUser:true,createdBy:ST.user.name,createdByIni:ini2}]);
       }
     }
-    try{if(res[5])ST.prefs=Object.assign({appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable'},res[5]);}catch(e){}
+    try{if(res[5]){
+      var _pDefaults={appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false,csvQuick:{dataset:'entries',datePreset:'month',cols:{date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false},clCols:{name:true,email:true,phone:true,rate:true,contact:false},maCols:{name:true,client:true,desc:true,rate:true,contact:false},ctCols:{name:true,role:true,email:true,phone:true,rate:false,ownPct:false},groupBy:'none',includeTotals:true,includeGrandTotal:true,dateFormat:'iso',currencySymbol:true,filenamePrefix:''}};
+      ST.prefs=Object.assign({},_pDefaults,res[5]);
+      // Deep-merge csvQuick so individual keys survive partial stored values
+      if(res[5].csvQuick) ST.prefs.csvQuick=Object.assign({},_pDefaults.csvQuick,res[5].csvQuick,{cols:Object.assign({},_pDefaults.csvQuick.cols,(res[5].csvQuick||{}).cols),clCols:Object.assign({},_pDefaults.csvQuick.clCols,(res[5].csvQuick||{}).clCols),maCols:Object.assign({},_pDefaults.csvQuick.maCols,(res[5].csvQuick||{}).maCols),ctCols:Object.assign({},_pDefaults.csvQuick.ctCols,(res[5].csvQuick||{}).ctCols)});
+    }}catch(e){}
     try{if(res[6])ST.descPresets=res[6];}catch(e){}
     try{if(res[7])ST.mailPresets=res[7];}catch(e){}
     try{if(res[8]){ST.itMode=!!res[8].itMode;if(res[8].firmProfile)ST.firmProfile=res[8].firmProfile;}}catch(e){}
