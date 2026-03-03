@@ -503,6 +503,7 @@ html,body{overflow-x:hidden;max-width:100vw}
   /* Tighten action buttons inside table cells */
   .tda{gap:2px}
   .tda button{padding:4px}
+
 }
 /* Invoice */
 @media print{
@@ -511,7 +512,67 @@ html,body{overflow-x:hidden;max-width:100vw}
   #inv-print-wrap{margin:0!important;box-shadow:none!important;max-width:100%!important}
   body{background:#fff!important;color:#000!important}
 }
-/* === TAB LOCK overlay === */
+/* === Timesheet card layout — no horizontal scroll on any mobile/touch device ===
+   Triggered by: portrait phones, landscape phones, large phones, tablets in portrait,
+   AND any coarse-pointer (touch) device up to 1024px wide.
+   Deliberately separate from the 640px tweaks block so landscape phones (up to ~932px)
+   and high-DPI devices reporting a wider CSS width are all covered.
+*/
+@media (max-width:768px),(pointer:coarse) and (max-width:1024px){
+  .twrap,.tscroll{overflow:visible!important}
+  .tscroll table{display:block;border:none;width:100%}
+  .tscroll thead{display:none}
+  .tscroll tbody{display:flex;flex-direction:column;gap:10px;padding:2px 0}
+  .tscroll tbody tr{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px;
+    background:var(--white);
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
+    gap:0;
+  }
+  .tscroll tbody tr.tr-active-tmr{border-color:var(--blue);box-shadow:0 0 0 2px rgba(59,130,246,.18)}
+  .tscroll tbody tr.tr-dimmed{opacity:.5}
+  .tscroll tbody td{
+    display:block;
+    padding:3px 4px;
+    border:none;
+    background:transparent;
+    font-size:13px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .tscroll tbody td[data-label]::before{
+    content:attr(data-label);
+    display:block;
+    font-size:10px;
+    font-weight:600;
+    color:var(--ink3);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:1px;
+  }
+  /* Row 1: Date (left) | Amount (right)
+     Row 2: Client full-width
+     Row 3: Matter full-width
+     Row 4: Description full-width (wraps)
+     Row 5: Hours (left) | Rate (right)
+     Row 6: By badge (billing_staff only)
+     Row 99: Actions pinned to bottom */
+  .tscroll tbody td:nth-child(1){grid-column:1;grid-row:1;font-size:12px;color:var(--ink2)}
+  .tscroll tbody td:nth-child(7){grid-column:2;grid-row:1;text-align:right;font-weight:600;font-size:15px;color:var(--green)}
+  .tscroll tbody td:nth-child(2){grid-column:1/span 2;grid-row:2;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tscroll tbody td:nth-child(3){grid-column:1/span 2;grid-row:3;color:var(--ink2)}
+  .tscroll tbody td:nth-child(4){grid-column:1/span 2;grid-row:4;white-space:normal!important;color:var(--ink2)}
+  .tscroll tbody td:nth-child(5){grid-column:1;grid-row:5}
+  .tscroll tbody td:nth-child(6){grid-column:2;grid-row:5;text-align:right;color:var(--ink3)}
+  .tscroll tbody td:nth-child(8){grid-column:1/span 2;grid-row:6}
+  .tscroll tbody td:last-child{grid-column:1/span 2;grid-row:99;padding-top:8px;border-top:1px solid var(--border);margin-top:6px}
+  .tscroll tbody td:last-child .tda{justify-content:flex-end}
+}
+
 #z-tablock{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(14,12,10,.72);backdrop-filter:blur(4px);padding:16px}
 #z-tablock .tl-card{background:var(--sfc,#fff);border-radius:12px;padding:32px 28px 24px;max-width:420px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.35);text-align:center}
 #z-tablock .tl-icon{font-size:2.4rem;margin-bottom:12px}
@@ -680,11 +741,11 @@ const Store=(function(){
         var storeList=Array.isArray(stores)?stores:[stores];
         var tx=db.transaction(storeList,'readwrite');
         tx.oncomplete=function(){resolve();};
-        tx.onerror=function(e){console.warn('Store tx error',e);resolve();};
-        tx.onabort=function(e){console.warn('Store tx abort',e);resolve();};
-        try{ fn(tx); }catch(err){console.warn('Store tx fn error',err);resolve();}
+        tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+        tx.onabort=function(e){reject(tx.error||e.target&&e.target.error||e);};
+        try{ fn(tx); }catch(err){reject(err);}
       });
-    }).catch(function(e){console.warn('Store._tx catch',e);});
+    });
   }
 
   return{
@@ -740,7 +801,7 @@ const Store=(function(){
             Object.values(incoming).forEach(function(r){os.put(r);});
           };
           tx.oncomplete=function(){resolve();};
-          tx.onerror=function(e){console.warn('Store.syncCollection',name,e);resolve();};
+          tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
         });
       }).catch(function(){});
     },
@@ -871,8 +932,8 @@ var ST={
   mailPlaceholders:[],
   modal:null,editId:null,helpTab:'start',settingsTab:'export',
   tsFilter:'all',anFilter:'month',
-  // Timesheet extra filters/sort
-  tsClientFilter:'',tsMatterFilter:'',tsSort:'date-desc',
+  // Timesheet extra filters/sort (collapsed by default on load)
+  tsClientFilter:'',tsMatterFilter:'',tsSort:'date-desc',tsFiltersOpen:false,
   // Clients sort
   clSort:'alpha',clSearch:'',
   // Matters group/filter/sort
@@ -1224,6 +1285,16 @@ function syncForm(){
 var _saveTimer=null;
 var _dirty={};          // { collName: true } — collections with pending upserts
 var _pendingDeletes={}; // { collName: { id: true } } — IDs queued for deletion on next flush
+// Granular entry-ID tracking — only the records that actually changed.
+// Populated by saveOne('entries',rec); cleared on _flushSave reset.
+// When entries are replaced via replaceCollection() the map stays empty,
+// which is the signal to _flushSave that the full ST.entries array must be written.
+var _dirtyEntries={};   // { id: record } — entry records needing individual upsert
+// When true, _flushSave uses Store.syncCollection for entries (full IDB scan + prune)
+// instead of putBatch. Set by replaceCollection() so that a full restore deletes
+// ghost records from ALL years in IDB, not just those present in the partial
+// in-memory ST.entries view (which only holds the current year on startup).
+var _fullEntriesSync=false;
 
 // Mark a collection dirty so the next save() includes it
 function _markDirty(coll){ _dirty[coll]=true; }
@@ -1248,6 +1319,8 @@ function replaceCollection(coll, stProp, newArr){
   (newArr||[]).forEach(function(r){ if(r&&r.id!=null) newIdSet[r.id]=true; });
   var orphans=oldIds.filter(function(id){ return !newIdSet[id]; });
   _queueDeletes(coll, orphans);
+  _markDirty(coll);                      // always mark dirty — _queueDeletes skips this when there are no orphans
+  if(coll==='entries'){ _dirtyEntries={}; _fullEntriesSync=true; } // discard stale per-record map; signal full IDB sync
   ST[stProp]=newArr;
 }
 
@@ -1265,7 +1338,24 @@ function _flushSave(){
   // (replaceCollection bulk import). Never reads all records from IDB.
   if(_dirty.clients||_dirty._all)   ops.push(Store.putBatch('clients',  ST.clients));
   if(_dirty.matters||_dirty._all)   ops.push(Store.putBatch('matters',  ST.matters));
-  if(_dirty.entries||_dirty._all)   ops.push(Store.putBatch('entries',  ST.entries));
+  // Entries: never written on _dirty._all alone — settings changes must not trigger
+  // a 20 000-record write.  Two paths:
+  //   • saveOne('entries',rec)  → _dirtyEntries has the specific records; write only those.
+  //   • replaceCollection(...)  → _dirty.entries=true but _dirtyEntries is empty; write full array.
+  if(_dirty.entries){
+    if(_fullEntriesSync){
+      // Full restore path: syncCollection does a complete IDB getAll scan so it
+      // finds and deletes ghost records from ALL years, not just those in the
+      // partial in-memory ST.entries view.  putBatch would silently leave any
+      // previous-year entries that were never loaded into memory.
+      ops.push(Store.syncCollection('entries', ST.entries));
+    } else {
+      var _entriesToWrite=Object.keys(_dirtyEntries).length
+        ? Object.keys(_dirtyEntries).map(function(id){return _dirtyEntries[id];})
+        : ST.entries;
+      ops.push(Store.putBatch('entries', _entriesToWrite));
+    }
+  }
   if(_dirty.contacts||_dirty._all)  ops.push(Store.putBatch('contacts', ST.contacts));
   if(_dirty.invoices||_dirty._all)  ops.push(Store.putBatch('invoices', ST.invoices));
   // Drain pending delete queue — each is a cheap single-key IDB delete
@@ -1282,7 +1372,22 @@ function _flushSave(){
   ops.push(Store.setMeta('itmode',{itMode:ST.itMode,firmProfile:ST.firmProfile}));
   _dirty={};
   _pendingDeletes={};
-  return Promise.all(ops);
+  _dirtyEntries={};
+  _fullEntriesSync=false;
+  return Promise.all(ops).catch(function(e){ console.warn('_flushSave error',e); toast('Save failed \u2014 check disk space.','err'); });
+}
+
+// Safe full-entry loader — flushes any pending debounced write before reading IDB.
+// ALWAYS use this instead of Store.getAll('entries') directly.
+// Prevents the race condition where a 200ms-debounced save (e.g. approveAll)
+// hasn't committed yet when a tab switch triggers a full IDB read, causing
+// stale data to overwrite in-memory state and silently revert recent actions.
+function _loadAllEntries(){
+  if(_saveTimer){
+    // A debounced flush is queued — drain it now so the IDB read sees fresh data.
+    return _flushSave().then(function(){ return Store.getAll('entries'); });
+  }
+  return Store.getAll('entries');
 }
 
 // Debounced save — used for rapid-fire changes (e.g. settings toggles, imports).
@@ -1298,8 +1403,11 @@ function save(){
 function saveOne(coll, rec){
   if(!rec||rec.id==null) return;
   _dirty[coll]=true;
+  // For entries, track the specific record so _flushSave only writes what changed,
+  // not the entire ST.entries array (which can be tens of thousands of records).
+  if(coll==='entries') _dirtyEntries[rec.id]=rec;
   markLuDirty(); // lookup maps must be rebuilt after any record mutation
-  Store.putRecord(coll, rec);
+  Store.putRecord(coll, rec).catch(function(e){ console.warn('saveOne failed',coll,e); toast('Save failed \u2014 check disk space.','err'); });
   // Also sync meta on the debounced path so prefs etc. stay consistent
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(function(){
@@ -1309,6 +1417,7 @@ function saveOne(coll, rec){
     Store.setMeta('mailplaceholders',ST.mailPlaceholders);
     Store.setMeta('itmode',{itMode:ST.itMode,firmProfile:ST.firmProfile});
     _dirty={};
+    _dirtyEntries={};
   }, 200);
 }
 
@@ -1319,9 +1428,9 @@ function delOne(coll, id){
   if(id==null) return;
   _dirty[coll]=true;
   markLuDirty(); // lookup maps must be rebuilt after any record deletion
-  Store.deleteRecord(coll, id);
+  Store.deleteRecord(coll, id).catch(function(e){ console.warn('delOne failed',coll,id,e); toast('Delete failed \u2014 check disk space.','err'); });
   clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(function(){ _dirty={}; _pendingDeletes={}; }, 200);
+  _saveTimer=setTimeout(function(){ _dirty={}; _pendingDeletes={}; _dirtyEntries={}; }, 200);
 }
 
 // ── Flush immediately when tab is hidden (before browser may suspend) ──
@@ -1543,23 +1652,23 @@ function vTimesheet(){
       var mnDisplay=(mt&&mt.matterNumber)
         ?'<span style="font-family:monospace;font-size:10px;color:var(--ink3);display:block">#'+H(mt.matterNumber)+'</span>':'';
       var byCell=role==='billing_staff'
-        ?'<td><span class="badge" title="'+H(e.createdBy||'')+'">'+H(e.createdByIni||'?')+'</span></td>':'';
+        ?'<td data-label="By"><span class="badge" title="'+H(e.createdBy||'')+'">'+H(e.createdByIni||'?')+'</span></td>':'';
 
       var trClass=isActive?'tr-active-tmr':(isOther?'tr-dimmed':'');
-      return '<tr'+(trClass?' class="'+trClass+'"':'')+'>'
-        +'<td style="white-space:nowrap;color:var(--ink2)">'+$d(e.date)+'</td>'
-        +'<td style="font-weight:500">'+H(cl?cl.name:'?')+'</td>'
-        +'<td style="color:var(--ink2)">'+H(mt?mt.name:'General')+mnDisplay+'</td>'
-        +'<td style="color:var(--ink2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+H(e.description||'')+'">'+H(e.description||'\u2014')+abaDisplay
+      return '<tr id="tr-ent-'+e.id+'"'+(trClass?' class="'+trClass+'"':'')+'>'
+        +'<td data-label="Date" style="white-space:nowrap;color:var(--ink2)">'+$d(e.date)+'</td>'
+        +'<td data-label="Client" style="font-weight:500">'+H(cl?cl.name:'?')+'</td>'
+        +'<td data-label="Matter" style="color:var(--ink2)">'+H(mt?mt.name:'General')+mnDisplay+'</td>'
+        +'<td data-label="Description" style="color:var(--ink2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+H(e.description||'')+'">'+H(e.description||'\u2014')+abaDisplay
           +(e.partnerComment?'<span title="Partner note: '+H(e.partnerComment)+'" style="margin-left:4px;font-size:11px;color:var(--amber);cursor:help">&#128172;</span>':'')
           +(e.partnerEdited?'<span title="Partner adjusted this entry" style="margin-left:2px;font-size:10px;color:var(--amber);cursor:help">✎</span>':'')
         +'</td>'
-        +'<td>'+(e.rawMs!=null
+        +'<td data-label="Hours">'+(e.rawMs!=null
           ?'<span title="Timer: '+msToHMS(e.rawMs)+'" style="cursor:help;border-bottom:1px dotted var(--ink3)">'+$h(e.hours)+'</span>'
           :$h(e.hours))
         +'</td>'
-        +'<td style="color:var(--ink2)">'+$m(e.rate)+'</td>'
-        +'<td style="color:var(--green);font-weight:500">'+$m(amt)+'</td>'
+        +'<td data-label="Rate" style="color:var(--ink2)">'+$m(e.rate)+'</td>'
+        +'<td data-label="Amount" style="color:var(--green);font-weight:500">'+$m(amt)+'</td>'
         +byCell
         +'<td>'+actionsH+'</td>'
         +'</tr>';
@@ -1626,25 +1735,32 @@ function vTimesheet(){
     return '<option value="'+x[0]+'"'+(ST.tsSort===x[0]?' selected':'')+'>'+x[1]+'</option>';
   }).join('');
   var selectStyle='padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink)';
-  var hasExtra=(ST.tsClientFilter||ST.tsMatterFilter||ST.tsSort!=='date-desc');
+  var hasExtra=!!(ST.tsClientFilter||ST.tsMatterFilter||ST.tsSort!=='date-desc');
 
   // ── Header action buttons ─────────────────────────────────────────────────
-  // One clear primary action per role; no redundant alternatives in this toolbar.
   var actionBtns='';
   if(role==='attorney'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
     if(cLen>0)
-      actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Review, export, and email your timesheet to billing">📤 Submit Timesheet</button>';
+      actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Review, export, and email your timesheet to billing">\uD83D\uDCE4 Submit Timesheet</button>';
   } else if(role==='partner'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
     if(cLen>0)
-      actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send your own entries to billing">📤 Submit My Time</button>';
+      actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send your own entries to billing">\uD83D\uDCE4 Submit My Time</button>';
   } else if(role==='billing_staff'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
-    actionBtns+='<button class="btn btn-gh" onclick="A.openReceivePackage()" title="Import a timesheet submission received from an attorney">📥 Receive Submission</button>';
+    actionBtns+='<button class="btn btn-gh" onclick="A.openReceivePackage()" title="Import a timesheet submission received from an attorney">\uD83D\uDCE5 Receive Submission</button>';
     if(cLen>0)
-      actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send all visible entries to partner for approval">📤 Send to Partner</button>';
+      actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send all visible entries to partner for approval">\uD83D\uDCE4 Send to Partner</button>';
   }
+
+  // ── Filter bar — all controls always visible, wraps naturally on mobile ───
+  var filterRow=''
+    +'<select onchange="A.setTsF(this.value)" style="'+selectStyle+'">'+fopts+'</select>'
+    +(ST.clients.length>0?'<select onchange="A.setTsClF(this.value)" style="'+selectStyle+(ST.tsClientFilter?';outline:2px solid var(--blue);outline-offset:1px':'')+'" title="Filter by client">'+clFilterOpts+'</select>':'')
+    +(ST.matters.length>0?'<select onchange="A.setTsMaF(this.value)" style="'+selectStyle+(ST.tsMatterFilter?';outline:2px solid var(--blue);outline-offset:1px':'')+'" title="Filter by matter">'+maFilterOpts+'</select>':'')
+    +'<select onchange="A.setTsSort(this.value)" style="'+selectStyle+'">'+sortOpts+'</select>'
+    +(hasExtra?'<button class="btn btn-gh" onclick="A.clearTsFilters()" style="font-size:12px;padding:7px 10px" title="Clear filters">&#10005; Clear</button>':'');
 
   return '<div>'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px">'
@@ -1652,15 +1768,11 @@ function vTimesheet(){
     +(role==='billing_staff'?'All Entries':'My Timesheet')+'</h2>'
     +'<p style="font-size:12px;color:var(--ink3)">'+cLen+' entr'+(cLen===1?'y':'ies')
     +(ST._entriesMode==='partial'&&ST._totalEntryCount>ST.entries.length
-      ?' <span title="Showing this year. Select All Time to load full history." style="color:var(--amber);cursor:help">('+ST._totalEntryCount+' total — partial)</span>':'')
+      ?' <span title="Showing this year. Select All Time to load full history." style="color:var(--amber);cursor:help">('+ST._totalEntryCount+' total \u2014 partial)</span>':'')
     +'</p></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+actionBtns+'</div></div>'
-    +'<div class="ts-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
-    +'<select onchange="A.setTsF(this.value)" style="'+selectStyle+'">'+fopts+'</select>'
-    +(ST.clients.length>0?'<select onchange="A.setTsClF(this.value)" style="'+selectStyle+'">'+clFilterOpts+'</select>':'')
-    +(ST.matters.length>0?'<select onchange="A.setTsMaF(this.value)" style="'+selectStyle+'">'+maFilterOpts+'</select>':'')
-    +'<select onchange="A.setTsSort(this.value)" style="'+selectStyle+'">'+sortOpts+'</select>'
-    +(hasExtra?'<button class="btn btn-gh" onclick="A.clearTsFilters()" style="font-size:12px;padding:7px 12px">✕ Clear</button>':'')
+    +'<div class="ts-filters" style="margin-bottom:14px">'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+filterRow+'</div>'
     +'</div>'
     +noticeH
     +stats(statRows)
@@ -1706,8 +1818,7 @@ function entryForm(){
     +((role==='billing_staff'||role==='attorney')
       ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Auto-filled from attorney rate schedule on entry date':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
       :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule':'Priority: Matter-attorney > Client-attorney > Attorney schedule'})+'</div>')
-    +'<div class="frow c2">'+field('ABA/UTBMS Code','ef-aba',{type:'select',opts:ABA_TASK_CODES,val:f.abaCode||'',hint:'Optional task code for billing compliance'})+'<div></div></div>'
-    +'<div class="frow">'+field('Description','ef-desc',{type:'textarea',rows:2,ph:'Describe the work performed...',val:f.description||''})+'</div>'
+    +'<div class="frow c2">'+field('ABA/UTBMS Code','ef-aba',{type:'select',opts:ABA_TASK_CODES,val:f.abaCode||'',hint:'Optional task code for billing compliance'})+field('Description','ef-desc',{type:'textarea',rows:2,ph:'Describe the work performed...',val:f.description||''})+'</div>'
     +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ef-desc\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'')
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveEnt()">'+IC.save+' Save Entry</button></div>'
     +'</div>';
@@ -2025,7 +2136,7 @@ function vMatters(){
     +'<input id="ma-search" type="text" value="'+H(ST.maSearch||'')+'" oninput="A.setMaSearch(this.value)" placeholder="Search matters..." style="'+selectStyle+';min-width:160px">'
     +(ST.clients.length>1?'<select onchange="A.setMaClF(this.value)" style="'+selectStyle+'">'+clFilterOpts+'</select>':'')
     +'<select onchange="A.setMaSort(this.value)" style="'+selectStyle+'">'+sortOpts+'</select>'
-    +'<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;padding:7px 11px;border:1px solid var(--border);border-radius:8px;background:'+(ST.maGroup?'var(--bg)':'var(--white)')+'"><input type="checkbox" '+(ST.maGroup?'checked':'')+' onchange="A.toggleMaGroup()" style="margin:0"> Group by Client</label>'
+    +'<button onclick="A.toggleMaGroup()" style="'+selectStyle+';cursor:pointer;background:'+(ST.maGroup?'var(--bg2)':'var(--white)')+';color:'+(ST.maGroup?'var(--ink)':'var(--ink3)')+';border-color:'+(ST.maGroup?'var(--ink3)':'var(--border)')+'">&#9776; Group</button>'
     +(hasFilters?'<button class="btn btn-gh" onclick="A.clearMaFilters()" style="font-size:12px;padding:7px 12px">&#10006; Clear</button>':'')
     +'</div>':'')
     +formH+cardsH+'</div>';
@@ -3616,11 +3727,16 @@ function buildSettings(){
       return '<button class="btn'+(qds===d?' btn-dk':' btn-gh')+'" style="flex:1;justify-content:center;font-size:12px;padding:7px 4px" onclick="A.csvQPref(\'dataset\',\''+d+'\')">'+lbls[d]+'</button>';
     }).join('');
 
-    // ── Column checkbox helper ──
+    // ── Column checkbox helper (still used in export wizard, not quick settings) ──
     function qCB(colKey,label,colObj,onchangeFn){
       return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:4px 0">'
         +'<input type="checkbox" '+(colObj[colKey]?'checked':'')+' onchange="'+onchangeFn+'(\''+colKey+'\')" style="width:13px;height:13px;cursor:pointer;flex-shrink:0">'
         +label+'</label>';
+    }
+    // ── Toggle pill for column selection ──
+    function qPill(colKey,label,colObj,onchangeFn){
+      var on=!!colObj[colKey];
+      return '<button type="button" onclick="'+onchangeFn+'(\''+colKey+'\')" style="padding:4px 11px;border-radius:16px;font-size:12px;cursor:pointer;border:1px solid '+(on?'var(--ink)':'var(--border)')+';background:'+(on?'var(--ink)':'var(--white)')+';color:'+(on?'#fff':'var(--ink2)')+';transition:all .12s;white-space:nowrap">'+label+'</button>';
     }
     function qColGrid(cols){ return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 20px">'+cols+'</div>'; }
     function qSelectAll(onAll,onClear){
@@ -3681,81 +3797,78 @@ function buildSettings(){
 
       // Columns
       +'<div style="margin-bottom:16px">'
-      +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Columns</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+      +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em">Columns</div>'
+      +'<div style="display:flex;gap:5px">'
+      +(qds==='entries'?'<button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllCols(true)">All</button><button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllCols(false)">None</button>':'')
+      +(qds==='clients'?'<button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllClCols(true)">All</button><button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllClCols(false)">None</button>':'')
+      +(qds==='matters'?'<button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllMaCols(true)">All</button><button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllMaCols(false)">None</button>':'')
+      +(qds==='contacts'?'<button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllCtCols(true)">All</button><button class="btn btn-gh" style="font-size:11px;padding:3px 8px" onclick="A.csvQAllCtCols(false)">None</button>':'')
+      +'</div></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:5px">'
       +(qds==='entries'
-        ?qColGrid(
-           qCB('date','Date',q.cols,'A.csvQTogCol')
-          +qCB('client','Client',q.cols,'A.csvQTogCol')
-          +qCB('matter','Matter',q.cols,'A.csvQTogCol')
-          +qCB('contact','Billing Contact',q.cols,'A.csvQTogCol')
-          +qCB('hours','Hours',q.cols,'A.csvQTogCol')
-          +qCB('rate','Rate',q.cols,'A.csvQTogCol')
-          +qCB('amount','Amount',q.cols,'A.csvQTogCol')
-          +qCB('desc','Description',q.cols,'A.csvQTogCol')
-          +qCB('by','Created By',q.cols,'A.csvQTogCol')
-          +qCB('abaCode','ABA Task Code',q.cols,'A.csvQTogCol')
-          +qCB('entryId','Entry ID',q.cols,'A.csvQTogCol')
-        )
-        +qSelectAll('A.csvQAllCols(true)','A.csvQAllCols(false)')
+        ?qPill('date','Date',q.cols,'A.csvQTogCol')
+        +qPill('client','Client',q.cols,'A.csvQTogCol')
+        +qPill('matter','Matter',q.cols,'A.csvQTogCol')
+        +qPill('hours','Hours',q.cols,'A.csvQTogCol')
+        +qPill('rate','Rate',q.cols,'A.csvQTogCol')
+        +qPill('amount','Amount',q.cols,'A.csvQTogCol')
+        +qPill('desc','Description',q.cols,'A.csvQTogCol')
+        +qPill('contact','Billing Contact',q.cols,'A.csvQTogCol')
+        +qPill('by','Created By',q.cols,'A.csvQTogCol')
+        +qPill('abaCode','ABA Code',q.cols,'A.csvQTogCol')
+        +qPill('entryId','Entry ID',q.cols,'A.csvQTogCol')
         :'')
       +(qds==='clients'
-        ?qColGrid(
-           qCB('name','Name',q.clCols,'A.csvQTogClCol')
-          +qCB('email','Email',q.clCols,'A.csvQTogClCol')
-          +qCB('phone','Phone',q.clCols,'A.csvQTogClCol')
-          +qCB('rate','Default Rate',q.clCols,'A.csvQTogClCol')
-          +qCB('contact','Primary Contact',q.clCols,'A.csvQTogClCol')
-        )
-        +qSelectAll('A.csvQAllClCols(true)','A.csvQAllClCols(false)')
+        ?qPill('name','Name',q.clCols,'A.csvQTogClCol')
+        +qPill('email','Email',q.clCols,'A.csvQTogClCol')
+        +qPill('phone','Phone',q.clCols,'A.csvQTogClCol')
+        +qPill('rate','Default Rate',q.clCols,'A.csvQTogClCol')
+        +qPill('contact','Primary Contact',q.clCols,'A.csvQTogClCol')
         :'')
       +(qds==='matters'
-        ?qColGrid(
-           qCB('name','Name',q.maCols,'A.csvQTogMaCol')
-          +qCB('client','Client',q.maCols,'A.csvQTogMaCol')
-          +qCB('desc','Description',q.maCols,'A.csvQTogMaCol')
-          +qCB('rate','Default Rate',q.maCols,'A.csvQTogMaCol')
-          +qCB('contact','Billing Contact',q.maCols,'A.csvQTogMaCol')
-        )
-        +qSelectAll('A.csvQAllMaCols(true)','A.csvQAllMaCols(false)')
+        ?qPill('name','Name',q.maCols,'A.csvQTogMaCol')
+        +qPill('client','Client',q.maCols,'A.csvQTogMaCol')
+        +qPill('desc','Description',q.maCols,'A.csvQTogMaCol')
+        +qPill('rate','Default Rate',q.maCols,'A.csvQTogMaCol')
+        +qPill('contact','Billing Contact',q.maCols,'A.csvQTogMaCol')
         :'')
       +(qds==='contacts'
-        ?qColGrid(
-           qCB('name','Name',q.ctCols,'A.csvQTogCtCol')
-          +qCB('role','Role',q.ctCols,'A.csvQTogCtCol')
-          +qCB('email','Email',q.ctCols,'A.csvQTogCtCol')
-          +qCB('phone','Phone',q.ctCols,'A.csvQTogCtCol')
-          +qCB('rate','Rate',q.ctCols,'A.csvQTogCtCol')
-          +qCB('ownPct','Ownership %',q.ctCols,'A.csvQTogCtCol')
-        )
-        +qSelectAll('A.csvQAllCtCols(true)','A.csvQAllCtCols(false)')
+        ?qPill('name','Name',q.ctCols,'A.csvQTogCtCol')
+        +qPill('role','Role',q.ctCols,'A.csvQTogCtCol')
+        +qPill('email','Email',q.ctCols,'A.csvQTogCtCol')
+        +qPill('phone','Phone',q.ctCols,'A.csvQTogCtCol')
+        +qPill('rate','Rate',q.ctCols,'A.csvQTogCtCol')
+        +qPill('ownPct','Ownership %',q.ctCols,'A.csvQTogCtCol')
         :'')
+      +'</div>'
       +'</div>'
 
       // Grouping & structure (entries only)
       +(qds==='entries'
         ?'<div style="margin-bottom:16px">'
-          +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Structure</div>'
-          +'<div class="frow c2">'
-          +'<div class="fl"><label style="font-size:12px">Group by</label><select onchange="A.csvQPref(\'groupBy\',this.value)">'+qGrpOpts+'</select></div>'
-          +'</div>'
+          +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Structure</div>'
+          +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
+          +'<div class="fl" style="min-width:160px;flex:1"><label style="font-size:12px">Group by</label><select onchange="A.csvQPref(\'groupBy\',this.value)">'+qGrpOpts+'</select></div>'
           +(q.groupBy!=='none'
-            ?'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:7px"><input type="checkbox" '+(q.includeTotals?'checked':'')+' onchange="A.csvQPref(\'includeTotals\',this.checked)" style="width:13px;height:13px;cursor:pointer">Subtotal rows per group</label>'
+            ?'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 0;white-space:nowrap"><input type="checkbox" '+(q.includeTotals?'checked':'')+' onchange="A.csvQPref(\'includeTotals\',this.checked)" style="width:13px;height:13px;cursor:pointer">Subtotals per group</label>'
             :'')
-          +'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:6px"><input type="checkbox" '+(q.includeGrandTotal?'checked':'')+' onchange="A.csvQPref(\'includeGrandTotal\',this.checked)" style="width:13px;height:13px;cursor:pointer">'+(q.groupBy!=='none'?'Grand total row':'Total row at end')+'</label>'
+          +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 0;white-space:nowrap"><input type="checkbox" '+(q.includeGrandTotal?'checked':'')+' onchange="A.csvQPref(\'includeGrandTotal\',this.checked)" style="width:13px;height:13px;cursor:pointer">Grand total row</label>'
+          +'</div>'
           +'</div>'
         :'')
 
       // Output format
       +'<div style="margin-bottom:0">'
-      +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Output Format</div>'
-      +'<div class="frow c2">'
-      +'<div class="fl"><label style="font-size:12px">Date format</label><select onchange="A.csvQPref(\'dateFormat\',this.value)">'+qDfOpts+'</select></div>'
-      +'<div class="fl"><label style="font-size:12px">Filename prefix <span style="font-size:10px;color:var(--ink3)">(optional)</span></label>'
+      +'<div style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Output Format</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+      +'<div class="fl" style="min-width:160px"><label style="font-size:12px">Date format</label><select onchange="A.csvQPref(\'dateFormat\',this.value)">'+qDfOpts+'</select></div>'
+      +'<div class="fl" style="min-width:140px"><label style="font-size:12px">Filename prefix</label>'
       +'<input type="text" placeholder="e.g. acme_" value="'+H(q.filenamePrefix||'')+'" onchange="A.csvQPref(\'filenamePrefix\',this.value)"></div>'
-      +'</div>'
       +(qds==='entries'
-        ?'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:7px"><input type="checkbox" '+(q.currencySymbol?'checked':'')+' onchange="A.csvQPref(\'currencySymbol\',this.checked)" style="width:13px;height:13px;cursor:pointer">Include $ symbol in currency fields</label>'
+        ?'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 0;white-space:nowrap;margin-bottom:2px"><input type="checkbox" '+(q.currencySymbol?'checked':'')+' onchange="A.csvQPref(\'currencySymbol\',this.checked)" style="width:13px;height:13px;cursor:pointer">Include $ symbol</label>'
         :'')
+      +'</div>'
       +'</div>'
 
       +'</div>'
@@ -4937,6 +5050,7 @@ var TABS=[
 // Invoice functions call buildEntryLookup() directly when needed.
 var _lu={cl:{},ma:{},ct:{},en:{}};
 var _luDirty=true;
+var _luEnVer=-1; // _dataVer when _lu.en was last built; -1 = never built
 function markLuDirty(){_luDirty=true;_dataVer++;}
 function buildLookups(){
   if(!_luDirty) return;
@@ -4948,10 +5062,15 @@ function buildLookups(){
   _luDirty=false;
 }
 // Lazily rebuild the entries lookup — call only when invoice review needs it.
+// Guarded by _luEnVer: if _dataVer hasn't changed since the last build, this is
+// a no-op. Prevents multiple invTotal() calls in a single render frame from each
+// iterating the full entries array (which can be tens of thousands of records).
 function buildEntryLookup(){
+  if(_luEnVer===_dataVer) return; // already current for this data version — skip rebuild
   var en={};
   ST.entries.forEach(function(r){en[r.id]=r;});
   _lu.en=en;
+  _luEnVer=_dataVer;
 }
 
 // === RENDER CACHE
@@ -5148,7 +5267,7 @@ function render(){
   var mainKey=ST.tab+'|'+_dataVer
     +'|'+(ST.tsFilter||'')+(ST.tsClientFilter||'')+(ST.tsMatterFilter||'')+ST.tsSort+ST.tsPage
     +'|'+(ST.anFilter||'')
-    +'|'+(ST.clSearch||'')+(ST.maSearch||'')+(ST.ctSearch||'')+(ST.maClientFilter||'')
+    +'|'+(ST.clSearch||'')+(ST.clSort||'')+(ST.maSearch||'')+(ST.maSort||'')+(ST.maGroup?'1':'0')+(ST.maClientFilter||'')+(ST.ctSearch||'')+(ST.ctSort||'')
     +'|'+(ST.rowTmr?'t'+ST.rowTmr.entId:'');
   var _inlineModal=function(m){return m==='ef'||m==='cf'||m==='mf'||m==='ctf';};
   var efInvolved=(_inlineModal(ST.modal)||_inlineModal(_rKeys.mainModal));
@@ -5204,9 +5323,9 @@ function render(){
 var A={
   setTab:function(t){
     ST.tab=t; ST.modal=null; ST.editId=null;
-    // Analytics needs complete history for accurate aggregates
-    if(t==='analytics'&&ST._entriesMode==='partial'){
-      Store.getAllEntries().then(function(entries){
+    // Analytics, Invoices, and Approvals all require complete entry history
+    if((t==='analytics'||t==='invoices'||t==='approvals')&&ST._entriesMode==='partial'){
+      _loadAllEntries().then(function(entries){
         ST.entries=entries; ST._entriesMode='full'; markLuDirty(); render();
       });
       return;
@@ -5217,7 +5336,7 @@ var A={
     ST.tsFilter=v; ST.tsPage=0;
     // "All Time" or "All" filter may need full history — load it from IDB if partial
     if((v==='all')&&ST._entriesMode==='partial'){
-      Store.getAllEntries().then(function(entries){
+      _loadAllEntries().then(function(entries){
         ST.entries=entries; ST._entriesMode='full'; markLuDirty(); render();
       });
       return;
@@ -5228,7 +5347,7 @@ var A={
     ST.anFilter=v;
     // Analytics always needs complete data for accurate aggregates
     if(ST._entriesMode==='partial'){
-      Store.getAllEntries().then(function(entries){
+      _loadAllEntries().then(function(entries){
         ST.entries=entries; ST._entriesMode='full'; markLuDirty(); render();
       });
       return;
@@ -5239,12 +5358,13 @@ var A={
   setTsClF:function(v){ST.tsClientFilter=v;ST.tsMatterFilter='';ST.tsPage=0;render();},
   setTsMaF:function(v){ST.tsMatterFilter=v;ST.tsPage=0;render();},
   setTsSort:function(v){ST.tsSort=v;ST.tsPage=0;render();},
+  toggleTsFilters:function(){ST.tsFiltersOpen=!ST.tsFiltersOpen;render();},
   // Pagination actions
   tsPrevPage:function(){if(ST.tsPage>0){ST.tsPage--;render();}},
   tsNextPage:function(){ST.tsPage++;render();},
   tsFirstPage:function(){ST.tsPage=0;render();},
   tsLastPage:function(p){ST.tsPage=p;render();},
-  clearTsFilters:function(){ST.tsClientFilter='';ST.tsMatterFilter='';ST.tsSort='date-desc';ST.tsPage=0;render();},
+  clearTsFilters:function(){ST.tsClientFilter='';ST.tsMatterFilter='';ST.tsSort='date-desc';ST.tsPage=0;ST.tsFiltersOpen=false;render();},
   // Clients
   setClSort:function(v){ST.clSort=v;render();},
   setClSearch:function(v){ST.clSearch=v;dRender();},
@@ -5944,15 +6064,28 @@ var A={
     var now=today();
     var approver=ST.user?ST.user.name:'';
     ST.entries=ST.entries.map(function(e){
-      return (e.status||'approved')==='pending'?Object.assign({},e,{status:'approved',approvedBy:approver,approvedAt:now}):e;
+      if((e.status||'approved')!=='pending') return e;
+      var updated=Object.assign({},e,{status:'approved',approvedBy:approver,approvedAt:now});
+      _dirtyEntries[updated.id]=updated;
+      return updated;
     });
+    _dirty.entries=true;
     save(); toast('Approved '+pending.length+' entr'+(pending.length===1?'y':'ies')); render();
   },
 
   // ── Workflow Transfer Package Export ────────────────────────────────────────
   // Attorney: export their own pending/visible entries as a submission package
   // ── Submit Timesheet / Send to Partner / Return to Billing ─────────────────
-  openSubmitTimesheet:function(){ ST.modal='submitTimesheet'; render(); },
+  openSubmitTimesheet:function(){
+    if(ST._entriesMode==='partial'){
+      _loadAllEntries().then(function(entries){
+        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+        ST.modal='submitTimesheet'; render();
+      });
+      return;
+    }
+    ST.modal='submitTimesheet'; render();
+  },
   openReceivePackage:function(){ ST.modal='receivePackage'; render(); },
 
   // Called from the Submit modal: save the package file
@@ -6077,11 +6210,31 @@ var A={
   confirmWorkflowImport:function(){
     var pkg=ST._pendingWorkflowPkg;
     if(!pkg){toast('No package to import','err');return;}
-    var msg=_importWorkflowPackage(pkg);
-    ST._pendingWorkflowPkg=null;
-    ST.modal=null;
-    render();
-    toast(msg);
+    function _doImport(){
+      var msg=_importWorkflowPackage(pkg);
+      ST._pendingWorkflowPkg=null;
+      ST.modal=null;
+      render();
+      toast(msg);
+    }
+    // Must operate on the full dataset — if in partial mode, load all entries first
+    // so the smart merge sees every existing record and the post-merge count/mode is accurate.
+    // Without this, older records hidden by partial-load would be permanently lost on next export.
+    if(ST._entriesMode==='partial'){
+      toast('Loading full history before import\u2026','warn');
+      _loadAllEntries().then(function(entries){
+        ST.entries=entries;
+        ST._entriesMode='full';
+        ST._totalEntryCount=entries.length;
+        markLuDirty();
+        _doImport();
+      }).catch(function(e){
+        toast('Failed to load full history: '+e,'err');
+        console.error(e);
+      });
+    } else {
+      _doImport();
+    }
   },
   cancelWorkflowImport:function(){
     ST._pendingWorkflowPkg=null;
@@ -6577,6 +6730,13 @@ var A={
   // ═══════════════════════════════════════════════════════
 
   openExportModal:function(){
+    if(ST._entriesMode==='partial'){
+      _loadAllEntries().then(function(entries){
+        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+        A.openExportModal();
+      });
+      return;
+    }
     // Reset to fresh defaults when opening
     var today0=today();
     var fy=new Date(); fy.setMonth(0); fy.setDate(1);
@@ -6915,6 +7075,13 @@ var A={
   csvQuickExport:function(){
     var q=ST.prefs.csvQuick;
     if(!q){ toast('No quick export preset configured','warn'); return; }
+    if(ST._entriesMode==='partial'){
+      _loadAllEntries().then(function(entries){
+        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+        A.csvQuickExport();
+      });
+      return;
+    }
 
     // Resolve datePreset to actual date strings
     var dateFrom='', dateTo='';
@@ -7007,6 +7174,13 @@ var A={
 
   // ─ Full JSON backup export ─
   exportJSON:function(){
+    if(ST._entriesMode==='partial'){
+      _loadAllEntries().then(function(entries){
+        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+        A.exportJSON();
+      });
+      return;
+    }
     var backup={
       _version:1,
       _exported:new Date().toISOString(),
@@ -7739,7 +7913,6 @@ function _importWorkflowPackage(pkg){
     if(!existing){
       var nc=Object.assign({},pc,{id:uid()});
       ST.clients=ST.clients.concat([nc]);
-      saveOne('clients',nc);
       added.clients++;
     }
   });
@@ -7754,13 +7927,11 @@ function _importWorkflowPackage(pkg){
       var nm=Object.assign({},pm,{id:uid(),clientId:cl?cl.id:'',matterNumber:pm.matterNumber||pm._matterNumber||''});
       delete nm._clientName;
       ST.matters=ST.matters.concat([nm]);
-      saveOne('matters',nm);
       added.matters++;
     } else if(pm.matterNumber&&!existing.matterNumber){
       // Backfill matter number if we learned it from this package
       var updated=Object.assign({},existing,{matterNumber:pm.matterNumber||pm._matterNumber||''});
       ST.matters=ST.matters.map(function(m){return m.id===existing.id?updated:m;});
-      saveOne('matters',updated);
     }
   });
 
@@ -7770,7 +7941,6 @@ function _importWorkflowPackage(pkg){
     if(!existing){
       var nc=Object.assign({},pc,{id:uid()});
       ST.contacts=ST.contacts.concat([nc]);
-      saveOne('contacts',nc);
       added.contacts++;
     }
   });
@@ -7792,7 +7962,6 @@ function _importWorkflowPackage(pkg){
         rateHistory:[]
       };
       ST.contacts=ST.contacts.concat([sc]);
-      saveOne('contacts',sc);
       added.contacts++;
     }
   }
@@ -7835,7 +8004,6 @@ function _importWorkflowPackage(pkg){
       }
       var merged=Object.assign({},ex,mergedFields,{clientId:clientId||ex.clientId,matterId:matterId||ex.matterId,contactId:contactId||ex.contactId});
       ST.entries[existIdx]=merged;
-      saveOne('entries',merged);
       added.updated++;
     } else {
       // New entry — add it
@@ -7847,13 +8015,20 @@ function _importWorkflowPackage(pkg){
       });
       delete ne._clientName; delete ne._matterName; delete ne._matterNumber; delete ne._contactName;
       ST.entries=ST.entries.concat([ne]);
-      saveOne('entries',ne);
       added.entries++;
     }
   });
 
   markLuDirty();
   ST._entriesMode='full'; ST._totalEntryCount=ST.entries.length;
+
+  // Bulk-persist all merged collections in one pass — avoids opening hundreds of
+  // IndexedDB transactions (one per saveOne call), which freezes the UI and crashes
+  // Safari. _dirtyEntries is intentionally left empty so _flushSave writes the full
+  // ST.entries array via a single putBatch call.
+  _markDirty('clients'); _markDirty('matters'); _markDirty('contacts'); _markDirty('entries');
+  _flushSave();
+
   return 'Imported: '+added.clients+' new clients, '+added.matters+' matters, '+added.contacts+' contacts, '+added.entries+' new entries, '+added.updated+' entries updated';
 }
 
@@ -8138,8 +8313,16 @@ document.addEventListener('keydown',function(e){
 
 // === INIT
 (function(){
+  // Request persistent storage so the browser won't silently evict IndexedDB
+  // data under low-disk conditions. Runs once per session; no-op if already granted.
+  if(navigator.storage&&navigator.storage.persist){
+    navigator.storage.persist().then(function(granted){
+      if(!granted) console.warn('Storage persistence not granted — data may be evicted under low disk.');
+    }).catch(function(){});
+  }
+
   // Fast startup: load only current-year entries (covers today/week/month/year filters).
-  // "All Time" view and Analytics trigger Store.getAllEntries() on demand.
+  // "All Time" view and Analytics trigger _loadAllEntries() on demand.
   var yearStart=new Date().getFullYear()+'-01-01';
 
   Promise.all([
