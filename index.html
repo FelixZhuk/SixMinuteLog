@@ -8277,6 +8277,16 @@ document.addEventListener('keydown',function(e){
   if(isClaiming){
     try{ sessionStorage.removeItem(CLAIM_KEY); }catch(e){}
     _claimLock();
+    // Must register the takeover listener here — same as the normal primary path.
+    // Without this, a tab that became primary via takeover is deaf to the next one.
+    if(_bc){
+      _bc.onmessage=function(ev){
+        if(ev&&ev.data&&ev.data.type==='takeover'){
+          clearInterval(_hbTimer); _hbTimer=null;
+          _showOverlay();
+        }
+      };
+    }
     window.addEventListener('pagehide', _releaseLock);
     window.addEventListener('beforeunload', _releaseLock);
     return; // fall through to INIT normally
