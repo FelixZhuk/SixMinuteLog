@@ -1779,6 +1779,94 @@ function vClients(){
     +formH+cardsH+'</div>';
 }
 
+// ── Placeholder Routing Section ──────────────────────────────────────────────
+// Renders a routing assignment UI for all routed placeholders.
+// formState: ST.cf or ST.mf | prefix: 'cf' or 'mf' | isForMatter: bool
+function _buildRoutingSection(formState,prefix,isForMatter){
+  var routedPHs=ST.mailPlaceholders||[];
+  var phRoutes=formState.phRoutes||{};
+  // Client-side contacts: for client form use formState directly (unsaved edits); for matter use saved client
+  var cppl=[];
+  if(isForMatter&&formState.clientId){
+    var maCl=ST.clients.find(function(c){return c.id==formState.clientId;});
+    cppl=(maCl&&maCl.clientPeople)||[];
+  } else {
+    cppl=formState.clientPeople||[];
+  }
+  var selectStyle='padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--white);color:var(--ink)';
+  var rows=routedPHs.map(function(ph){
+    var route=phRoutes[ph.id]||{};
+    var srcType=route.type||'';
+    var srcRef=route.ref!=null?route.ref:'';
+    var fld=route.field||'email';
+    var srcVal=srcType==='static'?'static':(srcType?srcType+':'+srcRef:'');
+    // Source dropdown
+    var srcOpts='<option value="">— not assigned —</option>';
+    if(cppl.length){
+      srcOpts+='<optgroup label="Client-Side Contacts">';
+      cppl.forEach(function(p,i){
+        var v='clientPerson:'+i;
+        srcOpts+='<option value="'+v+'"'+(srcVal===v?' selected':'')+'>'+H(p.name||'')+(p.role?' \u2013 '+H(p.role):'')+'</option>';
+      });
+      srcOpts+='</optgroup>';
+    }
+    if(ST.contacts.length){
+      srcOpts+='<optgroup label="Firm Team">';
+      ST.contacts.forEach(function(c){
+        var v='firmContact:'+c.id;
+        srcOpts+='<option value="'+v+'"'+(srcVal===v?' selected':'')+'>'+H(c.name)+(c.role?' \u2013 '+H(c.role):'')+'</option>';
+      });
+      srcOpts+='</optgroup>';
+    }
+    srcOpts+='<option value="static"'+(srcVal==='static'?' selected':'')+'>Custom text\u2026</option>';
+    // Field selector (name/email/phone) — only when a person/contact is selected
+    var fieldSel=(srcVal&&srcVal!=='static')
+      ?'<select onchange="A.'+prefix+'RouteField(\''+ph.id+'\',this.value)" style="'+selectStyle+'">'
+        +'<option value="email"'+(fld==='email'?' selected':'')+'>Email</option>'
+        +'<option value="name"'+(fld==='name'?' selected':'')+'>Name</option>'
+        +'<option value="phone"'+(fld==='phone'?' selected':'')+'>Phone</option>'
+        +'</select>'
+      :'';
+    // Static text input
+    var textInp=srcVal==='static'
+      ?'<input type="text" value="'+H(route.value||'')+'" onchange="A.'+prefix+'RouteValue(\''+ph.id+'\',this.value)" placeholder="Custom value\u2026" style="flex:1;min-width:100px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--white);color:var(--ink)">'
+      :'';
+    // Preview resolved value
+    var previewVal=_resolveRouteVal(route,cppl);
+    var preview=previewVal
+      ?'<span style="font-size:11px;color:var(--green);white-space:nowrap">\u2713 '+H(previewVal)+'</span>'
+      :(srcVal?'<span style="font-size:11px;color:var(--amber)">not found</span>':'');
+    return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-l)">'
+      +'<div style="flex:0 0 auto;min-width:0">'
+      +'<code style="font-size:12px;color:var(--blue);background:var(--bg);border:1px solid var(--border-l);border-radius:4px;padding:1px 6px">{'+H(ph.key)+'}</code>'
+      +'<div style="font-size:11px;color:var(--ink3);margin-top:1px">'+H(ph.label)+'</div>'
+      +'</div>'
+      +'<select onchange="A.'+prefix+'RouteSource(\''+ph.id+'\',this.value)" style="flex:1;min-width:160px;'+selectStyle+'">'+srcOpts+'</select>'
+      +fieldSel+textInp+preview
+      +'</div>';
+  }).join('');
+  var overrideNote=isForMatter
+    ?'<p style="font-size:11px;color:var(--ink3);margin:0 0 8px">Matter-level assignments override the client-level ones when resolving <code>{tokens}</code>.</p>'
+    :'<p style="font-size:11px;color:var(--ink3);margin:0 0 8px">Set which contact fills each routed <code>{token}</code> for this client. Matters can override these.</p>';
+  var inner=routedPHs.length
+    ? rows
+    : '<div style="background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:14px 16px;text-align:center">'
+      +'<div style="font-size:12px;color:var(--ink2);margin-bottom:4px">No custom placeholders defined yet</div>'
+      +'<div style="font-size:11px;color:var(--ink3)">Create a placeholder in '
+      +'<a href="#" onclick="A.openSettings(\'email\');return false;" style="color:var(--blue);text-decoration:none">Settings \u2192 Email</a>'
+      +' to assign it here.</div>'
+      +'</div>';
+  return '<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
+    +'<div style="font-size:12px;font-weight:600;color:var(--ink2)">Placeholder Routing '
+    +'<span style="font-size:10px;font-weight:400;color:var(--ink3);background:var(--bg);border:1px solid var(--border-l);border-radius:10px;padding:1px 7px;margin-left:4px">'+routedPHs.length+' placeholder'+(routedPHs.length!==1?'s':'')+'</span>'
+    +'</div>'
+    +'<a href="#" onclick="A.openSettings(\'email\');return false;" style="font-size:11px;color:var(--blue);text-decoration:none">Manage tokens \u2192</a>'
+    +'</div>'
+    +overrideNote
+    +inner
+    +'</div></div>';
+}
 function clientForm(){
   var f=ST.cf;
   var selIds=f.contactIds||((f.contactId&&f.contactId!='')?[Number(f.contactId)]:[]);
@@ -1866,6 +1954,7 @@ function clientForm(){
         +'</div></div>'
         +'</div></div>';
     })()
+    +_buildRoutingSection(f,'cf',false)
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveCl()">'+IC.save+' Save Client</button></div>'
     +'</div>';
 }
@@ -2033,6 +2122,7 @@ function matterForm(){
         +'</div></div>'
         +'</div></div>';
     })()
+    +_buildRoutingSection(ST.mf,'mf',true)
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveMa()">'+IC.save+' Save Matter</button></div>'
     +'</div>';
 }
@@ -3854,9 +3944,13 @@ function buildSettings(){
           +'<div style="border:1px solid var(--brd);border-radius:8px;overflow:hidden">'
           +ST.mailPlaceholders.map(function(p,i){
             var bg=i%2===0?'background:var(--bg)':'background:var(--white)';
-            var valueDisplay=p.source==='linked'&&p.linkedField
-              ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;background:rgba(59,130,246,.1);color:var(--blue);border-radius:4px;padding:1px 7px;font-weight:500">\uD83D\uDD17 '+H(_lfLabel(p.linkedField))+'</span>'
-              : '<span style="font-size:11px;color:var(--ink3)">Value: '+H(p.value||'(empty)')+'</span>';
+            var autoFill=p.linkedField
+              ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;background:rgba(59,130,246,.1);color:var(--blue);border-radius:4px;padding:1px 7px">\uD83D\uDD17 '+H(_lfLabel(p.linkedField))+'</span>'
+              : '';
+            var defPart=(p.defaultValue)?'<span style="font-size:11px;color:var(--ink3)">default: '+H(p.defaultValue)+'</span>':'';
+            var valueDisplay=(autoFill||defPart)
+              ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:1px">'+autoFill+defPart+'</div>'
+              : '<span style="font-size:11px;color:var(--ink3)">(no default \u2014 assign per client/matter)</span>';
             return '<div style="'+bg+';display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--brd)">'
               +'<code style="font-size:12px;color:var(--blue);flex-shrink:0">{'+H(p.key)+'}</code>'
               +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">'+H(p.label)+'</div>'
@@ -4045,31 +4139,22 @@ var LINKED_FIELDS=[
   ['client_email',             'Email',                        'Client'],
   ['client_phone',             'Phone',                        'Client'],
   ['client_rate',              'Default Rate',                 'Client'],
-  // Client People = client-side contacts (the actual "representatives")
-  // These are stored in client.clientPeople[]
-  ['client_people_names',      'All Names (comma-separated)',  'Client People (Client-Side Contacts)'],
-  ['client_people_emails',     'All Emails',                   'Client People (Client-Side Contacts)'],
-  ['client_people_phones',     'All Phones',                   'Client People (Client-Side Contacts)'],
-  ['client_person1_name',      'Person 1 — Name',              'Client People (Client-Side Contacts)'],
-  ['client_person1_role',      'Person 1 — Role',              'Client People (Client-Side Contacts)'],
-  ['client_person1_email',     'Person 1 — Email',             'Client People (Client-Side Contacts)'],
-  ['client_person1_phone',     'Person 1 — Phone',             'Client People (Client-Side Contacts)'],
-  ['client_person2_name',      'Person 2 — Name',              'Client People (Client-Side Contacts)'],
-  ['client_person2_role',      'Person 2 — Role',              'Client People (Client-Side Contacts)'],
-  ['client_person2_email',     'Person 2 — Email',             'Client People (Client-Side Contacts)'],
-  ['client_person2_phone',     'Person 2 — Phone',             'Client People (Client-Side Contacts)'],
-  // Firm contacts assigned to client (contactIds[]) — primary is first in list
-  ['client_contact_name',      'Primary Contact Name',         'Client Firm Contacts (Primary)'],
-  ['client_contact_role',      'Primary Contact Role',         'Client Firm Contacts (Primary)'],
-  ['client_contact_email',     'Primary Contact Email',        'Client Firm Contacts (Primary)'],
-  ['client_contact_phone',     'Primary Contact Phone',        'Client Firm Contacts (Primary)'],
-  ['client_contacts_names',    'All Names (comma-separated)',  'Client Firm Contacts (All)'],
-  ['client_contacts_emails',   'All Emails',                   'Client Firm Contacts (All)'],
+  // Aggregate fields across all client-side contacts
+  ['client_people_names',      'All Names',                    'Client Contacts'],
+  ['client_people_emails',     'All Emails',                   'Client Contacts'],
+  ['client_people_phones',     'All Phones',                   'Client Contacts'],
+  // Primary firm attorney assigned to client
+  ['client_contact_name',      'Primary Name',                 'Assigned Attorney'],
+  ['client_contact_role',      'Primary Role',                 'Assigned Attorney'],
+  ['client_contact_email',     'Primary Email',                'Assigned Attorney'],
+  ['client_contact_phone',     'Primary Phone',                'Assigned Attorney'],
+  ['client_contacts_names',    'All Names',                    'Assigned Attorney'],
+  ['client_contacts_emails',   'All Emails',                   'Assigned Attorney'],
   ['matter_name',              'Name',                         'Matter'],
-  ['matter_contact_name',      'Lead Attorney Name',           'Matter Contact'],
-  ['matter_contact_role',      'Lead Attorney Role',           'Matter Contact'],
-  ['matter_contact_email',     'Lead Attorney Email',          'Matter Contact'],
-  ['matter_contact_phone',     'Lead Attorney Phone',          'Matter Contact'],
+  ['matter_contact_name',      'Lead Attorney Name',           'Matter'],
+  ['matter_contact_role',      'Lead Attorney Role',           'Matter'],
+  ['matter_contact_email',     'Lead Attorney Email',          'Matter'],
+  ['matter_contact_phone',     'Lead Attorney Phone',          'Matter'],
   ['user_name',                'Full Name',                    'My Profile'],
   ['user_initials',            'Initials',                     'My Profile'],
   ['user_email',               'Email',                        'My Profile'],
@@ -4077,27 +4162,59 @@ var LINKED_FIELDS=[
 ];
 // Descriptions shown as hints in the linked-field picker
 var LINKED_FIELD_HINTS={
-  'client_people_names':   'Client-side contacts (people at the client org) — all names joined',
-  'client_people_emails':  'All emails from client-side contacts',
-  'client_people_phones':  'All phones from client-side contacts',
-  'client_person1_name':   'First client-side contact. Add contacts in the Client form.',
-  'client_person1_role':   'Role/title of first client-side contact',
-  'client_person1_email':  'Email of first client-side contact',
-  'client_person1_phone':  'Phone of first client-side contact',
-  'client_person2_name':   'Second client-side contact (if any)',
-  'client_person2_role':   'Role/title of second client-side contact',
-  'client_person2_email':  'Email of second client-side contact',
-  'client_person2_phone':  'Phone of second client-side contact',
-  'client_contact_name':   'First firm team member assigned to this client. "Primary" = first listed.',
-  'client_contact_role':   'Role of the primary firm contact on this client',
-  'client_contact_email':  'Email of the primary firm contact on this client',
-  'client_contact_phone':  'Phone of the primary firm contact on this client',
-  'client_contacts_names': 'All firm team members assigned to this client, comma-separated',
-  'client_contacts_emails':'All firm team member emails, comma-separated',
+  'client_people_names':    'All client-side contact names joined by comma',
+  'client_people_emails':   'All client-side contact emails joined by comma',
+  'client_people_phones':   'All client-side contact phones joined by comma',
+  'client_contact_name':    'First firm attorney assigned to this client',
+  'client_contact_role':    'Role of the primary assigned attorney',
+  'client_contact_email':   'Email of the primary assigned attorney',
+  'client_contact_phone':   'Phone of the primary assigned attorney',
+  'client_contacts_names':  'All firm attorneys assigned to this client, comma-separated',
+  'client_contacts_emails': 'All assigned attorney emails, comma-separated',
 };
 function _lfLabel(key){
   var f=LINKED_FIELDS.find(function(x){return x[0]===key;});
   return f ? f[2]+' \u2192 '+f[1] : key;
+}
+// Resolve a route assignment object to its string value
+// r = {type, ref, field, value}; cppl = client.clientPeople array
+function _resolveRouteVal(r,cppl){
+  if(!r||!r.type) return '';
+  var fld=r.field||'email';
+  if(r.type==='static') return r.value||'';
+  if(r.type==='clientPerson'){
+    var p=(cppl||[])[r.ref];
+    if(!p) return '';
+    return fld==='email'?(p.email||''):fld==='phone'?(p.phone||''):p.name||'';
+  }
+  if(r.type==='firmContact'){
+    var ct=ST.contacts.find(function(c){return c.id==r.ref;});
+    if(!ct) return '';
+    return fld==='email'?(ct.email||''):fld==='phone'?(ct.phone||''):ct.name||'';
+  }
+  return '';
+}
+// Resolve any custom placeholder for a context {clientId, matterId}
+// Priority: matter route → client route → linkedField → defaultValue
+function _resolveRoutedPH(ph,ctx,_resolveLinkedFieldFn){
+  ctx=ctx||{};
+  if(ctx.matterId){
+    var ma=ST.matters.find(function(m){return m.id==ctx.matterId;});
+    if(ma&&ma.phRoutes&&ma.phRoutes[ph.id]){
+      var maCl=ST.clients.find(function(c){return c.id==ma.clientId;});
+      var v=_resolveRouteVal(ma.phRoutes[ph.id],(maCl&&maCl.clientPeople)||[]);
+      if(v) return v;
+    }
+  }
+  if(ctx.clientId){
+    var cl=ST.clients.find(function(c){return c.id==ctx.clientId;});
+    if(cl&&cl.phRoutes&&cl.phRoutes[ph.id]){
+      var v2=_resolveRouteVal(cl.phRoutes[ph.id],cl.clientPeople||[]);
+      if(v2) return v2;
+    }
+  }
+  if(ph.linkedField&&_resolveLinkedFieldFn) return _resolveLinkedFieldFn(ph.linkedField);
+  return ph.defaultValue||'';
 }
 
 // Returns merged list of [token, label] for UI display
@@ -4165,21 +4282,10 @@ function _phMap(ctx, mp){
       // All firm contacts joined
       case 'client_contacts_names':  _getClient(); return _clCts.map(function(c){return c.name;}).join(', ');
       case 'client_contacts_emails': _getClient(); return _clCts.map(function(c){return c.email;}).filter(Boolean).join(', ');
-      // Client-side people (client.clientPeople[]) — list fields
+      // Client-side people — aggregate fields only (pick specific people via per-client routing)
       case 'client_people_names':  _getClient(); return _clPeople.map(function(p){return p.name;}).join(', ');
       case 'client_people_emails': _getClient(); return _clPeople.map(function(p){return p.email;}).filter(Boolean).join(', ');
-      case 'client_people_phones': _getClient(); return _clPeople.map(function(p){return p.phone;}).filter(Boolean).join(', ');
-      // Client-side person 1 (index 0)
-      case 'client_person1_name':  _getClient(); return (_clPeople[0]&&_clPeople[0].name)||'';
-      case 'client_person1_role':  _getClient(); return (_clPeople[0]&&_clPeople[0].role)||'';
-      case 'client_person1_email': _getClient(); return (_clPeople[0]&&_clPeople[0].email)||'';
-      case 'client_person1_phone': _getClient(); return (_clPeople[0]&&_clPeople[0].phone)||'';
-      // Client-side person 2 (index 1)
-      case 'client_person2_name':  _getClient(); return (_clPeople[1]&&_clPeople[1].name)||'';
-      case 'client_person2_role':  _getClient(); return (_clPeople[1]&&_clPeople[1].role)||'';
-      case 'client_person2_email': _getClient(); return (_clPeople[1]&&_clPeople[1].email)||'';
-      case 'client_person2_phone': _getClient(); return (_clPeople[1]&&_clPeople[1].phone)||'';
-      case 'matter_name':          return _getMatter().name||'';
+      case 'client_people_phones': _getClient(); return _clPeople.map(function(p){return p.phone;}).filter(Boolean).join(', ');      case 'matter_name':          return _getMatter().name||'';
       case 'matter_contact_name':  _getMatter(); return (_maCt&&_maCt.name)||'';
       case 'matter_contact_role':  _getMatter(); return (_maCt&&_maCt.role)||'';
       case 'matter_contact_email': _getMatter(); return (_maCt&&_maCt.email)||'';
@@ -4192,11 +4298,8 @@ function _phMap(ctx, mp){
     }
   }
   (ST.mailPlaceholders||[]).forEach(function(p){
-    if(p.source==='linked'&&p.linkedField){
-      map['{'+p.key+'}'] = _resolveLinkedField(p.linkedField);
-    } else {
-      map['{'+p.key+'}'] = p.value||'';
-    }
+    // Unified resolution: matter route → client route → linked field → default value
+    map['{'+p.key+'}'] = _resolveRoutedPH(p,ctx,_resolveLinkedField);
   });
   return map;
 }
@@ -4392,37 +4495,19 @@ function buildMailPreset(){
 function buildMailPH(){
   var f=ST.mphf||{};
   var isEdit=(f.editIdx!=null);
-  var src=f.source||'static';
   var keyErr=f.errs&&f.errs.key;
   var labelErr=f.errs&&f.errs.label;
   var lfGroups={};
   LINKED_FIELDS.forEach(function(x){if(!lfGroups[x[2]])lfGroups[x[2]]=[];lfGroups[x[2]].push(x);});
-  var lfOpts='<option value="">— choose a field —</option>';
+  var lfOpts='<option value="">None — use default value or per-client assignment</option>';
   Object.keys(lfGroups).forEach(function(grp){
     lfOpts+='<optgroup label="'+H(grp)+'">';
     lfGroups[grp].forEach(function(x){lfOpts+='<option value="'+H(x[0])+'"'+(f.linkedField===x[0]?' selected':'')+'>'+H(x[1])+'</option>';});
     lfOpts+='</optgroup>';
   });
-  // Hint text for the currently selected linked field
   var lfHint=(f.linkedField&&LINKED_FIELD_HINTS[f.linkedField])
-    ? '<div style="font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:4px 8px;margin-top:4px">ℹ '+H(LINKED_FIELD_HINTS[f.linkedField])+'</div>'
+    ? '<div style="font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:4px 8px;margin-top:4px">\u2139 '+H(LINKED_FIELD_HINTS[f.linkedField])+'</div>'
     : '';
-  var sourceToggle='<div class="fl" style="margin-bottom:14px"><label>Value source</label>'
-    +'<div style="display:flex;gap:6px">'
-    +'<button type="button" class="btn '+(src==='static'?'btn-bl':'btn-gh')+'" style="flex:1;font-size:12px" onclick="A.mphSetSource(\'static\')">Static text</button>'
-    +'<button type="button" class="btn '+(src==='linked'?'btn-bl':'btn-gh')+'" style="flex:1;font-size:12px" onclick="A.mphSetSource(\'linked\')">Linked field</button>'
-    +'</div><div style="font-size:11px;color:var(--ink3);margin-top:4px">'
-    +(src==='linked'?'Value is pulled from the active client/matter record each time the placeholder is resolved.':'Value is a fixed text string you set here.')
-    +'</div></div>';
-  var valueSection=src==='linked'
-    ? '<div class="fl" style="margin-bottom:4px"><label>Linked field <span class="req">*</span></label>'
-      +'<select id="mph-lf" style="width:100%" onchange="A.mphPreviewLF(this.value)">'+lfOpts+'</select>'
-      +(f.errs&&f.errs.linkedField?'<div class="note" style="margin-top:4px">'+H(f.errs.linkedField)+'</div>':'')
-      +lfHint
-      +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Resolves from whichever client/matter is active when the email is sent.</div></div>'
-    : '<div class="fl" style="margin-bottom:4px"><label>Static value <span style="font-size:11px;color:var(--ink3)">\u2014 inserted verbatim when sending</span></label>'
-      +'<textarea id="mph-value" rows="3" placeholder="e.g. John Smith, Managing Partner">'+H(f.value||'')+'</textarea>'
-      +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Leave blank to keep the token as-is when empty.</div></div>';
   return '<div class="ov"><div class="modal modal-sm"><div class="modal-hd">'
     +'<h2 style="display:flex;align-items:center;gap:8px">'+IC.mail+' '+(isEdit?'Edit':'New')+' Placeholder</h2>'
     +'<button class="btn-ic" onclick="A.closeMailPH()">'+IC.x+'</button></div>'
@@ -4435,10 +4520,19 @@ function buildMailPH(){
     +(keyErr?'<div class="note" style="margin-top:4px">'+H(keyErr)+'</div>':'')
     +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Lowercase letters, numbers, underscores only.</div></div>'
     +'<div class="fl" style="margin-bottom:14px"><label>Label <span class="req">*</span></label>'
-    +'<input type="text" id="mph-label" value="'+H(f.label||'')+'" placeholder="e.g. Client representative" />'
+    +'<input type="text" id="mph-label" value="'+H(f.label||'')+'" placeholder="e.g. Invoice recipient" />'
     +(labelErr?'<div class="note" style="margin-top:4px">'+H(labelErr)+'</div>':'')
     +'</div>'
-    +sourceToggle+valueSection
+    // Auto-fill: optional linked field
+    +'<div class="fl" style="margin-bottom:14px"><label>Auto-fill from record <span style="font-size:11px;color:var(--ink3);font-weight:400">\u2014 optional</span></label>'
+    +'<select id="mph-lf" style="width:100%" onchange="A.mphPreviewLF(this.value)">'+lfOpts+'</select>'
+    +lfHint
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">When a client/matter is active, this field is read automatically. Per-client assignments (set in the client or matter form) take priority over this.</div></div>'
+    // Default value: static fallback
+    +'<div class="fl" style="margin-bottom:4px"><label>Default value <span style="font-size:11px;color:var(--ink3);font-weight:400">\u2014 fallback when nothing else resolves</span></label>'
+    +'<input type="text" id="mph-defval" value="'+H(f.defaultValue||'')+'" placeholder="e.g. billing@example.com (optional)" />'
+    +'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Used if no per-client assignment exists and auto-fill is blank.</div></div>'
+    +'<div style="font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:6px 10px;margin-top:10px">\u2139 Resolution order: <strong>client/matter assignment</strong> \u203a <strong>auto-fill field</strong> \u203a <strong>default value</strong>. Assign per-client in each Client or Matter form.</div>'
     +'</div><div class="modal-ft" style="gap:8px">'
     +'<button class="btn btn-gh" onclick="A.closeMailPH()">Cancel</button>'
     +'<button class="btn btn-bl" onclick="A.saveMailPH()">'+IC.save+' Save</button>'
@@ -5284,20 +5378,14 @@ var A={
   },
   openMailPH:function(idx){
     if(idx!=null&&ST.mailPlaceholders[idx]){
-      ST.mphf=Object.assign({},ST.mailPlaceholders[idx],{editIdx:idx,errs:{}});
-      if(!ST.mphf.source) ST.mphf.source='static';
+      var p=ST.mailPlaceholders[idx];
+      // Migrate legacy source-based records to unified format
+      var defVal=p.defaultValue||p.value||'';
+      ST.mphf={editIdx:idx,key:p.key||'',label:p.label||'',linkedField:p.linkedField||'',defaultValue:defVal,errs:{}};
     } else {
-      ST.mphf={editIdx:null,key:'',label:'',value:'',source:'static',linkedField:'',errs:{}};
+      ST.mphf={editIdx:null,key:'',label:'',linkedField:'',defaultValue:'',errs:{}};
     }
     ST.modal='mailph'; render();
-  },
-  mphSetSource:function(src){
-    var key=((document.getElementById('mph-key')||{}).value||ST.mphf.key||'').trim();
-    var label=((document.getElementById('mph-label')||{}).value||ST.mphf.label||'').trim();
-    var value=((document.getElementById('mph-value')||{}).value||ST.mphf.value||'').trim();
-    var lf=((document.getElementById('mph-lf')||{}).value||ST.mphf.linkedField||'');
-    ST.mphf=Object.assign({},ST.mphf,{source:src,key:key,label:label,value:value,linkedField:lf,errs:{}});
-    render();
   },
   // Live-update the hint below the linked-field dropdown without a full re-render
   mphPreviewLF:function(val){
@@ -5325,23 +5413,20 @@ var A={
   saveMailPH:function(){
     var key=((document.getElementById('mph-key')||{}).value||'').trim().toLowerCase().replace(/[^a-z0-9_]/g,'');
     var label=((document.getElementById('mph-label')||{}).value||'').trim();
-    var phSrc=ST.mphf.source||'static';
-    var value=(phSrc==='static')?((document.getElementById('mph-value')||{}).value||'').trim():'';
-    var linkedField=(phSrc==='linked')?((document.getElementById('mph-lf')||{}).value||'').trim():'';
+    var linkedField=((document.getElementById('mph-lf')||{}).value||'').trim();
+    var defaultValue=((document.getElementById('mph-defval')||{}).value||'').trim();
     var errs={};
     if(!key) errs.key='Token key is required.';
     else {
       var reserved=['client','matter','firm','user','initials','date','due_date','invoice_num','amount','entries_count','hours_total','filename','cc_list'];
       if(reserved.indexOf(key)!==-1) errs.key='{'+key+'} is a built-in placeholder and cannot be overridden.';
-      // Check duplicate key among custom placeholders (excluding self)
       var editIdx=ST.mphf.editIdx;
       var dupe=ST.mailPlaceholders.some(function(p,i){ return p.key===key && i!==editIdx; });
       if(dupe) errs.key='A custom placeholder with this key already exists.';
     }
     if(!label) errs.label='Label is required.';
-    if(phSrc==='linked'&&!linkedField) errs.linkedField='Please choose a field to link.';
     if(Object.keys(errs).length){ ST.mphf.errs=errs; render(); return; }
-    var ph={id:uid(),key:key,label:label,source:phSrc,value:value,linkedField:linkedField};
+    var ph={id:uid(),key:key,label:label,linkedField:linkedField,defaultValue:defaultValue};
     if(ST.mphf.editIdx!=null){
       ph.id=ST.mailPlaceholders[ST.mphf.editIdx].id||ph.id;
       ST.mailPlaceholders[ST.mphf.editIdx]=ph;
@@ -6036,11 +6121,11 @@ var A={
 
 
   // Client form
-  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',contactIds:[],clientPeople:[],attorneyRates:[],newPerson:{},editPersonIdx:-1,errs:{}};ST.modal='cf';render();},
+  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',contactIds:[],clientPeople:[],attorneyRates:[],phRoutes:{},newPerson:{},editPersonIdx:-1,errs:{}};ST.modal='cf';render();},
   editCl:function(id){var c=ST.clients.find(function(x){return x.id==id;});if(!c)return;ST.editId=id;
     // Migrate legacy contactId to contactIds array
     var cids=c.contactIds&&c.contactIds.length?c.contactIds:(c.contactId?[Number(c.contactId)]:[]);
-    ST.cf=Object.assign({},c,{contactIds:cids,clientPeople:c.clientPeople||[],attorneyRates:(c.attorneyRates||[]).map(function(r){return Object.assign({},r);}),newPerson:{},editPersonIdx:-1,errs:{}});ST.modal='cf';render();},
+    ST.cf=Object.assign({},c,{contactIds:cids,clientPeople:c.clientPeople||[],attorneyRates:(c.attorneyRates||[]).map(function(r){return Object.assign({},r);}),phRoutes:c.phRoutes||{},newPerson:{},editPersonIdx:-1,errs:{}});ST.modal='cf';render();},
   cfTogCt:function(cb){
     var id=Number(cb.getAttribute('data-cf-ct'));
     var ids=ST.cf.contactIds||[];
@@ -6126,7 +6211,7 @@ var A={
     if(f.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) errs.e='Invalid email';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
-    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],phRoutes:f.phRoutes||{},createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     if(ST.editId){ST.clients=ST.clients.map(function(x){return x.id==ST.editId?c:x;});toast('Client updated');}
     else{ST.clients=ST.clients.concat([c]);toast('Client added');}
     saveOne('clients',c); A.closeF();
@@ -6134,8 +6219,8 @@ var A={
   delCl:function(id){if(!confirm('Delete this client?'))return;ST.clients=ST.clients.filter(function(c){return c.id!=id;});delOne('clients',id);toast('Deleted','warn');render();},
 
   // Matter form
-  openMF:function(){ST.editId=null;ST.mf={name:'',clientId:'',description:'',rate:'',contactId:'',matterNumber:'',linkedClientPeopleIds:[],attorneyRates:[],errs:{}};ST.modal='mf';render();},
-  editMa:function(id){var m=ST.matters.find(function(x){return x.id==id;});if(!m)return;ST.editId=id;ST.mf=Object.assign({},m,{matterNumber:m.matterNumber||'',linkedClientPeopleIds:m.linkedClientPeopleIds||[],attorneyRates:(m.attorneyRates||[]).map(function(r){return Object.assign({},r);}),errs:{}});ST.modal='mf';render();},
+  openMF:function(){ST.editId=null;ST.mf={name:'',clientId:'',description:'',rate:'',contactId:'',matterNumber:'',linkedClientPeopleIds:[],attorneyRates:[],phRoutes:{},errs:{}};ST.modal='mf';render();},
+  editMa:function(id){var m=ST.matters.find(function(x){return x.id==id;});if(!m)return;ST.editId=id;ST.mf=Object.assign({},m,{matterNumber:m.matterNumber||'',linkedClientPeopleIds:m.linkedClientPeopleIds||[],attorneyRates:(m.attorneyRates||[]).map(function(r){return Object.assign({},r);}),phRoutes:m.phRoutes||{},errs:{}});ST.modal='mf';render();},
   saveMa:function(){
     var f=ST.mf;
     f.name=g('mf-n'); f.clientId=g('mf-cl'); f.description=g('mf-desc'); f.contactId=g('mf-ct'); f.matterNumber=g('mf-num')||'';
@@ -6144,7 +6229,7 @@ var A={
     if(!f.clientId) errs.cl='Select a client';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
-    var m={id:ST.editId||uid(),name:f.name.trim(),clientId:Number(f.clientId),matterNumber:f.matterNumber.trim(),description:f.description||'',contactId:Number(f.contactId)||'',linkedClientPeopleIds:f.linkedClientPeopleIds||[],attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    var m={id:ST.editId||uid(),name:f.name.trim(),clientId:Number(f.clientId),matterNumber:f.matterNumber.trim(),description:f.description||'',contactId:Number(f.contactId)||'',linkedClientPeopleIds:f.linkedClientPeopleIds||[],attorneyRates:f.attorneyRates||[],phRoutes:f.phRoutes||{},createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     if(ST.editId){ST.matters=ST.matters.map(function(x){return x.id==ST.editId?m:x;});toast('Matter updated');}
     else{ST.matters=ST.matters.concat([m]);toast('Matter added');}
     saveOne('matters',m); A.closeF();
@@ -6177,6 +6262,67 @@ var A={
     var ar=ST.mf.attorneyRates||[];
     ST.mf.attorneyRates=ar.filter(function(_,i){return i!==idx;});
     render();
+  },
+
+  // ── Placeholder Routing actions (client form) ────────────────────────────
+  cfRouteSource:function(phId,val){
+    syncForm();
+    var routes=Object.assign({},ST.cf.phRoutes||{});
+    if(!val){
+      delete routes[phId];
+    } else if(val==='static'){
+      routes[phId]=Object.assign({},routes[phId]||{},{type:'static',ref:null,field:'email'});
+    } else {
+      var parts=val.split(':');
+      var rtype=parts[0]; // 'clientPerson' or 'firmContact'
+      var rref=Number(parts[1]);
+      routes[phId]=Object.assign({},routes[phId]||{},{type:rtype,ref:rref,field:(routes[phId]&&routes[phId].field)||'email'});
+    }
+    ST.cf.phRoutes=routes;
+    render();
+  },
+  cfRouteField:function(phId,val){
+    syncForm();
+    var routes=Object.assign({},ST.cf.phRoutes||{});
+    routes[phId]=Object.assign({},routes[phId]||{},{field:val});
+    ST.cf.phRoutes=routes;
+    render();
+  },
+  cfRouteValue:function(phId,val){
+    var routes=Object.assign({},ST.cf.phRoutes||{});
+    routes[phId]=Object.assign({},routes[phId]||{},{value:val});
+    ST.cf.phRoutes=routes;
+    // No re-render; morph preserves focused input
+  },
+
+  // ── Placeholder Routing actions (matter form) ────────────────────────────
+  mfRouteSource:function(phId,val){
+    syncForm();
+    var routes=Object.assign({},ST.mf.phRoutes||{});
+    if(!val){
+      delete routes[phId];
+    } else if(val==='static'){
+      routes[phId]=Object.assign({},routes[phId]||{},{type:'static',ref:null,field:'email'});
+    } else {
+      var parts=val.split(':');
+      var rtype=parts[0];
+      var rref=Number(parts[1]);
+      routes[phId]=Object.assign({},routes[phId]||{},{type:rtype,ref:rref,field:(routes[phId]&&routes[phId].field)||'email'});
+    }
+    ST.mf.phRoutes=routes;
+    render();
+  },
+  mfRouteField:function(phId,val){
+    syncForm();
+    var routes=Object.assign({},ST.mf.phRoutes||{});
+    routes[phId]=Object.assign({},routes[phId]||{},{field:val});
+    ST.mf.phRoutes=routes;
+    render();
+  },
+  mfRouteValue:function(phId,val){
+    var routes=Object.assign({},ST.mf.phRoutes||{});
+    routes[phId]=Object.assign({},routes[phId]||{},{value:val});
+    ST.mf.phRoutes=routes;
   },
 
   // Contact form
@@ -6381,7 +6527,7 @@ var A={
 
   // Help / Settings
   openHelp:function(){ST.modal='help';render();},
-  openSettings:function(){ST.modal='settings';render();},
+  openSettings:function(tab){if(tab)ST.settingsTab=tab;ST.modal='settings';render();},
 
   // Reset
   resetAll:function(){
