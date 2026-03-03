@@ -892,7 +892,7 @@ var ST={
   _entriesMode:'partial',
   _totalEntryCount:0,  // from IDB count() — used to show "X of Y entries"
   // Invoice form and review state
-  invf:{},invRev:{invoiceId:null,cuts:{},mergeGroup:{},comments:{},pendingMerge:[]},
+  invf:{},
   invFilter:'all',invPrintId:null,
   // IT Mode - admin profile management
   itMode:false,
@@ -1743,7 +1743,7 @@ function vClients(){
       var linkedCts=ctIds.map(function(id){return _lu.ct[id];}).filter(Boolean);
       var cppl=c.clientPeople&&c.clientPeople.length?c.clientPeople:[];
       // Find most recent approved invoice for this client
-      var clientInvs=(ST.invoices||[]).filter(function(i){return i.clientId==c.id&&i.status==='approved';});
+      var clientInvs=(ST.invoices||[]).filter(function(i){return i.clientId==c.id&&(i.status==='sent'||i.status==='approved');});
       clientInvs.sort(function(a,b){return b.id-a.id;});
       var latestApproved=clientInvs[0]||null;
       return '<div class="card">'
@@ -2429,41 +2429,14 @@ function vApprovals(){
   var returnToBillingBtn=approved.length>0?'<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send approved entries back to billing staff for invoicing" style="gap:5px">📤 Return to Billing ('+approved.length+')</button>':'';
   var receivePackageBtn='<button class="btn btn-gh" onclick="A.openReceivePackage()" title="Import a billing review package from billing staff" style="gap:5px">📥 Receive Package</button>';
 
-  // Invoices pending review
-  var invsPending=(ST.invoices||[]).filter(function(i){return i.status==='review';});
-  var invReviewRows=invsPending.map(function(inv){
-    var cl=_lu.cl[inv.clientId]||{name:'?'};
-    var mt=inv.matterId?_lu.ma[inv.matterId]:null;
-    var total=invTotal(inv);
-    return '<tr>'
-      +'<td style="font-weight:600;color:var(--blue)">#'+H(inv.number||inv.id)+'</td>'
-      +'<td style="font-weight:500">'+H(cl.name)+'</td>'
-      +'<td style="color:var(--ink2)">'+H(mt?mt.name:'All Matters')+'</td>'
-      +'<td>'+(inv.entryIds?inv.entryIds.length:0)+' entries</td>'
-      +'<td style="color:var(--green);font-weight:600">'+$m(total)+'</td>'
-      +'<td style="color:var(--ink3);font-size:12px">'+$d(inv.invoiceDate)+'</td>'
-      +'<td><div class="tda">'
-        +'<button class="btn btn-dk" onclick="A.invOpenReview('+inv.id+')" style="padding:5px 10px;font-size:12px;gap:4px">'+IC.shield+' Review</button>'
-        +'<button class="btn-ic" title="Email Invoice to Client" onclick="A.emailInvoice('+inv.id+')">'+IC.mail+'</button>'
-        +'<button class="btn-ic" title="Preview" onclick="A.invPrint('+inv.id+')">'+IC.print+'</button>'
-      +'</div></td>'
-      +'</tr>';
-  }).join('');
-  var invReviewTableH=invsPending.length
-    ?'<div class="twrap"><div class="tscroll"><table>'
-      +'<thead><tr><th>#</th><th>Client</th><th>Matter</th><th>Entries</th><th>Total</th><th>Date</th><th>Action</th></tr></thead>'
-      +'<tbody>'+invReviewRows+'</tbody></table></div></div>'
-    :'<div class="empty" style="padding:20px"><div class="empty-ico" style="font-size:1.8rem">&#10003;</div><p>No invoices pending review</p></div>';
+
 
   return '<div>'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;gap:12px">'
     +'<div><h2 style="font-size:1.3rem;font-weight:300;margin-bottom:3px">Approvals</h2>'
-    +'<p style="font-size:12px;color:var(--ink3)">Review time entries and invoices</p></div>'
+    +'<p style="font-size:12px;color:var(--ink3)">Approve time entries for billing</p></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+receivePackageBtn+returnToBillingBtn+approveAllBtn+'</div></div>'
-    +stats([['Pending Entries',String(pending.length),'highlight2'],['Invoices to Review',String(invsPending.length),invsPending.length>0?'highlight2':''],['Approved Entries',String(approved.length),'highlight'],['Rejected',String(rejected.length),'']])
-    +'<div class="appr-panel" style="margin-bottom:16px">'
-    +'<h3>'+IC.invoice+' Invoices Pending Review'+(invsPending.length>0?' <span style="background:var(--amber);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px">'+invsPending.length+'</span>':'')+'</h3>'
-    +invReviewTableH+'</div>'
+    +stats([['Pending',String(pending.length),'highlight2'],['Approved',String(approved.length),'highlight'],['Rejected',String(rejected.length),''],['',String(''),'']])
     +'<div class="appr-panel">'
     +'<h3>'+IC.clock+' Pending Time Entries</h3>'
     +pendingTableH+'</div>'
@@ -2479,8 +2452,8 @@ function vInvoices(){
   var shown=fil==='all'?invs:invs.filter(function(i){return i.status===fil;});
   shown=shown.slice().sort(function(a,b){return b.id-a.id;});
 
-  var fOpts=['all','draft','review','approved','sent'].map(function(v){
-    var l={all:'All',draft:'Draft',review:'In Review',approved:'Approved',sent:'Sent'}[v];
+  var fOpts=['all','draft','sent'].map(function(v){
+    var l={all:'All',draft:'Draft',sent:'Sent'}[v];
     var cnt=v==='all'?invs.length:invs.filter(function(i){return i.status===v;}).length;
     return '<option value="'+v+'"'+(fil===v?' selected':'')+'>'+l+' ('+cnt+')</option>';
   }).join('');
@@ -2490,16 +2463,12 @@ function vInvoices(){
     var mt=inv.matterId?_lu.ma[inv.matterId]:null;
     var total=invTotal(inv);
     var stCls={draft:'s-pending',review:'s-pending',approved:'s-approved',sent:'s-approved'}[inv.status]||'s-pending';
-    var stLbl={draft:'Draft',review:'In Review',approved:'Approved',sent:'Sent'}[inv.status]||inv.status;
+    // Invoice workflow: Draft → Mark Sent. No invoice-level approval — approval is for time entries only.
+    var stLbl={draft:'Draft',review:'Draft',approved:'Sent',sent:'Sent'}[inv.status]||inv.status;
     var btns='<div class="tda">'
-      +'<button class="btn-ic" title="Email Invoice to Client" onclick="A.emailInvoice('+inv.id+')">'+IC.mail+'</button>'
       +'<button class="btn-ic" title="Preview/Print" onclick="A.invPrint('+inv.id+')">'+IC.print+'</button>'
-      // Partners can review any non-sent invoice
-      +(role==='partner'&&inv.status!=='sent'?'<button class="btn btn-dk" style="padding:4px 10px;font-size:12px" onclick="A.invOpenReview('+inv.id+')">'+IC.shield+' Review</button>':'')
-      // Non-partners can send draft invoices for review
-      +(role!=='partner'&&inv.status==='draft'?'<button class="btn btn-bl" style="padding:4px 10px;font-size:12px" onclick="A.invSendForReview('+inv.id+')">'+IC.send+' Send for Review</button>':'')
-      +(role!=='partner'&&(inv.status==='draft'||inv.status==='review')?'<button class="btn btn-gh" style="padding:4px 10px;font-size:12px" onclick="A.emailEntries(\'partner_approval\')" title="Email billing entries to a partner for approval">'+IC.mail+' Email for Approval</button>':'')
-      +(inv.status==='approved'&&role!=='partner'?'<button class="btn btn-gr" style="padding:4px 10px;font-size:12px" onclick="A.invMarkSent('+inv.id+')">'+IC.send+' Mark Sent</button>':'')
+      +'<button class="btn-ic" title="Email Invoice to Client" onclick="A.emailInvoice('+inv.id+')">'+IC.mail+'</button>'
+      +(inv.status!=='sent'&&inv.status!=='approved'?'<button class="btn btn-gr" style="padding:4px 10px;font-size:12px" onclick="A.invMarkSent('+inv.id+')">'+IC.send+' Mark Sent</button>':'')
       +'<button class="btn-ic" title="Edit" onclick="A.invEdit('+inv.id+')">'+IC.edit+'</button>'
       +'<button class="btn-ic" title="Delete" onclick="A.invDel('+inv.id+')" style="color:var(--red)">'+IC.trash+'</button>'
       +'</div>';
@@ -2516,9 +2485,8 @@ function vInvoices(){
   }).join('');
 
   var totalBilled=shown.reduce(function(s,i){return s+invTotal(i);},0);
-  var draftCnt=invs.filter(function(i){return i.status==='draft';}).length;
-  var reviewCnt=invs.filter(function(i){return i.status==='review';}).length;
-  var sentCnt=invs.filter(function(i){return i.status==='sent';}).length;
+  var draftCnt=invs.filter(function(i){return i.status==='draft'||i.status==='review';}).length;
+  var sentCnt=invs.filter(function(i){return i.status==='sent'||i.status==='approved';}).length;
 
   var tableH=shown.length
     ?'<div class="twrap"><div class="tscroll"><table>'
@@ -2534,7 +2502,7 @@ function vInvoices(){
     +'<select onchange="A.invSetFilter(this.value)" style="font-size:13px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;background:var(--bg)">'+fOpts+'</select>'
     +'<button class="btn btn-dk" onclick="A.invNew()">'+IC.plus+' New Invoice</button>'
     +'</div></div>'
-    +stats([['Drafts',String(draftCnt),''],['In Review',String(reviewCnt),'highlight2'],['Sent',String(sentCnt),'highlight'],['Total Billed',$m(totalBilled),'']])
+    +stats([['Drafts',String(draftCnt),''],['Sent',String(sentCnt),'highlight'],['Total Billed',$m(totalBilled),''],['','','']])
     +tableH+'</div>';
 }
 
@@ -2567,7 +2535,8 @@ function buildInvoiceForm(){
     (f.clientId?ST.matters.filter(function(m){return m.clientId==f.clientId;}):ST.matters)
     .map(function(m){return {v:m.id,l:m.name};})
   );
-  var statusOpts=[{v:'draft',l:'Draft'},{v:'review',l:'Send for Review'},{v:'approved',l:'Approved'},{v:'sent',l:'Sent'}];
+  // Invoice statuses: Draft → Sent. Approval is for time entries only.
+  var statusOpts=[{v:'draft',l:'Draft'},{v:'sent',l:'Sent'}];
 
   // Entry picker: approved entries for selected client/matter not already invoiced
   var invoicedIds={};
@@ -2655,145 +2624,6 @@ function buildInvoiceForm(){
     +'<div class="modal-ft">'
     +'<button class="btn btn-gh" onclick="A.closeF()">Cancel</button>'
     +'<button class="btn btn-dk" onclick="A.invSave()">'+IC.save+' '+(isEdit?'Update Invoice':'Create Invoice')+'</button>'
-    +'</div></div></div>';
-}
-
-// Invoice review modal (partner cuts/merges/comments)
-function buildInvoiceReview(){
-  buildEntryLookup(); // invoice review needs _lu.en — build it lazily here
-  var rev=ST.invRev||{};
-  var inv=ST.invoices.find(function(i){return i.id==rev.invoiceId;});
-  if(!inv) return '<div class="ov"><div class="modal modal-sm"><div class="modal-hd"><h2>Review</h2><button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div><div class="modal-bd"><p>Invoice not found</p></div></div></div>';
-  var cl=_lu.cl[inv.clientId]||{name:'?'};
-  var mt=inv.matterId?_lu.ma[inv.matterId]:null;
-
-  var cuts=rev.cuts||{};
-  var comments=rev.comments||{};
-  var pendingMerge=rev.pendingMerge||[];
-  var pmSet={};
-  pendingMerge.forEach(function(id){pmSet[id]=true;});
-
-  // Merged entries already in invoice
-  var existingMerged=inv.mergedEntries||[];
-  var mergedIds={};
-  existingMerged.forEach(function(mg){(mg.entryIds||[]).forEach(function(eid){mergedIds[eid]=mg.id;});});
-
-  var entryRows=(inv.entryIds||[]).map(function(eid){
-    var e=_lu.en[eid];
-    if(!e) return '';
-    if(mergedIds[eid]) return ''; // skip already-merged
-    var origH=Number(e.hours);
-    var cutH=cuts[eid]!=null?Number(cuts[eid]):origH;
-    var amt=cutH*Number(e.rate||0);
-    var hasCut=cutH<origH;
-    var cmtVal=H(comments[eid]||'');
-    var inMerge=pmSet[eid];
-    return '<div style="border:1px solid '+(inMerge?'var(--blue)':hasCut?'var(--amber)':'var(--brd)')+';border-radius:8px;padding:10px 12px;margin-bottom:8px;background:'+(inMerge?'var(--blue-pale)':hasCut?'rgba(251,191,36,.06)':'var(--bg)')+'">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">'
-      +'<div style="flex:1;min-width:200px">'
-      +'<div style="font-size:13px;font-weight:500;margin-bottom:3px">'+$d(e.date)+' — <span style="color:var(--ink2)">'+H(e.description||'No description')+'</span></div>'
-      +'<div style="font-size:12px;color:var(--ink3)">'+$h(origH)+' @ '+$m(e.rate)+'/hr &nbsp;·&nbsp; '+H(e.createdBy||'')+'</div>'
-      +'</div>'
-      +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'
-      +'<label style="font-size:12px;color:var(--ink3)">Hours:</label>'
-      +'<div style="display:flex;align-items:center;gap:4px">'
-      +(hasCut?'<span style="font-size:11px;text-decoration:line-through;color:var(--red)">'+origH+'</span>':'')
-      +'<input type="number" value="'+cutH+'" min="0" max="'+origH+'" step="0.01" style="width:68px;padding:4px 6px;border:1px solid var(--brd);border-radius:5px;font-size:13px;background:var(--bg)" onchange="A.invRevCut('+eid+',this.value)">'
-      +'</div>'
-      +'<span style="font-size:13px;font-weight:600;color:var(--green);min-width:60px;text-align:right">'+$m(amt)+'</span>'
-      +'</div></div>'
-      +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">'
-      +'<input type="text" placeholder="Reviewer comment (optional)..." value="'+cmtVal+'" style="flex:1;min-width:160px;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:5px;background:var(--bg)" onchange="A.invRevComment('+eid+',this.value)">'
-      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 8px;gap:3px" onclick="A.invRevTogMerge('+eid+')" title="'+(inMerge?'Remove from merge group':'Add to merge group')+'">'
-        +IC.merge+(inMerge?' ✓ In Merge':'Merge')+'</button>'
-      +(hasCut?'<button class="btn btn-gh" style="font-size:11px;padding:4px 8px" onclick="A.invRevCut('+eid+','+origH+')">Restore</button>':'')
-      +'</div>'
-      +'</div>';
-  }).join('');
-
-  // Merged entry groups
-  var mergedRows=existingMerged.map(function(mg,mi){
-    return '<div style="border:1px solid var(--blue);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--blue-pale)">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
-      +'<span style="font-size:12px;font-weight:600;color:var(--blue)">'+IC.merge+' Merged Entry ('+mg.entryIds.length+' combined)</span>'
-      +'<button class="btn btn-rd" style="font-size:11px;padding:3px 8px" onclick="A.invRevUnmerge('+mi+')">Unmerge</button>'
-      +'</div>'
-      +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
-      +'<div style="flex:1"><input type="text" value="'+H(mg.description||'')+'" placeholder="Merged entry description" style="width:100%;font-size:13px;padding:5px 8px;border:1px solid var(--brd);border-radius:5px;background:var(--bg)" onchange="A.invRevMergeDesc('+mi+',this.value)"></div>'
-      +'<div style="display:flex;gap:6px;align-items:center">'
-      +'<input type="number" value="'+mg.hours+'" min="0" step="0.01" style="width:68px;padding:4px 6px;border:1px solid var(--brd);border-radius:5px;font-size:13px;background:var(--bg)" onchange="A.invRevMergeHours('+mi+',this.value)">'
-      +'<span style="font-size:12px;color:var(--ink3)">hrs @ '+$m(mg.rate)+'</span>'
-      +'<span style="font-size:13px;font-weight:600;color:var(--green)">'+$m(Number(mg.hours)*Number(mg.rate))+'</span>'
-      +'</div></div>'
-      +'<div style="margin-top:4px;font-size:11px;color:var(--ink3)">Includes: '+mg.entryIds.map(function(eid){var e=_lu.en[eid];return e?$d(e.date)+' '+$h(e.hours):'?';}).join(', ')+'</div>'
-      +'</div>';
-  }).join('');
-
-  var pendingMergeTotal=pendingMerge.reduce(function(s,eid){
-    var e=_lu.en[eid];
-    var h=cuts[eid]!=null?Number(cuts[eid]):e?Number(e.hours):0;
-    return s+h;
-  },0);
-  var pendingMergeRate=pendingMerge.length>0?(function(){
-    var e=_lu.en[pendingMerge[0]];return e?Number(e.rate||0):0;
-  })():0;
-
-  var mergePanel=pendingMerge.length>0
-    ?'<div style="background:var(--blue-pale);border:1px solid var(--blue);border-radius:8px;padding:10px 12px;margin-bottom:12px">'
-      +'<div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:8px">'+IC.merge+' Merge '+pendingMerge.length+' selected entries → single line item</div>'
-      +'<input type="text" id="merge-desc" placeholder="Combined description..." style="width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--brd);border-radius:5px;background:var(--bg);margin-bottom:6px">'
-      +'<div style="display:flex;gap:8px;align-items:center">'
-      +'<span style="font-size:12px;color:var(--ink3)">Total hrs: '+pendingMergeTotal.toFixed(2)+' @ '+$m(pendingMergeRate)+'/hr</span>'
-      +'<button class="btn btn-dk" style="font-size:12px;padding:4px 12px;margin-left:auto" onclick="A.invRevCommitMerge()">'+IC.merge+' Commit Merge</button>'
-      +'<button class="btn btn-gh" style="font-size:12px;padding:4px 8px" onclick="A.invRevClearMerge()">Clear</button>'
-      +'</div></div>'
-    :'';
-
-  // Invoice-level comments
-  var invComments=rev.invoiceComment||'';
-  var savedComments=(inv.comments||[]).map(function(c){
-    return '<div style="padding:6px 10px;background:var(--bg2);border-radius:6px;margin-bottom:4px;font-size:12px">'
-      +'<strong>'+H(c.by)+'</strong> <span style="color:var(--ink3)">'+$d(c.at)+'</span>'
-      +'<div style="margin-top:3px;color:var(--ink2)">'+H(c.text)+'</div>'
-      +'</div>';
-  }).join('');
-
-  var newTotal=invTotal(Object.assign({},inv,{cuts:cuts,mergedEntries:inv.mergedEntries||[]}));
-
-  return '<div class="ov"><div class="modal modal-lg" style="max-height:92vh;display:flex;flex-direction:column">'
-    +'<div class="modal-hd"><h2>'+IC.shield+' Review Invoice #'+H(inv.number||inv.id)+'</h2>'
-    +'<button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
-    +'<div class="modal-bd" style="overflow-y:auto;flex:1">'
-    +'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">'
-    +'<div style="flex:1;min-width:200px;background:var(--bg2);padding:10px 14px;border-radius:8px">'
-    +'<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em">Client</div>'
-    +'<div style="font-weight:600">'+H(cl.name)+'</div>'
-    +(mt?'<div style="font-size:12px;color:var(--ink2)">'+H(mt.name)+'</div>':'')+'</div>'
-    +'<div style="flex:1;min-width:180px;background:var(--bg2);padding:10px 14px;border-radius:8px">'
-    +'<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em">Invoice Total</div>'
-    +'<div style="font-weight:700;font-size:1.4rem;color:var(--green)">'+$m(newTotal)+'</div>'
-    +'<div style="font-size:11px;color:var(--ink3)">'+(inv.entryIds||[]).length+' entries</div></div>'
-    +'</div>'
-
-    +'<h4 style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">Time Entries — Cut / Comment / Merge</h4>'
-    +mergePanel
-    +(existingMerged.length?'<div style="margin-bottom:8px">'+mergedRows+'</div>':'')
-    +entryRows
-
-    +'<div style="margin-top:16px;border-top:1px solid var(--brd);padding-top:14px">'
-    +'<h4 style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:8px">'+IC.comment+' Invoice Comments</h4>'
-    +(savedComments||'')
-    +'<div style="display:flex;gap:8px;margin-top:8px">'
-    +'<input type="text" id="inv-comment-inp" placeholder="Add a review comment..." style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--brd);border-radius:6px;background:var(--bg)">'
-    +'<button class="btn btn-gh" onclick="A.invRevAddComment()">'+IC.comment+' Add</button>'
-    +'</div></div>'
-    +'</div>'
-    +'<div class="modal-ft">'
-    +'<button class="btn btn-gh" onclick="A.closeM()">Cancel</button>'
-    +'<button class="btn btn-gh" style="gap:5px" onclick="A.emailEntries(\'billing_staff\')" title="Email review summary to the billing attorney">'+IC.mail+' Email Summary</button>'
-    +'<button class="btn btn-rd" onclick="A.invRevReject()">Reject</button>'
-    +'<button class="btn btn-dk" onclick="A.invRevSave()">'+IC.save+' Save &amp; Close</button>'
-    +'<button class="btn btn-gr" onclick="A.invRevApprove()">'+IC.check+' Approve Invoice</button>'
     +'</div></div></div>';
 }
 
@@ -2909,8 +2739,7 @@ function buildInvoicePrint(){
     +'<div style="max-width:820px;margin:20px auto;box-shadow:0 4px 24px rgba(0,0,0,.15)">'+html+'</div>'
     +'</div>'
     +'<div class="modal-ft">'
-    +(inv.status!=='sent'&&myRole()==='partner'?'<button class="btn btn-dk" onclick="A.invOpenReview('+inv.id+'); A.closeM()">'+IC.shield+' Review</button>':'')
-    +(myRole()!=='partner'&&(inv.status==='draft'||inv.status==='review')?'<button class="btn btn-gh" onclick="A.emailEntries(\'partner_approval\')" style="gap:5px">'+IC.mail+' Email for Approval</button>':'')
+    +(inv.status!=='sent'&&inv.status!=='approved'?'<button class="btn btn-gr" style="gap:5px" onclick="A.invMarkSent('+inv.id+'); A.closeM()">'+IC.send+' Mark Sent</button>':'')
     +'<button class="btn btn-gh" onclick="A.closeM()">Close</button>'
     +'<button class="btn btn-gh" onclick="A.emailInvoice('+inv.id+')" style="gap:5px">'+IC.mail+' Email to Client</button>'
     +'<button class="btn btn-gr" onclick="A.invDoPrint()">'+IC.print+' Print / Save PDF</button>'
@@ -3233,14 +3062,11 @@ function buildHelp(){
       +'<p>One contact is marked as the current user. Their rate history is used for your own entries when no client/matter-specific rate applies.</p>',
 
     invoices:'<h3>Invoices</h3>'
-      +'<p>The Invoices tab (visible to Partners and Billing Staff) lets you create, review, print, and email invoices built from approved time entries.</p>'
-      +'<h4>Creating an Invoice</h4>'
-      +'<ol><li>Approved entries for a client accumulate in the Invoices tab</li>'
-      +'<li>Click <strong>+ New Invoice</strong>, select the client and date range, fill firm details</li>'
-      +'<li>Review the line items — you can add notes and override the invoice number</li>'
-      +'<li>Set status to <strong>Approved</strong> to finalise</li></ol>'
-      +'<h4>Partner Review</h4>'
-      +'<p>In the <strong>Approvals</strong> tab (Partners only), each submitted entry can be approved as-is, have its hours reduced, or have its description edited. Approved entries unlock for invoicing.</p>'
+      +'<p>The Invoices tab lets you create, print, and send invoices built from approved time entries. There is no invoice-level approval — approval applies to <strong>time entries only</strong> in the Approvals tab.</p>'
+      +'<h4>Invoice Workflow</h4>'
+      +'<ol><li>Approve time entries in the <strong>Approvals</strong> tab first</li>'
+      +'<li>Click <strong>+ New Invoice</strong>, select a client, and check off the approved entries to include</li>'
+      +'<li>Preview with 🖨, email the invoice to the client with 📧, then click <strong>Mark Sent</strong></li></ol>'
       +'<h4>Print &amp; Email</h4>'
       +'<p>Use the 🖨 icon to open a printable invoice preview. Use the 📧 icon to send via your default email client with the invoice details pre-filled.</p>'
       +'<h4>Email Presets</h4>'
@@ -5266,7 +5092,6 @@ function render(){
     else if(ST.modal==='profileImport') overlays=buildProfileImport();
     else if(ST.modal==='userSelect') overlays=buildITUserSelect();
     else if(ST.modal==='invForm') overlays=buildInvoiceForm();
-    else if(ST.modal==='invReview') overlays=buildInvoiceReview();
     else if(ST.modal==='invPrint') overlays=buildInvoicePrint();
     else if(ST.modal==='pref') overlays=buildPartnerReview();
     else if(ST.modal==='workflowImport') overlays=buildWorkflowImportPreview();
@@ -7572,176 +7397,7 @@ tableRows,
     setTimeout(function(){ w.print(); },300);
   },
 
-  invOpenReview:function(id){
-    var inv=ST.invoices.find(function(i){return i.id==id;});
-    if(!inv) return;
-    // Initialize review state from saved cuts
-    ST.invRev={
-      invoiceId:id,
-      cuts:Object.assign({},inv.cuts||{}),
-      comments:{},
-      pendingMerge:[],
-      invoiceComment:''
-    };
-    ST.modal='invReview'; render();
-  },
 
-  invRevCut:function(eid,val){
-    var rev=ST.invRev;
-    var e=ST.entries.find(function(x){return x.id==eid;});
-    if(!e) return;
-    var h=Math.max(0,Math.min(Number(val)||0,Number(e.hours)));
-    rev.cuts[eid]=h;
-    // Update the input directly for smooth UX, then re-render totals
-    render();
-  },
-
-  invRevComment:function(eid,val){
-    ST.invRev.comments[eid]=val;
-  },
-
-  invRevTogMerge:function(eid){
-    var arr=ST.invRev.pendingMerge||[];
-    var idx=arr.indexOf(eid);
-    if(idx===-1){ ST.invRev.pendingMerge=arr.concat([eid]); }
-    else { ST.invRev.pendingMerge=arr.filter(function(id){return id!==eid;}); }
-    render();
-  },
-
-  invRevCommitMerge:function(){
-    var rev=ST.invRev;
-    var ids=rev.pendingMerge||[];
-    if(ids.length<2){ toast('Select 2+ entries to merge','warn'); return; }
-    var descEl=document.getElementById('merge-desc');
-    var desc=descEl?descEl.value.trim():'';
-    if(!desc){ toast('Enter a description for the merged entry','warn'); return; }
-    // Compute merged hours/rate (sum hours, use rate of first entry)
-    var totalH=0,rate=0;
-    ids.forEach(function(eid){
-      var e=ST.entries.find(function(x){return x.id==eid;});
-      if(!e) return;
-      var h=rev.cuts[eid]!=null?Number(rev.cuts[eid]):Number(e.hours);
-      totalH+=h;
-      if(!rate) rate=Number(e.rate||0);
-    });
-    var inv=ST.invoices.find(function(i){return i.id==rev.invoiceId;});
-    var mg={id:uid(),description:desc,hours:totalH.toFixed(2),rate:rate,entryIds:ids.slice()};
-    var newMerged=(inv.mergedEntries||[]).concat([mg]);
-    var mergedInv;
-    ST.invoices=ST.invoices.map(function(i){if(i.id==rev.invoiceId){mergedInv=Object.assign({},i,{mergedEntries:newMerged});return mergedInv;}return i;});
-    if(mergedInv) saveOne('invoices',mergedInv);
-    rev.pendingMerge=[];
-    toast('Entries merged'); render();
-  },
-
-  invRevClearMerge:function(){
-    ST.invRev.pendingMerge=[];
-    render();
-  },
-
-  invRevUnmerge:function(mi){
-    var rev=ST.invRev;
-    var inv=ST.invoices.find(function(i){return i.id==rev.invoiceId;});
-    if(!inv) return;
-    var newMerged=(inv.mergedEntries||[]).filter(function(_,idx){return idx!==mi;});
-    var unmergedInv;
-    ST.invoices=ST.invoices.map(function(i){if(i.id==rev.invoiceId){unmergedInv=Object.assign({},i,{mergedEntries:newMerged});return unmergedInv;}return i;});
-    if(unmergedInv) saveOne('invoices',unmergedInv);
-    toast('Unmerged','warn'); render();
-  },
-
-  invRevMergeDesc:function(mi,val){
-    var inv=ST.invoices.find(function(i){return i.id==ST.invRev.invoiceId;});
-    if(!inv||!inv.mergedEntries[mi]) return;
-    inv.mergedEntries[mi].description=val;
-    saveOne('invoices',inv);
-  },
-
-  invRevMergeHours:function(mi,val){
-    var inv=ST.invoices.find(function(i){return i.id==ST.invRev.invoiceId;});
-    if(!inv||!inv.mergedEntries[mi]) return;
-    inv.mergedEntries[mi].hours=String(Math.max(0,Number(val)||0));
-    saveOne('invoices',inv); render();
-  },
-
-  invRevAddComment:function(){
-    var inp=document.getElementById('inv-comment-inp');
-    var text=inp?inp.value.trim():'';
-    if(!text){ toast('Enter a comment first','warn'); return; }
-    var rev=ST.invRev;
-    var inv=ST.invoices.find(function(i){return i.id==rev.invoiceId;});
-    if(!inv) return;
-    var cmt={id:uid(),by:ST.user?ST.user.name:'Unknown',at:today(),text:text};
-    var newComments=(inv.comments||[]).concat([cmt]);
-    var commentedInv;
-    ST.invoices=ST.invoices.map(function(i){if(i.id==rev.invoiceId){commentedInv=Object.assign({},i,{comments:newComments});return commentedInv;}return i;});
-    if(commentedInv) saveOne('invoices',commentedInv);
-    toast('Comment added'); render();
-  },
-
-  invRevSave:function(andClose){
-    var rev=ST.invRev;
-    var inv=ST.invoices.find(function(i){return i.id==rev.invoiceId;});
-    if(!inv) return false;
-    // Apply entry-level comments as invoice comments if any
-    var entryComments=Object.keys(rev.comments||{}).filter(function(eid){
-      return (rev.comments[eid]||'').trim();
-    }).map(function(eid){
-      var e=ST.entries.find(function(x){return x.id==eid;});
-      return {id:uid(),by:ST.user?ST.user.name:'Reviewer',at:today(),entryId:Number(eid),
-        text:'['+$d(e?e.date:'')+'] '+rev.comments[eid],entryRef:true};
-    });
-    var newComments=(inv.comments||[]).concat(entryComments);
-    var savedInv;
-    ST.invoices=ST.invoices.map(function(i){
-      if(i.id==rev.invoiceId){savedInv=Object.assign({},i,{cuts:rev.cuts,comments:newComments,updatedAt:Date.now()});return savedInv;}
-      return i;
-    });
-    if(savedInv) saveOne('invoices',savedInv);
-    if(andClose!==false){ toast('Review saved'); A.closeM(); }
-    return true;
-  },
-
-  invRevApprove:function(){
-    // Save cuts/comments without closing, then approve in same pass
-    var saved=A.invRevSave(false);
-    if(!saved) return;SixMinuteLog.com
-    var id=ST.invRev.invoiceId;
-    var approvedInv;
-    ST.invoices=ST.invoices.map(function(i){
-      if(i.id==id){approvedInv=Object.assign({},i,{status:'approved',approvedBy:ST.user?ST.user.name:'',approvedAt:Date.now()});return approvedInv;}
-      return i;
-    });
-    if(approvedInv) saveOne('invoices',approvedInv);
-    toast('Invoice approved!','ok');
-    ST.modal=null;
-    render();
-  },
-
-  invRevReject:function(){
-    var reason=prompt('Reason for rejection (optional):');
-    if(reason===null) return;
-    var id=ST.invRev.invoiceId;
-    var cmt={id:uid(),by:ST.user?ST.user.name:'Reviewer',at:today(),
-      text:'REJECTED'+(reason?' — '+reason:''),type:'rejection'};
-    var updatedInv;
-    ST.invoices=ST.invoices.map(function(i){
-      if(i.id==id){updatedInv=Object.assign({},i,{status:'draft',comments:(i.comments||[]).concat([cmt])});return updatedInv;}
-      return i;
-    });
-    if(updatedInv) saveOne('invoices',updatedInv);
-    toast('Invoice returned to draft','warn'); A.closeM();
-  },
-
-  invSendForReview:function(id){
-    var updatedInv;
-    ST.invoices=ST.invoices.map(function(i){
-      if(i.id==id){updatedInv=Object.assign({},i,{status:'review',updatedAt:Date.now()});return updatedInv;}
-      return i;
-    });
-    if(updatedInv) saveOne('invoices',updatedInv);
-    toast('Invoice sent for partner review','ok'); render();
-  },
 
   invMarkSent:function(id){
     var updatedInv;
