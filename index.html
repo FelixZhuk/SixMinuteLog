@@ -8311,9 +8311,11 @@ document.addEventListener('keydown',function(e){
   _claimLock();
   if(_bc){
     _bc.onmessage=function(ev){
-      // Another tab sent 'takeover' — stop our heartbeat so we don't fight
+      // Another tab sent 'takeover' — stop our heartbeat AND self-lock this tab
       if(ev&&ev.data&&ev.data.type==='takeover'){
         clearInterval(_hbTimer); _hbTimer=null;
+        // Show the lock overlay on this (now-demoted) tab so it can't write to IDB
+        _showOverlay();
       }
     };
   }
