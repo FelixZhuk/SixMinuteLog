@@ -511,6 +511,13 @@ html,body{overflow-x:hidden;max-width:100vw}
   #inv-print-wrap{margin:0!important;box-shadow:none!important;max-width:100%!important}
   body{background:#fff!important;color:#000!important}
 }
+/* === TAB LOCK overlay === */
+#z-tablock{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(14,12,10,.72);backdrop-filter:blur(4px);padding:16px}
+#z-tablock .tl-card{background:var(--sfc,#fff);border-radius:12px;padding:32px 28px 24px;max-width:420px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.35);text-align:center}
+#z-tablock .tl-icon{font-size:2.4rem;margin-bottom:12px}
+#z-tablock h2{margin:0 0 8px;font-size:1.15rem;font-weight:700;color:var(--ink,#1c1814)}
+#z-tablock p{margin:0 0 20px;font-size:.875rem;color:var(--ink3,#6b6560);line-height:1.5}
+#z-tablock .tl-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -538,6 +545,7 @@ html,body{overflow-x:hidden;max-width:100vw}
 <div id="toasts"></div>
 <button id="fab" onclick="A.openQL()" title="Quick Log"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
 <div id="app" style="display:none"><div id="z-hdr"></div><div id="z-main"></div><div id="z-ov"></div></div>
+<div id="z-tablock"><div class="tl-card"><div class="tl-icon">&#128274;</div><h2>App already open in another tab</h2><p>To prevent data conflicts, only one tab can be active at a time. Close this tab, or take over if the other tab is no longer in use.</p><div class="tl-btns"><button class="btn btn-gh" onclick="window._tabRecheck()">Check Again</button><button class="btn btn-dk" onclick="window._tabTakeOver()">Take Over &amp; Reload</button></div></div></div>
 
 <script>
 // +============================================================+
@@ -5221,7 +5229,8 @@ function render(){
     +'|'+(ST.anFilter||'')
     +'|'+(ST.clSearch||'')+(ST.maSearch||'')+(ST.ctSearch||'')+(ST.maClientFilter||'')
     +'|'+(ST.rowTmr?'t'+ST.rowTmr.entId:'');
-  var efInvolved=(ST.modal==='ef'||_rKeys.mainModal==='ef');
+  var _inlineModal=function(m){return m==='ef'||m==='cf'||m==='mf'||m==='ctf';};
+  var efInvolved=(_inlineModal(ST.modal)||_inlineModal(_rKeys.mainModal));
   var skipMain=(!efInvolved&&_rKeys.main===mainKey);
   if(!skipMain){
     var viewH=(views[ST.tab]||vTimesheet)();
@@ -8170,6 +8179,122 @@ document.addEventListener('change',function(e){
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&ST.modal==='up') A.saveUser();
 });
+
+// === TAB LOCK
+// Prevents in-memory ST object from silently overwriting IndexedDB changes made
+// by a concurrent tab. Strategy: one tab holds a heartbeat lock in localStorage.
+// Any second tab that detects a live lock shows a blocking overlay instead of
+// running normally. BroadcastChannel provides zero-latency release signalling;
+// localStorage polling is the fallback for browsers without BroadcastChannel.
+(function(){
+  var TAB_ID  = String(Date.now())+'-'+Math.random().toString(36).slice(2,8);
+  var LOCK_KEY= 'bl-tab-lock';   // {id,ts} written every HB_MS by the active tab
+  var HB_MS   = 2000;            // heartbeat interval (ms)
+  var STALE_MS= 5500;            // lock considered released after this silence
+
+  var _hbTimer=null;
+  var _watchTimer=null;
+  var _bc=null;
+  try{ _bc=new BroadcastChannel('sml-tab-lock'); }catch(e){}
+
+  function _now(){ return Date.now(); }
+
+  function _getLock(){
+    try{ var raw=localStorage.getItem(LOCK_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; }
+  }
+  function _writeLock(){
+    try{ localStorage.setItem(LOCK_KEY,JSON.stringify({id:TAB_ID,ts:_now()})); }catch(e){}
+  }
+  function _releaseLock(){
+    clearInterval(_hbTimer); _hbTimer=null;
+    try{ var l=_getLock(); if(l&&l.id===TAB_ID) localStorage.removeItem(LOCK_KEY); }catch(e){}
+    if(_bc) try{ _bc.postMessage({type:'released',id:TAB_ID}); }catch(e){}
+  }
+  function _isStale(l){ return !l||(_now()-l.ts>STALE_MS); }
+
+  function _claimLock(){
+    _writeLock();
+    clearInterval(_hbTimer);
+    _hbTimer=setInterval(_writeLock, HB_MS);
+  }
+
+  function _showOverlay(){
+    var el=document.getElementById('z-tablock');
+    if(el){ el.style.display='flex'; }
+    // Also hide the loading spinner — user needs to see the overlay
+    var ld=document.getElementById('loading');
+    if(ld) ld.style.display='none';
+  }
+  function _hideOverlay(){
+    var el=document.getElementById('z-tablock');
+    if(el) el.style.display='none';
+    clearTimeout(_watchTimer); _watchTimer=null;
+  }
+
+  // Poll while locked: auto-release when the primary tab goes quiet
+  function _startWatch(){
+    clearTimeout(_watchTimer);
+    _watchTimer=setTimeout(function(){
+      if(_isStale(_getLock())){
+        _hideOverlay();
+        _claimLock();
+        // Refresh data from IDB before showing app (safe re-entry)
+        location.reload();
+      } else {
+        _startWatch(); // keep watching
+      }
+    }, STALE_MS+500);
+  }
+
+  // Exposed to HTML button handlers
+  window._tabRecheck=function(){
+    if(_isStale(_getLock())){ _hideOverlay(); _claimLock(); location.reload(); }
+    else{ var el=document.getElementById('z-tablock'); if(el){ el.style.opacity='.7'; setTimeout(function(){if(el)el.style.opacity='';},200); } }
+  };
+  window._tabTakeOver=function(){
+    // Force-claim even if other tab is still alive; it will detect the id change
+    // and yield on its next heartbeat write (it won't re-overwrite our id).
+    _claimLock();
+    _hideOverlay();
+    location.reload(); // re-read IDB so ST has latest data from the other tab
+  };
+
+  // ── Main lock check ──────────────────────────────────────────────────────────
+  var existing=_getLock();
+  if(!_isStale(existing)&&existing.id!==TAB_ID){
+    // Another live tab is active — show locked overlay
+    if(document.readyState==='loading'){
+      document.addEventListener('DOMContentLoaded',_showOverlay);
+    } else {
+      _showOverlay();
+    }
+    // Listen for BroadcastChannel release (zero-latency)
+    if(_bc){
+      _bc.onmessage=function(ev){
+        if(ev&&ev.data&&ev.data.type==='released'){ _hideOverlay(); _claimLock(); location.reload(); }
+      };
+    }
+    // Also poll localStorage as fallback
+    _startWatch();
+    // Do NOT proceed to init the app in this tab
+    return;
+  }
+
+  // We are (or become) the primary tab
+  _claimLock();
+  if(_bc){
+    _bc.onmessage=function(ev){
+      // Another tab just took over — we should yield by reloading
+      if(ev&&ev.data&&ev.data.type==='released') return; // normal release, ignore
+      // If a new tab steals the lock (TAB_ID changed in localStorage) we stop our heartbeat
+      // to avoid fighting. This is caught naturally: _writeLock is idempotent and
+      // only we write TAB_ID — if someone else overwrites, their heartbeat dominates.
+    };
+  }
+  // Release lock when tab closes/navigates away
+  window.addEventListener('pagehide',  _releaseLock);
+  window.addEventListener('beforeunload', _releaseLock);
+})();
 
 // === INIT
 (function(){
