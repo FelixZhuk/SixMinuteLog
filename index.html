@@ -1519,8 +1519,9 @@ function vTimesheet(){
 
       // Actions
       var canEdit=false,canDelete=false;
+      var isOwnEntry=(e.createdBy===(ST.user?ST.user.name:''));
       if(role==='partner'){canEdit=true;canDelete=true;}
-      else if(role==='attorney'){canEdit=(est==='pending');canDelete=(est==='pending');}
+      else if(role==='attorney'){canEdit=isOwnEntry&&(est==='pending'||est==='rejected');canDelete=isOwnEntry&&(est==='pending'||est==='rejected');}
 
       var actionsH='<div class="tda">';
       if(canEdit)   actionsH+='<button onclick="A.editEnt('+e.id+')" title="Edit">'+IC.edit+'</button>';
@@ -5836,8 +5837,8 @@ var A={
     var me=ST.user?ST.user.name:'';
     var entSt=e.status||'approved';
     var role=myRole();
-    // Attorney: can only edit own pending entries
-    if(role==='attorney'&&(e.createdBy!==me||entSt!=='pending')){toast(entSt==='approved'?'Cannot edit approved entries':'Cannot edit rejected entries','warn');return;}
+    // Attorney: can only edit own pending or rejected entries (approved = locked for invoicing)
+    if(role==='attorney'&&(e.createdBy!==me||entSt==='approved')){toast('Cannot edit approved entries — contact your partner to adjust','warn');return;}
     // Partner: can edit own entries; cannot edit others' entries via this form (use Approvals)
     if(role==='partner'&&e.createdBy!==me&&entSt==='approved'){toast('Use the Approvals tab to adjust approved entries','warn');return;}
     // Billing staff: can edit any entry; pre-populate byContactId from existing createdBy match
