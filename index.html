@@ -8187,10 +8187,11 @@ document.addEventListener('keydown',function(e){
 // running normally. BroadcastChannel provides zero-latency release signalling;
 // localStorage polling is the fallback for browsers without BroadcastChannel.
 (function(){
-  var TAB_ID  = String(Date.now())+'-'+Math.random().toString(36).slice(2,8);
-  var LOCK_KEY= 'bl-tab-lock';   // {id,ts} written every HB_MS by the active tab
-  var HB_MS   = 2000;            // heartbeat interval (ms)
-  var STALE_MS= 5500;            // lock considered released after this silence
+  var TAB_ID   = String(Date.now())+'-'+Math.random().toString(36).slice(2,8);
+  var LOCK_KEY = 'bl-tab-lock';    // {id,ts} — heartbeat written every HB_MS
+  var CLAIM_KEY= 'bl-tab-claim';   // sessionStorage flag: this tab is taking over
+  var HB_MS    = 2000;             // heartbeat interval (ms)
+  var STALE_MS = 5500;             // lock expires after this silence
 
   var _hbTimer=null;
   var _watchTimer=null;
@@ -8220,8 +8221,7 @@ document.addEventListener('keydown',function(e){
 
   function _showOverlay(){
     var el=document.getElementById('z-tablock');
-    if(el){ el.style.display='flex'; }
-    // Also hide the loading spinner — user needs to see the overlay
+    if(el) el.style.display='flex';
     var ld=document.getElementById('loading');
     if(ld) ld.style.display='none';
   }
@@ -8231,68 +8231,93 @@ document.addEventListener('keydown',function(e){
     clearTimeout(_watchTimer); _watchTimer=null;
   }
 
-  // Poll while locked: auto-release when the primary tab goes quiet
+  // Poll while locked: auto-proceed when the primary tab goes quiet
   function _startWatch(){
     clearTimeout(_watchTimer);
     _watchTimer=setTimeout(function(){
       if(_isStale(_getLock())){
-        _hideOverlay();
+        // Primary tab gone — claim and reload fresh from IDB
+        try{ sessionStorage.setItem(CLAIM_KEY,'1'); }catch(e){}
         _claimLock();
-        // Refresh data from IDB before showing app (safe re-entry)
         location.reload();
       } else {
-        _startWatch(); // keep watching
+        _startWatch();
       }
     }, STALE_MS+500);
   }
 
-  // Exposed to HTML button handlers
+  // ── Button handlers (attached before lock-check so they always exist) ────────
   window._tabRecheck=function(){
-    if(_isStale(_getLock())){ _hideOverlay(); _claimLock(); location.reload(); }
-    else{ var el=document.getElementById('z-tablock'); if(el){ el.style.opacity='.7'; setTimeout(function(){if(el)el.style.opacity='';},200); } }
+    if(_isStale(_getLock())){
+      try{ sessionStorage.setItem(CLAIM_KEY,'1'); }catch(e){}
+      _claimLock();
+      location.reload();
+    } else {
+      // Visual nudge — nothing changed
+      var el=document.getElementById('z-tablock');
+      if(el){ el.style.opacity='.6'; setTimeout(function(){if(el)el.style.opacity='';},250); }
+    }
   };
   window._tabTakeOver=function(){
-    // Force-claim even if other tab is still alive; it will detect the id change
-    // and yield on its next heartbeat write (it won't re-overwrite our id).
-    _claimLock();
-    _hideOverlay();
-    location.reload(); // re-read IDB so ST has latest data from the other tab
+    // Signal to BroadcastChannel peers that they should yield
+    if(_bc) try{ _bc.postMessage({type:'takeover'}); }catch(e){}
+    // Forcibly remove the current lock so our reload sees no live lock
+    try{ localStorage.removeItem(LOCK_KEY); }catch(e){}
+    // sessionStorage survives location.reload() — tells this tab to skip the
+    // lock check on the next load and claim immediately
+    try{ sessionStorage.setItem(CLAIM_KEY,'1'); }catch(e){}
+    location.reload();
   };
 
-  // ── Main lock check ──────────────────────────────────────────────────────────
+  // ── Main lock check ───────────────────────────────────────────────────────────
+  // If sessionStorage flag is set, this is a post-takeover or post-watch reload:
+  // skip the lock check entirely and claim the lock as the new primary tab.
+  var isClaiming=false;
+  try{ isClaiming=!!sessionStorage.getItem(CLAIM_KEY); }catch(e){}
+  if(isClaiming){
+    try{ sessionStorage.removeItem(CLAIM_KEY); }catch(e){}
+    _claimLock();
+    window.addEventListener('pagehide', _releaseLock);
+    window.addEventListener('beforeunload', _releaseLock);
+    return; // fall through to INIT normally
+  }
+
   var existing=_getLock();
   if(!_isStale(existing)&&existing.id!==TAB_ID){
-    // Another live tab is active — show locked overlay
+    // Another live tab holds the lock — show blocking overlay
     if(document.readyState==='loading'){
       document.addEventListener('DOMContentLoaded',_showOverlay);
     } else {
       _showOverlay();
     }
-    // Listen for BroadcastChannel release (zero-latency)
+    // BroadcastChannel: zero-latency signals from the primary tab
     if(_bc){
       _bc.onmessage=function(ev){
-        if(ev&&ev.data&&ev.data.type==='released'){ _hideOverlay(); _claimLock(); location.reload(); }
+        if(!ev||!ev.data) return;
+        if(ev.data.type==='released'||ev.data.type==='takeover'){
+          // Primary tab released or is being superseded — this tab can proceed
+          clearTimeout(_watchTimer);
+          try{ sessionStorage.setItem(CLAIM_KEY,'1'); }catch(e){}
+          _claimLock();
+          location.reload();
+        }
       };
     }
-    // Also poll localStorage as fallback
     _startWatch();
-    // Do NOT proceed to init the app in this tab
-    return;
+    return; // do NOT run INIT
   }
 
-  // We are (or become) the primary tab
+  // This tab is already the rightful primary (first open, or lock was stale)
   _claimLock();
   if(_bc){
     _bc.onmessage=function(ev){
-      // Another tab just took over — we should yield by reloading
-      if(ev&&ev.data&&ev.data.type==='released') return; // normal release, ignore
-      // If a new tab steals the lock (TAB_ID changed in localStorage) we stop our heartbeat
-      // to avoid fighting. This is caught naturally: _writeLock is idempotent and
-      // only we write TAB_ID — if someone else overwrites, their heartbeat dominates.
+      // Another tab sent 'takeover' — stop our heartbeat so we don't fight
+      if(ev&&ev.data&&ev.data.type==='takeover'){
+        clearInterval(_hbTimer); _hbTimer=null;
+      }
     };
   }
-  // Release lock when tab closes/navigates away
-  window.addEventListener('pagehide',  _releaseLock);
+  window.addEventListener('pagehide', _releaseLock);
   window.addEventListener('beforeunload', _releaseLock);
 })();
 
