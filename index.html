@@ -3,66 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%226%22%20fill%3D%22%231d4ed8%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2211%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%231e3a8a%22%20stroke-width%3D%221%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%227.5%22%20x2%3D%2216%22%20y2%3D%225.5%22%20stroke%3D%22%231e3a8a%22%20stroke-width%3D%222.2%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2224.5%22%20y1%3D%2216%22%20x2%3D%2226.5%22%20y2%3D%2216%22%20stroke%3D%22%2393c5fd%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%2224.5%22%20x2%3D%2216%22%20y2%3D%2226.5%22%20stroke%3D%22%2393c5fd%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%227.5%22%20y1%3D%2216%22%20x2%3D%225.5%22%20y2%3D%2216%22%20stroke%3D%22%2393c5fd%22%20stroke-width%3D%221.2%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%2216%22%20x2%3D%2211.2%22%20y2%3D%2213.2%22%20stroke%3D%22%231e3a8a%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%2216%22%20x2%3D%2222.9%22%20y2%3D%2212.0%22%20stroke%3D%22%231e3a8a%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%221.8%22%20fill%3D%22%231e3a8a%22%2F%3E%3C%2Fsvg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%232560D0%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2211%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%228%22%20x2%3D%2216%22%20y2%3D%2216%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%2216%22%20x2%3D%2222%22%20y2%3D%2212.5%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%222%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E">
 <title>SixMinuteLog.com</title>
 <style>
 :root{
-  --bg:#f8fafc;--white:#fff;--border:#e2e8f0;--border-l:#f1f5f9;
-  --ink:#0f172a;--ink2:#475569;--ink3:#94a3b8;
-  --green:#16a34a;--blue:#2563eb;--red:#dc2626;--amber:#d97706;--purple:#7c3aed;
-  --r:10px;--sh:0 1px 3px rgba(0,0,0,.1);--sh-lg:0 10px 30px rgba(0,0,0,.18);
+  --bg:#F0F4F9;--white:#FFFFFF;--border:#C8D6E5;--border-l:#DDE8F4;
+  --ink:#172038;--ink2:#3F5878;--ink3:#7A9BB8;
+  --green:#1A9060;--blue:#2560D0;--red:#C83030;--amber:#C07820;--purple:#5838B8;
+  --gold:#2560D0;
+  --r:9px;--sh:0 1px 4px rgba(28,24,20,.09),0 0 0 1px rgba(28,24,20,.03);--sh-lg:0 12px 36px rgba(28,24,20,.16),0 0 0 1px rgba(28,24,20,.04);
   /* Layout sizing */
   --space-sm:14px;--space-md:20px;--space-lg:24px;
   --card-pad:18px;--fbox-pad:22px;--field-pad:9px 13px;
   /* Shorthand aliases */
-  --brd:#e2e8f0;--bg2:#f1f5f9;--blue-pale:#eff6ff;
+  --brd:#C8D6E5;--bg2:#DDE8F4;--blue-pale:#EBF2FB;
 }
 
 /* == Dark Mode == */
 body.dark{
-  --bg:#0f172a;--white:#1e293b;--border:#334155;--border-l:#1e293b;
-  --ink:#f1f5f9;--ink2:#94a3b8;--ink3:#475569;
-  --green:#22c55e;--blue:#3b82f6;--red:#ef4444;--amber:#f59e0b;--purple:#a78bfa;
-  --sh:0 1px 3px rgba(0,0,0,.4);--sh-lg:0 10px 30px rgba(0,0,0,.6);
-  --brd:#334155;--bg2:#1e293b;--blue-pale:#172554;
+  --bg:#0D1522;--white:#162035;--border:#223348;--border-l:#1A2A40;
+  --ink:#D8E8F8;--ink2:#6888A8;--ink3:#3A5068;
+  --green:#28C87A;--blue:#4888F0;--red:#E04848;--amber:#F0A830;--purple:#7858E8;
+  --gold:#4888F0;
+  --sh:0 1px 4px rgba(0,0,0,.5);--sh-lg:0 12px 36px rgba(0,0,0,.65);
+  --brd:#223348;--bg2:#1A2A40;--blue-pale:#182038;
 }
-body.dark .header{background:#1e293b}
-body.dark .fbox{background:#1e2d40}
-body.dark .fl input,body.dark .fl select,body.dark .fl textarea{background:#0f172a;color:var(--ink)}
-body.dark .fl input.err,body.dark .fl select.err{background:#300}
+body.dark .header{background:#122030;border-color:#1E3048}
+body.dark .fbox{background:#122030}
+body.dark .fl input,body.dark .fl select,body.dark .fl textarea{background:#0D1522;color:var(--ink)}
+body.dark .fl input.err,body.dark .fl select.err{background:#2A1010}
 body.dark .btn-gh{background:var(--white);color:var(--ink)}
-body.dark .btn-gh:hover{background:#2d3f55}
-body.dark .btn-ic{background:#263347;color:var(--ink);border-color:#3d5068}
-body.dark .btn-ic:hover{background:#2d3f55}
-body.dark .btn-dk{background:#3b82f6;color:#fff;border-color:#3b82f6}
-body.dark .btn-dk:hover{background:#2563eb;border-color:#2563eb}
-body.dark .btn-gr{background:#16a34a;color:#fff;border-color:#16a34a}
-body.dark .btn-rd{background:#dc2626;color:#fff;border-color:#dc2626}
-body.dark #fab{background:#3b82f6;color:#fff}
+body.dark .btn-gh:hover{background:#1E2C40}
+body.dark .btn-ic{background:#1A2C40;color:var(--ink);border-color:#2A3E58}
+body.dark .btn-ic:hover{background:#203448}
+body.dark .btn-dk{background:#4888F0;color:#fff;border-color:#4888F0}
+body.dark .btn-dk:hover{background:#3070D8;border-color:#3070D8}
+body.dark .btn-gr{background:#1A9060;color:#fff;border-color:#1A9060}
+body.dark .btn-rd{background:#C83030;color:#fff;border-color:#C83030}
+body.dark #fab{background:var(--gold);color:#fff}
 body.dark .sc{background:var(--white)}
 body.dark .twrap{background:var(--white)}
-body.dark thead tr{background:#162032}
-body.dark tr:hover td{background:#1a2b3f}
+body.dark thead tr{background:#0D1522}
+body.dark tr:hover td{background:#182540}
 body.dark .card{background:var(--white)}
 body.dark .preset-btn{background:var(--white)}
 body.dark .crow{background:var(--white)}
-body.dark .up-box{background:#1e293b}
-body.dark .exp-name-preview{background:#162032;color:var(--blue);border-color:#2563eb44}
-body.dark .danger{background:#300a0a;border-color:#7f1d1d}
-body.dark .note{background:#422006;border-color:#78350f;color:#fcd34d}
-body.dark .good{background:#052e16;border-color:#14532d;color:#4ade80}
-body.dark .role-notice{background:#1e2d4f;border-color:#2563eb44;color:#93c5fd}
-body.dark .total-pill{background:#052e16;border-color:#14532d;color:#4ade80}
+body.dark .up-box{background:#162035}
+body.dark .exp-name-preview{background:#132030;color:var(--blue);border-color:#4888F044}
+body.dark .danger{background:#251020;border-color:#581820}
+body.dark .note{background:#1E2808;border-color:#384808;color:#D0C060}
+body.dark .good{background:#082018;border-color:#104030;color:#40D880}
+body.dark .role-notice{background:#101830;border-color:#4888F044;color:#88B8F8}
+body.dark .total-pill{background:#082018;border-color:#104030;color:#40D880}
 body.dark .appr-panel{background:var(--white)}
 body.dark .help-body{color:var(--ink)}
 body.dark .help-nav button{color:var(--ink2)}
-body.dark .help-nav button.on{background:#162032;color:var(--ink)}
-body.dark #loading{background:#0f172a;color:var(--ink2)}
-body.dark .desc-chip{background:#162032;border-color:#334155;color:var(--ink2)}
-body.dark .desc-chip:hover{background:#1e3a5f;color:var(--ink)}
+body.dark .help-nav button.on{background:#132030;color:var(--ink)}
+body.dark #loading{background:#0D1522;color:var(--ink2)}
+body.dark .desc-chip{background:#132030;border-color:#223348;color:var(--ink2)}
+body.dark .desc-chip:hover{background:#182540;color:var(--ink)}
 body.dark .mail-preset-card{background:var(--white);border-color:var(--border)}
-body.dark select{background:#1e293b;color:var(--ink);border-color:var(--border)}
-body.dark .fab-tog{background:#334155}
+body.dark select{background:#162035;color:var(--ink);border-color:var(--border)}
+body.dark .fab-tog{background:#223348}
 
 /* == Layout Sizes == */
 body.layout-compact{--space-sm:10px;--space-md:14px;--space-lg:16px;--card-pad:12px;--fbox-pad:16px;--field-pad:7px 11px;font-size:13px}
@@ -101,7 +103,7 @@ body.layout-spacious .srow{gap:16px;margin-bottom:26px}
 .rate-section-hd small{font-size:11px;color:var(--ink3)}
 .rate-cur-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(22,163,74,.1);color:var(--green);border:1px solid rgba(22,163,74,.25)}
 body.dark .rate-hist-table th{background:var(--bg2)}
-body.dark .rate-hist-table input[type=date],body.dark .rate-hist-table input[type=number],body.dark .rate-hist-table input[type=text]{background:#0f172a;color:var(--ink)}
+body.dark .rate-hist-table input[type=date],body.dark .rate-hist-table input[type=number],body.dark .rate-hist-table input[type=text]{background:#0D1522;color:var(--ink)}
 
 .desc-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;margin-bottom:2px}
 .desc-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#f1f5f9;border:1px solid var(--border);border-radius:16px;font-size:11px;color:var(--ink2);cursor:pointer;transition:all .15s}
@@ -121,57 +123,63 @@ body.dark .rate-hist-table input[type=date],body.dark .rate-hist-table input[typ
 .preset-item button:hover{color:var(--red);background:#fef2f2}
 
 /* == Settings Tab Nav == */
-.set-tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--bg);padding:4px;border-radius:10px;flex-wrap:wrap}
-.set-tab{padding:7px 14px;border:none;background:transparent;border-radius:7px;font-size:12px;font-weight:500;color:var(--ink3);cursor:pointer;transition:all .15s;white-space:nowrap}
-.set-tab:hover{color:var(--ink)}
+.set-tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--bg2);padding:4px;border-radius:9px;flex-wrap:wrap}
+.set-tab{padding:7px 13px;border:none;background:transparent;border-radius:6px;font-size:12px;font-weight:500;color:var(--ink3);cursor:pointer;transition:all .12s;white-space:nowrap;letter-spacing:.01em}
+.set-tab:hover{color:var(--ink2)}
 .set-tab.on{background:var(--white);color:var(--ink);box-shadow:var(--sh)}
-body.dark .set-tabs{background:#162032}
-body.dark .set-tab.on{background:#1e293b}
-body.dark .avatar-dark{background:#3b82f6;color:#fff;font-size:1rem}
+body.dark .set-tabs{background:#0D1522}
+body.dark .set-tab.on{background:#162035}
+body.dark .avatar-dark{background:#4888F0;color:#fff;font-size:1rem}
 body.dark .nav-btn{color:var(--ink3)}
-body.dark .nav-btn:hover{color:var(--ink)}
-body.dark .nav-btn.on{color:var(--ink);border-bottom-color:var(--blue)}
+body.dark .nav-btn:hover{color:var(--ink2)}
+body.dark .nav-btn.on{color:var(--ink);border-bottom-color:var(--gold)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 input,select,textarea,button{font-family:inherit;font-size:14px}
 button{cursor:pointer}
 
 /* Layout */
-.header{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
-.header-inner{max-width:1200px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.logo{display:flex;align-items:center;gap:8px}
-.logo h1{font-size:1.15rem;font-weight:300;color:var(--ink)}
-.logo-sub{font-size:11px;color:var(--ink3);margin-top:1px}
+.header{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 1px 0 var(--border-l)}
+.header-inner{max-width:1200px;margin:0 auto;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:32px;height:32px;background:var(--blue);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(37,96,208,.35)}
+.logo-mark svg{color:#fff}
+.logo-text{}
+.logo h1{font-size:1.05rem;font-weight:700;color:var(--ink);letter-spacing:-.01em;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1}
+.logo-sub{font-size:10px;color:var(--ink3);margin-top:2px;letter-spacing:.04em;text-transform:uppercase}
 .header-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.nav{max-width:1200px;margin:0 auto;padding:0 12px;overflow-x:auto;display:flex}
+.nav{max-width:1200px;margin:0 auto;padding:0 16px;overflow-x:auto;display:flex;gap:2px}
 .nav::-webkit-scrollbar{display:none}
-.nav-btn{display:flex;align-items:center;gap:6px;padding:10px 14px;border:none;background:transparent;color:var(--ink3);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-size:13px;transition:all .15s}
-.nav-btn:hover{color:var(--ink)}.nav-btn.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+.nav-btn{display:flex;align-items:center;gap:5px;padding:9px 12px;border:none;background:transparent;color:var(--ink3);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-size:12.5px;font-weight:500;transition:color .12s;letter-spacing:.01em}
+.nav-btn:hover{color:var(--ink2)}.nav-btn.on{color:var(--ink);border-bottom-color:var(--gold);font-weight:600}
+body.dark .nav-btn{color:var(--ink3)}
+body.dark .nav-btn:hover{color:var(--ink2)}
+body.dark .nav-btn.on{color:var(--ink);border-bottom-color:var(--gold);font-weight:600}
 .main{max-width:1200px;margin:0 auto;padding:24px 20px}
 
 /* Buttons */
-.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;border:1px solid transparent;font-size:13px;font-weight:400;transition:opacity .15s,transform .1s;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:7px;border:1px solid transparent;font-size:12.5px;font-weight:500;transition:all .12s;white-space:nowrap;letter-spacing:.01em}
 .btn:active{transform:scale(.98)}
-.btn-dk{background:var(--ink);color:#fff;border-color:var(--ink)}.btn-dk:hover{opacity:.85}
-.btn-gr{background:var(--green);color:#fff;border-color:var(--green)}.btn-gr:hover{opacity:.85}
-.btn-bl{background:var(--blue);color:#fff;border-color:var(--blue)}.btn-bl:hover{opacity:.85}
-.btn-rd{background:var(--red);color:#fff;border-color:var(--red)}.btn-rd:hover{opacity:.85}
-.btn-gh{background:var(--white);color:var(--ink2);border-color:var(--border)}.btn-gh:hover{background:var(--bg)}
-.btn-ic{padding:8px;border-radius:8px;background:var(--white);border:1px solid var(--border);color:var(--ink2)}.btn-ic:hover{background:var(--bg)}
-.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-dk{background:var(--ink);color:#fff;border-color:var(--ink)}.btn-dk:hover{background:#2C2820;border-color:#2C2820}
+.btn-gr{background:var(--green);color:#fff;border-color:var(--green)}.btn-gr:hover{opacity:.88}
+.btn-bl{background:var(--blue);color:#fff;border-color:var(--blue)}.btn-bl:hover{opacity:.88}
+.btn-rd{background:var(--red);color:#fff;border-color:var(--red)}.btn-rd:hover{opacity:.88}
+.btn-gh{background:var(--white);color:var(--ink2);border-color:var(--border);box-shadow:0 1px 2px rgba(28,24,20,.06)}.btn-gh:hover{background:var(--bg);color:var(--ink)}
+.btn-ic{padding:7px;border-radius:7px;background:var(--white);border:1px solid var(--border);color:var(--ink2);box-shadow:0 1px 2px rgba(28,24,20,.06)}.btn-ic:hover{background:var(--bg);color:var(--ink)}
+.btn:disabled{opacity:.38;cursor:not-allowed}
 
 /* Forms */
-.fbox{background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px}
-.fbox h3{font-weight:400;font-size:1rem;margin-bottom:18px;color:var(--ink)}
+.fbox{background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:22px;margin-bottom:18px}
+.fbox h3{font-weight:600;font-size:.9rem;margin-bottom:18px;color:var(--ink);letter-spacing:-.01em}
 .frow{display:grid;gap:14px;margin-bottom:14px}
 .frow.c2{grid-template-columns:1fr 1fr}
 .frow.c3{grid-template-columns:1fr 1fr 1fr}
 @media(max-width:580px){.frow.c2,.frow.c3{grid-template-columns:1fr}}
-.fl label{display:block;font-size:12px;color:var(--ink2);margin-bottom:5px}
+.fl label{display:block;font-size:11.5px;color:var(--ink2);margin-bottom:5px;font-weight:500;letter-spacing:.01em}
 .fl label .req{color:var(--red);margin-left:2px}
-.fl input,.fl select,.fl textarea{width:100%;padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink);outline:none;transition:border .15s}
-.fl input:focus,.fl select:focus,.fl textarea:focus{border-color:#94a3b8}
-.fl input.err,.fl select.err{border-color:var(--red);background:#fef2f2}
+.fl input,.fl select,.fl textarea{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--white);color:var(--ink);outline:none;transition:border .12s}
+.fl input:focus,.fl select:focus,.fl textarea:focus{border-color:var(--ink3)}
+.fl input.err,.fl select.err{border-color:var(--red);background:#FEF5F4}
 .fl .hint{font-size:11px;color:var(--ink3);margin-top:4px}
 .fl .emsg{font-size:11px;color:var(--red);margin-top:4px}
 .fl .pw{position:relative}
@@ -183,92 +191,92 @@ button{cursor:pointer}
 
 /* Cards */
 .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}
 .card-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
-.avatar{width:42px;height:42px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:1px solid var(--border)}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:1rem;border:1px solid var(--border)}
 .card-act button{padding:5px;border:none;background:transparent;color:var(--ink3);border-radius:5px}
 .card-act button:hover{color:var(--ink);background:var(--bg)}
-.card h3{font-weight:500;font-size:.93rem;margin-bottom:3px}
+.card h3{font-weight:600;font-size:.88rem;margin-bottom:3px;letter-spacing:-.01em}
 .card p{font-size:12px;color:var(--ink2);margin-bottom:2px;line-height:1.5}
 .card-rate{margin-top:10px;padding-top:10px;border-top:1px solid var(--border-l);font-size:12px;color:var(--ink3)}
 .card-rate strong{color:var(--ink)}
-.chip{display:inline-block;font-size:11px;background:var(--bg);color:var(--ink2);padding:3px 9px;border-radius:20px;border:1px solid var(--border);margin-bottom:8px}
+.chip{display:inline-block;font-size:11px;background:var(--bg2);color:var(--ink2);padding:2px 8px;border-radius:20px;border:1px solid var(--border);margin-bottom:8px}
 .split-pill{display:inline-flex;gap:5px;font-size:11px;margin-top:6px}
-.split-pill .own{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:2px 8px;border-radius:12px}
-.split-pill .firm{background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:2px 8px;border-radius:12px}
+.split-pill .own{background:#EBF8F3;color:#0E6048;border:1px solid #A8DECE;padding:2px 8px;border-radius:12px}
+.split-pill .firm{background:#FEF8E8;color:#7A5010;border:1px solid #EACC70;padding:2px 8px;border-radius:12px}
 
 /* Roles & Approval Status */
-.status-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:500;white-space:nowrap}
-.s-pending{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
-.s-approved{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
-.s-review{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
-.s-neutral{background:var(--bg);color:var(--ink3);border:1px solid var(--border)}
-.s-rejected{background:#fef2f2;color:#dc2626;border:1px solid #fee2e2}
-.role-lbl{display:inline-flex;align-items:center;font-size:11px;padding:2px 9px;border-radius:12px;font-weight:500;border:1px solid}
-.rl-partner{background:#f5f3ff;color:#6d28d9;border-color:#ddd6fe}
-.rl-attorney{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
-.rl-billing{background:#f0fdf4;color:#166534;border-color:#bbf7d0}
-.appr-panel{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:18px}
-.appr-panel h3{font-weight:500;font-size:.93rem;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.role-notice{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e40af;display:flex;align-items:center;gap:10px}
+.status-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;white-space:nowrap;letter-spacing:.01em}
+.s-pending{background:#FEF8E8;color:#7A5010;border:1px solid #EACC70}
+.s-approved{background:#EBF8F3;color:#0E6048;border:1px solid #A8DECE}
+.s-review{background:#EBF2FB;color:#1848A8;border:1px solid #AACAF0}
+.s-neutral{background:var(--bg2);color:var(--ink3);border:1px solid var(--border)}
+.s-rejected{background:#FEF4F5;color:#C83030;border:1px solid #EEC0C0}
+.role-lbl{display:inline-flex;align-items:center;font-size:11px;padding:2px 8px;border-radius:11px;font-weight:600;border:1px solid;letter-spacing:.01em}
+.rl-partner{background:#F4F0FF;color:#4828A0;border-color:#C8B8F0}
+.rl-attorney{background:#EBF2FB;color:#1848A8;border-color:#AACAF0}
+.rl-billing{background:#EBF8F3;color:#0E6048;border-color:#A8DECE}
+.appr-panel{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:18px;box-shadow:var(--sh)}
+.appr-panel h3{font-weight:600;font-size:.88rem;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.role-notice{background:#EBF2FB;border:1px solid #AACAF0;border-radius:8px;padding:11px 15px;margin-bottom:16px;font-size:13px;color:#1848A8;display:flex;align-items:center;gap:10px}
 
 /* Stats */
-.srow{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
-.sc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px}
-.sc-lbl{font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-.sc-val{font-size:1.4rem;font-weight:300;color:var(--ink)}
-.sc.highlight{border-color:#bbf7d0;background:#f0fdf4}.sc.highlight .sc-val{color:#166534}
-.sc.highlight2{border-color:#fde68a;background:#fffbeb}.sc.highlight2 .sc-val{color:#92400e}
+.srow{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.sc{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;box-shadow:var(--sh)}
+.sc-lbl{font-size:10.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;font-weight:600}
+.sc-val{font-size:1.5rem;font-weight:300;color:var(--ink);letter-spacing:-.02em;font-family:Georgia,'Times New Roman',ui-serif,serif}
+.sc.highlight{border-color:#A8DECE;background:#EBF8F3}.sc.highlight .sc-val{color:#0E6048}
+.sc.highlight2{border-color:#EACC70;background:#FEF8E8}.sc.highlight2 .sc-val{color:#7A5010}
 
 /* Table */
-.twrap{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.twrap{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
 .tscroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead tr{background:var(--bg);border-bottom:1px solid var(--border)}
-th{padding:9px 13px;text-align:left;font-weight:500;color:var(--ink2);font-size:11px;white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
+th{padding:9px 13px;text-align:left;font-weight:600;color:var(--ink2);font-size:10.5px;white-space:nowrap;text-transform:uppercase;letter-spacing:.05em}
 td{padding:9px 13px;border-bottom:1px solid var(--border-l);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:#fafafa}
+tr:hover td{background:var(--bg)}
 .tda{display:flex;gap:4px}
 .tda button{padding:5px;border:none;background:transparent;color:var(--ink3);border-radius:4px}
 .tda button:hover{color:var(--ink);background:var(--bg)}
-.badge{width:26px;height:26px;border-radius:50%;background:var(--bg);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--ink2)}
+.badge{width:26px;height:26px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink2)}
 
 /* Modals */
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:500;padding:16px}
-.modal{background:var(--white);border-radius:14px;width:100%;box-shadow:var(--sh-lg);display:flex;flex-direction:column;max-height:90vh}
+.ov{position:fixed;inset:0;background:rgba(14,12,10,.55);display:flex;align-items:center;justify-content:center;z-index:500;padding:16px;backdrop-filter:blur(2px)}
+.modal{background:var(--white);border-radius:14px;width:100%;box-shadow:var(--sh-lg);display:flex;flex-direction:column;max-height:90vh;border:1px solid var(--border-l)}
 .modal-sm{max-width:480px}.modal-md{max-width:580px}.modal-lg{max-width:760px}.modal-xl{max-width:1040px}
-.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);flex-shrink:0}
-.modal-hd h2{font-size:1.05rem;font-weight:400}
-.modal-bd{overflow-y:auto;padding:22px;flex:1;min-height:0}
-.modal-ft{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;flex-wrap:wrap}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);flex-shrink:0}
+.modal-hd h2{font-size:.98rem;font-weight:600;letter-spacing:-.01em}
+.modal-bd{overflow-y:auto;padding:20px 22px;flex:1;min-height:0}
+.modal-ft{padding:12px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;flex-wrap:wrap}
 
 /* Toast */
-#toasts{position:fixed;top:16px;right:16px;z-index:9000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-.toast{padding:11px 18px;border-radius:9px;color:#fff;font-size:13px;box-shadow:var(--sh-lg);animation:tin .25s ease;pointer-events:auto}
-.t-ok{background:var(--green)}.t-warn{background:var(--amber)}.t-err{background:var(--red)}
+#toasts{position:fixed;top:16px;right:16px;z-index:9000;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toast{padding:10px 16px;border-radius:8px;color:#fff;font-size:12.5px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.2),0 0 0 1px rgba(255,255,255,.1);animation:tin .22s ease;pointer-events:auto;letter-spacing:.01em}
+.t-ok{background:#1A9060}.t-warn{background:#C07820}.t-err{background:#C83030}
 @keyframes tin{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
 
 /* Quick Log */
-.ql-timer{background:var(--bg);border-bottom:1px solid var(--border);padding:16px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.timer-num{font-size:2.1rem;font-weight:200;font-family:'Courier New',monospace;letter-spacing:.04em;min-width:115px}
+.ql-timer{background:var(--bg);border-bottom:1px solid var(--border);padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.timer-num{font-size:2rem;font-weight:200;font-family:Georgia,'Times New Roman',ui-serif,serif;letter-spacing:.04em;min-width:115px}
 .timer-on{color:var(--ink)}.timer-off{color:var(--ink3)}
-.total-pill{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 14px;font-size:13px;color:#15803d;margin-bottom:14px}
+.total-pill{background:#EBF8F3;border:1px solid #A8DECE;border-radius:8px;padding:7px 13px;font-size:13px;color:#0E6048;margin-bottom:14px}
 /* Row timer */
-.row-tmr-live{font-family:'Courier New',monospace;font-size:11px;color:var(--red);font-weight:600;letter-spacing:.02em;vertical-align:middle;margin-right:2px}
+.row-tmr-live{font-family:Georgia,'Times New Roman',ui-serif,serif;font-size:11px;color:var(--red);font-weight:600;letter-spacing:.02em;vertical-align:middle;margin-right:2px}
 .row-tmr-stop{color:var(--red)!important;animation:tmr-pulse 1.2s ease-in-out infinite}
-@keyframes tmr-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes tmr-pulse{0%,100%{opacity:1}50%{opacity:.4}}
 /* Active timer banner */
-.active-tmr-banner{background:var(--white);border:2px solid var(--red);border-radius:12px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;box-shadow:0 0 0 4px rgba(220,38,38,.07)}
-body.dark .active-tmr-banner{background:#1e1010;border-color:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.1)}
+.active-tmr-banner{background:var(--white);border:2px solid var(--red);border-radius:11px;padding:15px 18px;margin-bottom:16px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:0 0 0 4px rgba(196,44,28,.06)}
+body.dark .active-tmr-banner{background:#1A0808;border-color:#E04848;box-shadow:0 0 0 4px rgba(224,72,72,.1)}
 .active-tmr-banner .atb-info{flex:1;min-width:0}
-.active-tmr-banner .atb-tracking{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--red);display:flex;align-items:center;gap:5px;margin-bottom:6px}
+.active-tmr-banner .atb-tracking{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--red);display:flex;align-items:center;gap:5px;margin-bottom:6px}
 .active-tmr-banner .atb-dot{width:7px;height:7px;border-radius:50%;background:var(--red);animation:tmr-pulse 1.2s ease-in-out infinite;flex-shrink:0}
-.active-tmr-banner .atb-who{font-size:1.05rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.active-tmr-banner .atb-who{font-size:1rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .active-tmr-banner .atb-desc{font-size:12px;color:var(--ink2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-style:italic}
-.active-tmr-banner .atb-clock{font-family:'Courier New',monospace;font-size:2.4rem;font-weight:200;color:var(--red);letter-spacing:.03em;flex-shrink:0;min-width:130px;text-align:right}
-.active-tmr-banner .atb-stop{flex-shrink:0;padding:10px 20px;background:var(--red);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
-.active-tmr-banner .atb-stop:hover{background:#b91c1c}
+.active-tmr-banner .atb-clock{font-family:Georgia,'Times New Roman',ui-serif,serif;font-size:2.4rem;font-weight:300;color:var(--red);letter-spacing:.02em;flex-shrink:0;min-width:130px;text-align:right}
+.active-tmr-banner .atb-stop{flex-shrink:0;padding:9px 18px;background:var(--red);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;letter-spacing:.01em}
+.active-tmr-banner .atb-stop:hover{background:#A02828}
 /* Table row states when timer running */
 tr.tr-active-tmr td{background:#fff5f5!important;border-top:1px solid #fecaca;border-bottom:1px solid #fecaca}
 tr.tr-active-tmr:first-child td{border-top-color:#fecaca}
@@ -293,8 +301,8 @@ tr.tr-dimmed td{opacity:.45}
 .help-body p,.help-body li{color:var(--ink2);line-height:1.7;font-size:13px}
 .help-body ol,.help-body ul{padding-left:18px}
 .help-body li{margin-bottom:4px}
-.note{background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:#92400e}
-.good{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:#166534}
+.note{background:#FEF8E8;border:1px solid #EACC70;border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:#7A5010}
+.good{background:#EBF8F3;border:1px solid #A8DECE;border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12px;color:#0E6048}
 .faq-item{border-bottom:1px solid var(--border-l);padding-bottom:14px;margin-bottom:14px}
 .faq-item:last-child{border-bottom:none;margin-bottom:0}
 .faq-item strong{display:block;color:var(--ink);margin-bottom:4px;font-size:13px}
@@ -314,9 +322,9 @@ tr.tr-dimmed td{opacity:.45}
 .sub-checks{padding-left:20px;margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .sub-check{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink2);cursor:pointer}
 .sub-check input{width:13px;height:13px;cursor:pointer}
-.danger{background:#fef2f2;border:1px solid #fee2e2;border-radius:8px;padding:14px 16px}
-.danger h3{color:var(--red);margin-bottom:7px}
-.danger p{color:#ef4444;font-size:12px;line-height:1.5;margin-bottom:12px}
+.danger{background:#FEF5F5;border:1px solid #EEC0C0;border-radius:8px;padding:14px 16px}
+.danger h3{color:var(--red);margin-bottom:7px;font-weight:600}
+.danger p{color:#A02828;font-size:12px;line-height:1.5;margin-bottom:12px}
 .exp-name-preview{font-size:11px;color:var(--blue);background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:5px 10px;margin-bottom:14px;font-family:monospace}
 
 /* Analytics split table */
@@ -329,86 +337,86 @@ tr.tr-dimmed td{opacity:.45}
 
 /* Analytics */
 .bar-row{margin-bottom:14px}
-.bar-lbl{display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px}
-.bar-track{background:var(--bg);border-radius:4px;height:6px}
-.bar-fill{background:var(--ink);border-radius:4px;height:6px;transition:width .4s ease}
+.bar-lbl{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12.5px}
+.bar-track{background:var(--bg2);border-radius:4px;height:5px}
+.bar-fill{background:var(--ink);border-radius:4px;height:5px;transition:width .5s cubic-bezier(.16,1,.3,1)}
 
 /* ========== SPLASH SCREEN ========== */
-.splash-ov{position:fixed;inset:0;z-index:900;display:flex;align-items:stretch;background:#0f172a;animation:splashIn .25s ease}
+.splash-ov{position:fixed;inset:0;z-index:900;display:flex;align-items:stretch;background:#0D1522;animation:splashIn .2s ease}
 @keyframes splashIn{from{opacity:0}to{opacity:1}}
 
 /* Left hero panel */
-.splash-hero{width:340px;flex-shrink:0;background:linear-gradient(155deg,#1e3a5f 0%,#0f2040 50%,#0a1628 100%);display:flex;flex-direction:column;justify-content:space-between;padding:44px 40px;position:relative;overflow:hidden}
-.splash-hero::before{content:'';position:absolute;top:-80px;right:-80px;width:280px;height:280px;border-radius:50%;background:rgba(59,130,246,.08);pointer-events:none}
-.splash-hero::after{content:'';position:absolute;bottom:-60px;left:-60px;width:200px;height:200px;border-radius:50%;background:rgba(37,99,235,.07);pointer-events:none}
+.splash-hero{width:360px;flex-shrink:0;background:linear-gradient(155deg,#162545 0%,#0F1C38 60%,#091428 100%);display:flex;flex-direction:column;justify-content:space-between;padding:44px 40px;position:relative;overflow:hidden}
+.splash-hero::before{content:'';position:absolute;top:-60px;right:-80px;width:260px;height:260px;border-radius:50%;background:rgba(37,96,208,.08);pointer-events:none}
+.splash-hero::after{content:'';position:absolute;bottom:-80px;left:-60px;width:220px;height:220px;border-radius:50%;background:rgba(26,144,96,.06);pointer-events:none}
 .splash-logo{display:flex;align-items:center;gap:12px}
-.splash-logo-mark{width:40px;height:40px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(59,130,246,.4)}
+.splash-logo-mark{width:38px;height:38px;background:var(--gold);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 16px rgba(37,96,208,.45)}
 .splash-logo-mark svg{color:#fff}
-.splash-logo-name{font-size:1.05rem;font-weight:600;color:#f1f5f9;letter-spacing:-.01em}
+.splash-logo-name{font-size:1rem;font-weight:700;color:#D8E8F8;letter-spacing:-.01em;font-family:Georgia,'Times New Roman',ui-serif,serif}
 .splash-tagline{margin-top:auto;padding-top:60px}
-.splash-tagline h1{font-size:1.85rem;font-weight:300;color:#f1f5f9;line-height:1.25;margin-bottom:14px;letter-spacing:-.02em}
-.splash-tagline h1 strong{font-weight:600;color:#fff}
-.splash-tagline p{font-size:13px;color:#94a3b8;line-height:1.65}
+.splash-tagline h1{font-size:1.8rem;font-weight:300;color:#D8E8F8;line-height:1.25;margin-bottom:14px;letter-spacing:-.02em;font-family:Georgia,'Times New Roman',ui-serif,serif}
+.splash-tagline h1 strong{font-weight:700;color:#fff}
+.splash-tagline p{font-size:13px;color:#4A6888;line-height:1.65}
 .splash-steps{margin-top:40px;display:flex;flex-direction:column;gap:8px}
-.splash-step{display:flex;align-items:center;gap:10px;font-size:12px;color:#475569;transition:color .2s}
-.splash-step.active{color:#93c5fd}
-.splash-step.done{color:#34d399}
-.splash-step-dot{width:6px;height:6px;border-radius:50%;background:#334155;flex-shrink:0;transition:background .2s}
-.splash-step.active .splash-step-dot{background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.25)}
-.splash-step.done .splash-step-dot{background:#10b981}
+.splash-step{display:flex;align-items:center;gap:10px;font-size:12px;color:#2A4060;transition:color .2s}
+.splash-step.active{color:#88BBF0}
+.splash-step.done{color:#40C880}
+.splash-step-dot{width:6px;height:6px;border-radius:50%;background:#223348;flex-shrink:0;transition:background .2s}
+.splash-step.active .splash-step-dot{background:var(--gold);box-shadow:0 0 0 3px rgba(37,96,208,.3)}
+.splash-step.done .splash-step-dot{background:#28C870}
 
 /* Right form panel */
 .splash-form{flex:1;background:var(--white);display:flex;flex-direction:column;overflow-y:auto}
 .splash-form-inner{flex:1;padding:52px 52px 36px;max-width:520px}
-.splash-form-inner h2{font-size:1.5rem;font-weight:300;color:var(--ink);margin-bottom:6px;letter-spacing:-.02em}
-.splash-form-inner h2 strong{font-weight:600}
+.splash-form-inner h2{font-size:1.45rem;font-weight:300;color:var(--ink);margin-bottom:6px;letter-spacing:-.02em;font-family:Georgia,'Times New Roman',ui-serif,serif}
+.splash-form-inner h2 strong{font-weight:700}
 .splash-form-inner .sub{font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:28px}
 .splash-footer{padding:20px 52px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--white)}
 .splash-footer-note{font-size:11px;color:var(--ink3)}
 
 /* Profile option cards */
-.splash-opt{display:flex;align-items:center;gap:16px;padding:18px 20px;border:1.5px solid var(--border);border-radius:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s;margin-bottom:12px;background:var(--white)}
-.splash-opt:hover{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);background:var(--blue-pale)}
-.splash-opt-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.splash-opt-icon.blue{background:#eff6ff;color:var(--blue)}
-.splash-opt-icon.slate{background:var(--bg);color:var(--ink2)}
+.splash-opt{display:flex;align-items:center;gap:16px;padding:16px 18px;border:1.5px solid var(--border);border-radius:11px;cursor:pointer;transition:border-color .12s,box-shadow .12s,background .12s;margin-bottom:10px;background:var(--white)}
+.splash-opt:hover{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,96,208,.1);background:#EBF2FB}
+.splash-opt-icon{width:42px;height:42px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.splash-opt-icon.blue{background:#EBF2FB;color:var(--blue)}
+.splash-opt-icon.slate{background:var(--bg2);color:var(--ink2)}
 .splash-opt-body{flex:1}
-.splash-opt-body strong{display:block;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px}
+.splash-opt-body strong{display:block;font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:3px}
 .splash-opt-body span{font-size:12px;color:var(--ink2);line-height:1.5}
 .splash-opt-arrow{color:var(--ink3);flex-shrink:0}
 
 /* Feature list */
-.splash-features{background:var(--bg);border-radius:10px;padding:16px 18px;margin-bottom:22px}
-.splash-features-title{font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.splash-features{background:var(--bg);border-radius:9px;padding:14px 16px;margin-bottom:22px;border:1px solid var(--border)}
+.splash-features-title{font-size:10.5px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
 .splash-feature{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink2);padding:5px 0;border-bottom:1px solid var(--border-l)}
 .splash-feature:last-child{border-bottom:none}
-.splash-feature-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);flex-shrink:0}
+.splash-feature-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);flex-shrink:0}
 
 /* User select cards */
-.splash-user-card{display:flex;align-items:center;gap:14px;padding:14px 18px;border:1.5px solid var(--border);border-radius:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s;margin-bottom:10px;background:var(--white)}
-.splash-user-card:hover{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);background:var(--blue-pale)}
-.splash-avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;letter-spacing:.01em}
+.splash-user-card{display:flex;align-items:center;gap:14px;padding:13px 16px;border:1.5px solid var(--border);border-radius:11px;cursor:pointer;transition:border-color .12s,box-shadow .12s,background .12s;margin-bottom:9px;background:var(--white)}
+.splash-user-card:hover{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,96,208,.1);background:#EBF2FB}
+.splash-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#172038,#2A4878);color:#D8E8F8;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;letter-spacing:.02em}
 .splash-user-info strong{display:block;font-size:13px;font-weight:600;color:var(--ink)}
 .splash-user-info span{font-size:11px;color:var(--ink3)}
 
 /* Role selector */
 .splash-roles{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
-.splash-role{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;background:var(--white)}
-.splash-role:hover{border-color:var(--blue);background:var(--blue-pale)}
-.splash-role.sel{border-color:var(--blue);background:var(--blue-pale);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
-.splash-role-radio{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;margin-top:2px;transition:all .15s;display:flex;align-items:center;justify-content:center}
-.splash-role.sel .splash-role-radio{border-color:var(--blue);background:var(--blue)}
+.splash-role{display:flex;align-items:flex-start;gap:12px;padding:13px 15px;border:1.5px solid var(--border);border-radius:9px;cursor:pointer;transition:all .12s;background:var(--white)}
+.splash-role:hover{border-color:var(--blue);background:#EBF2FB}
+.splash-role.sel{border-color:var(--blue);background:#EBF2FB;box-shadow:0 0 0 3px rgba(37,96,208,.1)}
+.splash-role-radio{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;margin-top:2px;transition:all .12s;display:flex;align-items:center;justify-content:center}
+.splash-role.sel .splash-role-radio{border-color:var(--gold);background:var(--gold)}
 .splash-role.sel .splash-role-radio::after{content:'';width:6px;height:6px;border-radius:50%;background:#fff;display:block}
 .splash-role-body strong{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
 .splash-role-body span{font-size:11px;color:var(--ink2);line-height:1.5}
 
 /* Dark mode overrides */
-body.dark .splash-form,body.dark .splash-footer{background:#1e293b}
-body.dark .splash-opt,body.dark .splash-user-card,body.dark .splash-role{background:#1e293b;border-color:#334155}
-body.dark .splash-opt:hover,body.dark .splash-user-card:hover,body.dark .splash-role:hover{background:#172554;border-color:#3b82f6}
-body.dark .splash-role.sel{background:#172554;border-color:#3b82f6}
-body.dark .splash-opt-icon.slate{background:#263347}
-body.dark .splash-features{background:#263347}
+body.dark .splash-form,body.dark .splash-footer{background:#162035}
+body.dark .splash-opt,body.dark .splash-user-card,body.dark .splash-role{background:#162035;border-color:#223348}
+body.dark .splash-opt:hover,body.dark .splash-user-card:hover,body.dark .splash-role:hover{background:#182A50;border-color:var(--blue)}
+body.dark .splash-role.sel{background:#182A50;border-color:var(--blue)}
+body.dark .splash-opt-icon.slate{background:#1A2A40}
+body.dark .splash-features{background:#122030;border-color:#223348}
 
 /* Legacy up-wrap kept for chgUser (non-first-run profile edit) */
 .up-wrap{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:900;padding:16px}
@@ -427,17 +435,17 @@ body.dark .splash-features{background:#263347}
 }
 
 /* FAB */
-#fab{position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--ink);color:#fff;border:none;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:200;cursor:pointer;transition:transform .15s}
-#fab:hover{transform:scale(1.1)}
+#fab{position:fixed;bottom:24px;right:24px;width:50px;height:50px;border-radius:50%;background:var(--ink);color:#fff;border:none;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(28,24,20,.3),0 1px 3px rgba(28,24,20,.2);z-index:200;cursor:pointer;transition:transform .15s,box-shadow .15s}
+#fab:hover{transform:scale(1.08);box-shadow:0 8px 24px rgba(28,24,20,.35)}
 
 /* Empty */
 .empty{text-align:center;padding:60px 20px;color:var(--ink3)}
-.empty-ico{font-size:2.5rem;margin-bottom:12px}
-.empty p{font-weight:300;font-size:.95rem}
+.empty-ico{font-size:2.2rem;margin-bottom:12px;opacity:.6}
+.empty p{font-weight:400;font-size:.9rem;letter-spacing:-.01em}
 .empty small{font-size:12px;margin-top:4px;display:block}
 
 /* Loading */
-#loading{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);flex-direction:column;gap:12px;color:var(--ink3);font-size:1rem;font-weight:300}
+#loading{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);flex-direction:column;gap:12px;color:var(--ink3);font-size:.95rem;font-weight:400}
 
 /* ── Mobile responsive ────────────────────────────────────────────────── */
 /* Prevent page-level horizontal overflow; tables scroll within .tscroll */
@@ -529,12 +537,12 @@ html,body{overflow-x:hidden;max-width:100vw}
 <div id="loading"><div style="font-size:2rem">&#9878;&#65039;</div><div>Loading SixMinuteLog.com...</div></div>
 <div id="toasts"></div>
 <button id="fab" onclick="A.openQL()" title="Quick Log"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
-<div id="app" style="display:none"></div>
+<div id="app" style="display:none"><div id="z-hdr"></div><div id="z-main"></div><div id="z-ov"></div></div>
 
 <script>
 // +============================================================+
 // |  SixMinuteLog.com -- CLAUDE MANIFEST                         |
-// |  AI: read CLAUDE_BILLING.md first, then view line ranges.  |
+// |  AI: read CLAUDE.md first, then view line ranges.          |
 // +------------------------------------------------------------+
 // |  SECTION MAP (Ctrl+F these strings):                       |
 // |  "// === STORAGE"       Store.get/set/del                  |
@@ -819,6 +827,7 @@ var ST={
     layout:'comfortable',
     revenueSplit:false,
     analyticsEnabled:false,
+    contactsEnabled:false,
     // Quick-export preset — drives the header CSV button
     csvQuick:{
       dataset:'entries',
@@ -1199,28 +1208,64 @@ function syncForm(){
 //   save()              — debounced full-state sync (for bulk/meta; 200ms debounce)
 //   _flushSave()        — immediate (no debounce) full sync — called on tab hide
 //
-// Collections use putRecord/deleteRecord (safe, atomic, no clear).
-// Bulk import uses syncCollection (upsert + prune orphans in one tx).
+// Incremental persistence model — NO full getAll() scans:
+//   saveOne/delOne    → immediate atomic single-record writes (hot path, always preferred)
+//   save()            → bulk path: putBatch upserts + drains _pendingDeletes queue
+//   replaceCollection → bulk-replace helper; diffs old vs new IDs, queues orphan deletes
 //
 var _saveTimer=null;
-var _dirty={};     // tracks which collections have pending changes
+var _dirty={};          // { collName: true } — collections with pending upserts
+var _pendingDeletes={}; // { collName: { id: true } } — IDs queued for deletion on next flush
 
 // Mark a collection dirty so the next save() includes it
 function _markDirty(coll){ _dirty[coll]=true; }
 
+// Queue explicit deletes for orphaned IDs (used by replaceCollection).
+// These are drained in _flushSave alongside putBatch upserts.
+function _queueDeletes(coll, ids){
+  if(!ids||!ids.length) return;
+  if(!_pendingDeletes[coll]) _pendingDeletes[coll]={};
+  ids.forEach(function(id){ _pendingDeletes[coll][id]=true; });
+  _dirty[coll]=true;
+}
+
+// Replace an entire collection in ST and queue deletes for any orphaned IDs.
+// Use this instead of direct ST.arr = newArr when doing bulk import/restore.
+//   coll     — IDB store name (e.g. 'clients')
+//   stProp   — ST property name (e.g. 'clients')
+//   newArr   — replacement array
+function replaceCollection(coll, stProp, newArr){
+  var oldIds=(ST[stProp]||[]).map(function(r){return r.id;});
+  var newIdSet={};
+  (newArr||[]).forEach(function(r){ if(r&&r.id!=null) newIdSet[r.id]=true; });
+  var orphans=oldIds.filter(function(id){ return !newIdSet[id]; });
+  _queueDeletes(coll, orphans);
+  ST[stProp]=newArr;
+}
+
 // Flush all dirty state to IDB immediately (no debounce).
 // Returns a Promise that resolves when all writes complete.
+// Uses putBatch (upsert-only, no getAll scan) + drains _pendingDeletes queue.
+// Deletes are tracked explicitly via replaceCollection/_queueDeletes/delOne —
+// no full table scan is ever needed.
 function _flushSave(){
   clearTimeout(_saveTimer);
   _saveTimer=null;
   var ops=[];
-  // Collections — use syncCollection so orphaned deletes are pruned if we ever
-  // fall back to this path from a dirty-tracking gap.
-  if(_dirty.clients||_dirty._all)   ops.push(Store.syncCollection('clients',  ST.clients));
-  if(_dirty.matters||_dirty._all)   ops.push(Store.syncCollection('matters',  ST.matters));
-  if(_dirty.entries||_dirty._all)   ops.push(Store.syncCollection('entries',  ST.entries));
-  if(_dirty.contacts||_dirty._all)  ops.push(Store.syncCollection('contacts', ST.contacts));
-  if(_dirty.invoices||_dirty._all)  ops.push(Store.syncCollection('invoices', ST.invoices));
+  // Collections — putBatch: upsert what we have. Orphan deletes are handled
+  // either immediately (delOne → Store.deleteRecord) or via _pendingDeletes
+  // (replaceCollection bulk import). Never reads all records from IDB.
+  if(_dirty.clients||_dirty._all)   ops.push(Store.putBatch('clients',  ST.clients));
+  if(_dirty.matters||_dirty._all)   ops.push(Store.putBatch('matters',  ST.matters));
+  if(_dirty.entries||_dirty._all)   ops.push(Store.putBatch('entries',  ST.entries));
+  if(_dirty.contacts||_dirty._all)  ops.push(Store.putBatch('contacts', ST.contacts));
+  if(_dirty.invoices||_dirty._all)  ops.push(Store.putBatch('invoices', ST.invoices));
+  // Drain pending delete queue — each is a cheap single-key IDB delete
+  Object.keys(_pendingDeletes).forEach(function(coll){
+    Object.keys(_pendingDeletes[coll]).forEach(function(id){
+      ops.push(Store.deleteRecord(coll, id));
+    });
+  });
   // Meta — always write (cheap single-record puts)
   ops.push(Store.setMeta('prefs',ST.prefs));
   ops.push(Store.setMeta('descpresets',ST.descPresets));
@@ -1228,6 +1273,7 @@ function _flushSave(){
   ops.push(Store.setMeta('mailplaceholders',ST.mailPlaceholders));
   ops.push(Store.setMeta('itmode',{itMode:ST.itMode,firmProfile:ST.firmProfile}));
   _dirty={};
+  _pendingDeletes={};
   return Promise.all(ops);
 }
 
@@ -1259,13 +1305,15 @@ function saveOne(coll, rec){
 }
 
 // Immediate single-record delete — use after confirming a delete action.
+// Store.deleteRecord fires immediately; _dirty is just a signal for the
+// visibilitychange safety flush (which uses putBatch, not syncCollection).
 function delOne(coll, id){
   if(id==null) return;
   _dirty[coll]=true;
   markLuDirty(); // lookup maps must be rebuilt after any record deletion
   Store.deleteRecord(coll, id);
   clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(function(){ _dirty={}; }, 200);
+  _saveTimer=setTimeout(function(){ _dirty={}; _pendingDeletes={}; }, 200);
 }
 
 // ── Flush immediately when tab is hidden (before browser may suspend) ──
@@ -1344,7 +1392,8 @@ var IC={
   comment:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
   eye:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
   send:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
-  copy:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+  copy:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  building:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="1"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="9" y1="2" x2="9" y2="22"/><line x1="15" y1="2" x2="15" y2="22"/></svg>'
 };
 
 // === FIELD BUILDER
@@ -1393,24 +1442,6 @@ function vTimesheet(){
     ? ST.entries
     : ST.entries.filter(function(e){return e.createdBy===me;});
 
-  var fe=filterEnt(baseEntries,ST.tsFilter);
-  if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
-  if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
-
-  var sorted=[].concat(fe).sort(function(a,b){
-    if(ST.tsSort==='date-asc') return new Date(a.date)-new Date(b.date);
-    if(ST.tsSort==='client'){
-      var ca=_lu.cl[a.clientId],cb=_lu.cl[b.clientId];
-      return ((ca&&ca.name)||'').localeCompare((cb&&cb.name)||'');
-    }
-    if(ST.tsSort==='hours') return Number(b.hours)-Number(a.hours);
-    if(ST.tsSort==='amount') return (Number(b.hours)*Number(b.rate))-(Number(a.hours)*Number(a.rate));
-    return new Date(b.date)-new Date(a.date);
-  });
-
-  var hrs=fe.reduce(function(s,e){return s+Number(e.hours);},0);
-  var bill=fe.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
-
   var fopts=['all','today','week','month','year'].map(function(v){
     var l={all:'All Time',today:'Today',week:'This Week',month:'This Month',year:'This Year'}[v];
     return '<option value="'+v+'"'+(ST.tsFilter===v?' selected':'')+'>'+l+'</option>';
@@ -1426,11 +1457,39 @@ function vTimesheet(){
   }
 
   // ── Table ─────────────────────────────────────────────────────────────────
-  var tableH='';
+  // Cache key covers every input that affects the rendered table and stats.
+  // The entry form (ef) is NOT in the key — form changes don't need a table rebuild.
+  var tsCacheKey=[_dataVer,ST.tsFilter,ST.tsClientFilter||'',ST.tsMatterFilter||'',
+                  ST.tsSort,ST.tsPage,role,me,(ST.rowTmr?'t'+ST.rowTmr.entId:'')].join('|');
+  var tableH, hrs, bill;
+  if(_tsCache.key===tsCacheKey){
+    // Fast path: nothing that affects the table changed. Skip all filter/sort/row work.
+    tableH=_tsCache.tableH;
+    hrs=_tsCache.hrs; bill=_tsCache.bill;
+  } else {
+  // Slow path: filter → sort → paginate → rows (O(n) work, runs only on data/filter changes)
+  var fe=filterEnt(baseEntries,ST.tsFilter);
+  if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
+  if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
+  var sorted=[].concat(fe).sort(function(a,b){
+    if(ST.tsSort==='date-asc') return new Date(a.date)-new Date(b.date);
+    if(ST.tsSort==='client'){
+      var ca=_lu.cl[a.clientId],cb=_lu.cl[b.clientId];
+      return ((ca&&ca.name)||'').localeCompare((cb&&cb.name)||'');
+    }
+    if(ST.tsSort==='hours') return Number(b.hours)-Number(a.hours);
+    if(ST.tsSort==='amount') return (Number(b.hours)*Number(b.rate))-(Number(a.hours)*Number(a.rate));
+    return new Date(b.date)-new Date(a.date);
+  });
+  tableH='';
+  hrs=0; bill=0;
   if(sorted.length===0){
     tableH='<div class="empty"><div class="empty-ico">&#9201;</div><p>No entries yet</p>'
       +'<small>'+(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click "+ New Entry" or tap ⚡ to log time.')+'</small></div>';
+    hrs=0; bill=0;
   } else {
+    hrs=fe.reduce(function(s,e){return s+Number(e.hours);},0);
+    bill=fe.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
     var PAGE_SIZE=ST.TS_PAGE_SIZE||50;
     var totalFiltered=sorted.length;
     var totalPages=Math.max(1,Math.ceil(totalFiltered/PAGE_SIZE));
@@ -1540,8 +1599,13 @@ function vTimesheet(){
       +'<tbody>'+rows+'</tbody></table></div></div>'
       +pagCtrl;
   }
+  // Store in cache for next render
+  _tsCache={key:tsCacheKey,hrs:hrs,bill:bill,filteredLen:sorted.length,tableH:tableH};
+  } // end slow path
 
-  var statRows=[['Total Hours',$h(hrs),''],['Total Billing',$m(bill),''],['Avg Rate',hrs>0?$m(bill/hrs):'\u2014',''],['Entries',String(fe.length),'']];
+  // Use cached stats (hrs, bill, filteredLen) — computed in slow path, persisted across renders
+  var cHrs=_tsCache.hrs, cBill=_tsCache.bill, cLen=_tsCache.filteredLen;
+  var statRows=[['Total Hours',$h(cHrs),''],['Total Billing',$m(cBill),''],['Avg Rate',cHrs>0?$m(cBill/cHrs):'\u2014',''],['Entries',String(cLen),'']];
   var clFilterOpts='<option value="">All Clients</option>'+ST.clients.map(function(c){
     return '<option value="'+c.id+'"'+(ST.tsClientFilter==c.id?' selected':'')+'>'+H(c.name)+'</option>';
   }).join('');
@@ -1560,16 +1624,16 @@ function vTimesheet(){
   var actionBtns='';
   if(role==='attorney'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
-    if(fe.length>0)
+    if(cLen>0)
       actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Review, export, and email your timesheet to billing">📤 Submit Timesheet</button>';
   } else if(role==='partner'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
-    if(fe.length>0)
+    if(cLen>0)
       actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send your own entries to billing">📤 Submit My Time</button>';
   } else if(role==='billing_staff'){
     actionBtns+='<button class="btn btn-dk" onclick="A.openEF()">'+IC.plus+' New Entry</button>';
     actionBtns+='<button class="btn btn-gh" onclick="A.openReceivePackage()" title="Import a timesheet submission received from an attorney">📥 Receive Submission</button>';
-    if(fe.length>0)
+    if(cLen>0)
       actionBtns+='<button class="btn btn-bl" onclick="A.openSubmitTimesheet()" title="Send all visible entries to partner for approval">📤 Send to Partner</button>';
   }
 
@@ -1577,7 +1641,7 @@ function vTimesheet(){
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px">'
     +'<div><h2 style="font-size:1.3rem;font-weight:300;margin-bottom:3px">'
     +(role==='billing_staff'?'All Entries':'My Timesheet')+'</h2>'
-    +'<p style="font-size:12px;color:var(--ink3)">'+fe.length+' entr'+(fe.length===1?'y':'ies')
+    +'<p style="font-size:12px;color:var(--ink3)">'+cLen+' entr'+(cLen===1?'y':'ies')
     +(ST._entriesMode==='partial'&&ST._totalEntryCount>ST.entries.length
       ?' <span title="Showing this year. Select All Time to load full history." style="color:var(--amber);cursor:help">('+ST._totalEntryCount+' total — partial)</span>':'')
     +'</p></div>'
@@ -1630,7 +1694,7 @@ function entryForm(){
     +byRow
     +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d})+field('Hours','ef-h',{type:'number',ph:'1.0',val:f.hours||'',req:true,err:f.errs&&f.errs.h,hint:'e.g. 1.5 or 0.25',step:'0.01',min:'0.01'})+'</div>'
     +'<div class="frow c2">'+field('Client','ef-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl})+field('Matter','ef-ma',{type:'select',opts:maOpts,val:f.matterId||'',hint:matHint})+'</div>'
-    +(role==='billing_staff'
+    +((role==='billing_staff'||role==='attorney')
       ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Auto-filled from attorney rate schedule on entry date':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
       :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule':'Priority: Matter-attorney > Client-attorney > Attorney schedule'})+'</div>')
     +'<div class="frow c2">'+field('ABA/UTBMS Code','ef-aba',{type:'select',opts:ABA_TASK_CODES,val:f.abaCode||'',hint:'Optional task code for billing compliance'})+'<div></div></div>'
@@ -1727,16 +1791,20 @@ function clientForm(){
   var chipsRow=selIds.length>0?'<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px">'+chipsH+'</div>':'';
   // Client-side people chips
   var cppl=f.clientPeople||[];
+  var editIdx=f.editPersonIdx!=null?f.editPersonIdx:-1;
   var ppChips=cppl.length===0?''
     :'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+cppl.map(function(p,i){
-        return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 8px;font-size:12px">'
+        var isEditing=i===editIdx;
+        return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+(isEditing?'var(--blue-l,#eff6ff)':'var(--bg)')+';border:1px solid '+(isEditing?'var(--blue)':'var(--border)')+';border-radius:20px;padding:3px 10px 3px 8px;font-size:12px">'
           +'<span class="avatar" style="width:18px;height:18px;font-size:9px;background:#7c3aed;color:#fff;flex-shrink:0">'+H(p.name.charAt(0).toUpperCase())+'</span>'
           +H(p.name)+(p.role?'<span style="color:var(--ink3)"> &middot; '+H(p.role)+'</span>':'')
           +(p.email?'<span style="color:var(--ink2);font-size:11px"> '+mailLink(p.email)+'</span>':'')
-          +'<button type="button" onclick="A.cfRemPerson('+i+')" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;color:var(--ink3);font-size:14px;margin-left:2px" title="Remove">&times;</button>'
+          +'<button type="button" onclick="A.cfEditPerson('+i+')" style="background:none;border:none;cursor:pointer;padding:0 2px;line-height:1;color:var(--blue);font-size:12px;margin-left:2px" title="Edit">✏</button>'
+          +'<button type="button" onclick="A.cfRemPerson('+i+')" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;color:var(--ink3);font-size:14px;margin-left:1px" title="Remove">&times;</button>'
           +'</span>';
       }).join('')+'</div>';
   var np=f.newPerson||{};
+  var isEditingPerson=editIdx>=0;
   return '<div class="fbox" id="cf">'
     +'<h3>'+(ST.editId?'Edit':'New')+' Client</h3>'
     +'<div class="frow">'+field('Client Name','cf-n',{ph:'Acme Corp',val:f.name||'',req:true,err:f.errs&&f.errs.n})+'</div>'
@@ -1747,13 +1815,17 @@ function clientForm(){
     +'<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
     +'<div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:10px">Client-Side Contacts <span style="font-size:11px;font-weight:400;color:var(--ink3)">(owner, HR, billing, etc.)</span></div>'
     +ppChips
+    +(isEditingPerson?'<div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:6px">Editing: '+H((cppl[editIdx]||{}).name||'')+'</div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">'
     +'<div class="fl"><label style="font-size:11px">Name</label><input type="text" id="cf-pn" placeholder="Jane Smith" value="'+H(np.name||'')+'" style="width:100%"></div>'
     +'<div class="fl"><label style="font-size:11px">Role / Title</label><input type="text" id="cf-pro" placeholder="Head of HR" value="'+H(np.role||'')+'" style="width:100%"></div>'
     +'<div class="fl"><label style="font-size:11px">Email</label><input type="email" id="cf-pe" placeholder="jane@acme.com" value="'+H(np.email||'')+'" style="width:100%"></div>'
     +'<div class="fl"><label style="font-size:11px">Phone</label><input type="tel" id="cf-pp" placeholder="(555) 123-4567" value="'+H(np.phone||'')+'" oninput="A.livePhone(\'cf-pp\')" style="width:100%"></div>'
     +'</div>'
-    +'<button type="button" class="btn btn-gh" style="font-size:12px;padding:6px 14px" onclick="A.cfAddPerson()">+ Add Contact</button>'
+    +'<div style="display:flex;gap:6px;align-items:center">'
+    +'<button type="button" class="btn '+(isEditingPerson?'btn-dk':'btn-gh')+'" style="font-size:12px;padding:6px 14px" onclick="A.cfAddPerson()">'+(isEditingPerson?'✓ Save Changes':'+ Add Contact')+'</button>'
+    +(isEditingPerson?'<button type="button" class="btn btn-gh" style="font-size:12px;padding:6px 12px" onclick="A.cfCancelEditPerson()">Cancel</button>':'')
+    +'</div>'
     +'</div></div>'
     // Per-attorney negotiated rates section
     +(function(){
@@ -2054,6 +2126,11 @@ function contactForm(){
 
 // == Analytics ==
 function vAnalytics(){
+  // Cache key: data version + filter. Analytics has no inline forms, so
+  // the entire output can be returned from cache on filter-unchanged renders.
+  var anCacheKey=_dataVer+'|'+ST.anFilter+'|'+(ST.prefs.revenueSplit?'1':'0');
+  if(_anCache.key===anCacheKey) return _anCache.html;
+
   var fe=filterEnt(ST.entries,ST.anFilter);
   var hrs=fe.reduce(function(s,e){return s+Number(e.hours);},0);
   var bill=fe.reduce(function(s,e){return s+Number(e.hours)*Number(e.rate);},0);
@@ -2258,7 +2335,7 @@ function vAnalytics(){
   }
 
   var emptyH=fe.length===0?'<div class="empty"><div class="empty-ico">&#128202;</div><p>No data for this period</p><small>Log some time entries first</small></div>':'';
-  return '<div>'
+  var _anHtml='<div>'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;gap:12px">'
     +'<div><h2 style="font-size:1.3rem;font-weight:300;margin-bottom:3px">Analytics</h2>'
     +'<p style="font-size:12px;color:var(--ink3)">'+fe.length+' entries \u00b7 '+periodLbl+'</p></div>'
@@ -2266,6 +2343,8 @@ function vAnalytics(){
     +'</div>'
     +(ST.prefs.revenueSplit?stats([['Total Billing',$m(bill),''],['Total Hours',$h(hrs),''],['Own Portion',$m(totalOwn),'highlight'],['Firm Portion',$m(totalFirm),'highlight2']]):stats([['Total Billing',$m(bill),''],['Total Hours',$h(hrs),'']]))
     +barsH+myEarningsH+splitH+emptyH+'</div>';
+  _anCache={key:anCacheKey,html:_anHtml};
+  return _anHtml;
 }
 
 
@@ -2829,6 +2908,8 @@ function buildInvoicePrint(){
     +'</div></div></div>';
 }
 
+// == Firm Tab ==
+
 // === MODALS
 // == Partner Review Entry Modal ==
 function buildPartnerReview(){
@@ -3083,7 +3164,7 @@ function buildQL(){
 }
 
 function buildHelp(){
-  var tabs=[['start','Getting Started'],['time','Time Entries'],['clients','Clients & Matters'],['contacts','Contacts & Rates'],['invoices','Invoices'],['roles','Roles & Workflow'],['settings','Settings'],['backup','Backup'],['faq','FAQ']];
+  var tabs=[['start','Getting Started'],['time','Time Entries'],['clients','Clients & Matters'],['contacts','Contacts & Rates'],['invoices','Invoices'],['roles','Roles & Workflow'],['settings','Settings'],['backup','Backup'],['faq','FAQ'],['claude','🤖 Modify with AI']];
   var content={
     start:'<h3>Welcome to SixMinuteLog.com!</h3>'
       +'<p>A private legal billing and time-tracking app. All data stays on your device — no accounts, no cloud, no fees. Zero external dependencies.</p>'
@@ -3169,14 +3250,16 @@ function buildHelp(){
       +'<li><strong>Partner</strong> imports the package → reviews in Approvals → approves/adjusts</li>'
       +'<li>Approved entries appear in Invoices for billing</li></ol>'
       +'<h4>Firm Profile</h4>'
-      +'<p>Partners can build and export a <strong>Firm Profile</strong> (.json) from Settings → Advanced. This pre-configures a new attorney\'s app with clients, matters, contacts, description presets, and user profiles in one import.</p>',
+      +'<p>Partners can build and export a <strong>Firm Profile</strong> (.json) from the <strong>Firm tab</strong> in the top navigation. This pre-configures a new attorney\'s app with clients, matters, contacts, description presets, and user profiles in one import.</p>',
 
     settings:'<h3>Settings Overview</h3>'
-      +'<h4>Backup tab</h4><p>Download a full JSON backup, export a self-contained copy of the app HTML, or restore from a previous backup. Also export/import Firm Profiles here.</p>'
+      +'<h4>Export tab</h4><p>Configure the quick CSV export button and run the export wizard for custom spreadsheet downloads.</p>'
+      +'<h4>Backup tab</h4><p>Download a full JSON backup or restore from a previous backup. Also download a self-contained copy of the app HTML.</p>'
+      +'<h4>Firm tab (top nav)</h4><p>Set your firm name and app display name. Build and export a Firm Profile to share with team members for one-click onboarding.</p>'
       +'<h4>Appearance tab</h4><p>Toggle dark mode, choose layout density (Comfortable / Compact / Spacious), and set the app name shown in the header and on printed invoices.</p>'
       +'<h4>Descriptions tab</h4><p>Manage a list of description presets (chip suggestions) that appear below the description field when logging time. Reorder by drag, edit in place, delete individually.</p>'
       +'<h4>Email tab</h4><p>Create and manage reusable email presets with subject lines and body templates. Presets appear in the Send Email modal when emailing invoices or approval requests. Supports dynamic placeholders.</p>'
-      +'<h4>Advanced tab</h4><p>Set your role (Attorney / Partner / Billing Staff), enable/disable the Analytics tab, toggle Revenue Split mode, and access the Firm Profile builder. Also shows the "Download Claude Guide" button for regenerating the AI architecture reference file.</p>',
+      +'<h4>Advanced tab</h4><p>Set your role (Attorney / Partner / Billing Staff), enable/disable the Analytics tab, toggle Revenue Split mode, and access the Danger Zone for data reset. Also shows the "Download Claude Guide" button which regenerates <code>CLAUDE.md</code> — the AI architecture reference file used by Claude Code and claude.ai.</p>',
 
     backup:'<h3>Backup &amp; Restore</h3>'
       +'<h4>Full JSON Backup</h4>'
@@ -3188,6 +3271,63 @@ function buildHelp(){
       +'<h4>Firm Profile Import</h4>'
       +'<p>A Firm Profile is a configuration-only export (no time entries). Import one to pre-populate clients, matters, contacts, and presets on a fresh install.</p>'
       +'<div class="note">⚠️ Your data lives in this browser\'s IndexedDB. Clearing browser data, switching browsers, or using a different device will not carry your data over. Download a JSON backup regularly and keep it safe.</div>',
+
+    claude:''
+      +'<h3>Modifying This App with Claude AI</h3>'
+      +'<p>This app ships with <strong>CLAUDE.md</strong> — an architecture guide that maps every section, state shape, and pattern in ~3k tokens. Claude reads it and makes targeted <code>str_replace</code> edits rather than rewriting the whole 8,000-line file.</p>'
+      +'<div class="note">⚠️ <strong>CLAUDE.md is a snapshot, not a live index.</strong> Regenerate it after every session via <strong>⚙️ Settings → Advanced → Download Claude Guide</strong>, then overwrite the old file. Line numbers shift with every edit — a stale guide sends Claude to the wrong lines.</div>'
+
+      +'<h4 style="margin-top:20px;border-top:1px solid var(--bdr);padding-top:16px">Method A — claude.ai Web Chat</h4>'
+      +'<p>No installation. Best for occasional one-off changes.</p>'
+      +'<ol>'
+      +'<li><strong>⚙️ Settings → Advanced → Download Claude Guide</strong> → saves <code>CLAUDE.md</code>.</li>'
+      +'<li>Settings → Backup → <em>Save App as HTML</em> → saves <code>index.html</code>.</li>'
+      +'<li>On claude.ai, start a new chat and upload both files.</li>'
+      +'<li>Send: <code style="display:block;background:var(--bg2);padding:8px 12px;border-radius:6px;margin:6px 0;font-size:12px;white-space:pre-wrap">Read CLAUDE.md first. Then modify index.html to [describe your change]</code></li>'
+      +'<li>Download the modified file, open in browser, test.</li>'
+      +'<li>For the next session: regenerate CLAUDE.md from the updated file, then repeat.</li>'
+      +'</ol>'
+      +'<p><strong>Multiple changes in one chat:</strong> List them numbered in a single message — Claude will work through them in order, confirming each one before moving to the next, and print a summary at the end.</p>'
+      +'<p><strong>Claude Project:</strong> Set this as the project system instruction so it applies to every chat:<br>'
+      +'<code style="display:block;background:var(--bg2);padding:8px 12px;border-radius:6px;margin:6px 0;font-size:12px;line-height:1.6">Keep the app fully offline without CDN or other dependencies. Ensure there is no encoding corruption. Keep modular, expandable, capable of large data handling, good database design.</code></p>'
+
+      +'<h4 style="margin-top:20px;border-top:1px solid var(--bdr);padding-top:16px">Method B — Claude Code (Terminal)</h4>'
+      +'<p>Best for active development. Edits files on disk directly — no upload/download loop. Supports multiple changes per session natively.</p>'
+      +'<p><strong>One-time setup:</strong></p>'
+      +'<ol>'
+      +'<li>Install <strong>Node.js v18+</strong> from <a href="https://nodejs.org" target="_blank" style="color:var(--purple)">nodejs.org</a>.</li>'
+      +'<li><code style="display:block;background:var(--bg2);padding:8px 12px;border-radius:6px;margin:6px 0;font-size:12px">npm install -g @anthropic-ai/claude-code</code></li>'
+      +'<li>Run <code>claude</code> once and authenticate via the browser prompt.</li>'
+      +'</ol>'
+      +'<p><strong>How Claude Code\'s instruction layers work:</strong></p>'
+      +'<p>Claude Code automatically reads files named <code>CLAUDE.md</code> before every prompt — silently, no mention needed. Three scopes stack together:</p>'
+      +'<ul>'
+      +'<li><code>~/.claude/CLAUDE.md</code> — <strong>User-level:</strong> global rules for all projects (e.g. never add CDN deps)</li>'
+      +'<li><code>./CLAUDE.md</code> — <strong>Project-level:</strong> this app\'s architecture guide — place it alongside <code>index.html</code></li>'
+      +'<li><code>./subfolder/CLAUDE.md</code> — <strong>Sub-directory:</strong> scoped rules for a nested folder</li>'
+      +'</ul>'
+      +'<p><strong>Per-session workflow:</strong></p>'
+      +'<ol>'
+      +'<li>Place <code>CLAUDE.md</code> and <code>index.html</code> in the same folder.</li>'
+      +'<li>Open a terminal there and run <code>claude</code>.</li>'
+      +'<li>Describe your change — no preamble needed:<br>'
+      +'<code style="display:block;background:var(--bg2);padding:8px 12px;border-radius:6px;margin:6px 0;font-size:12px;white-space:pre-wrap">Modify index.html to [describe change]</code></li>'
+      +'<li>For multiple changes, list them in one message:<br>'
+      +'<code style="display:block;background:var(--bg2);padding:8px 12px;border-radius:6px;margin:6px 0;font-size:12px;line-height:1.7;white-space:pre-wrap">Make the following changes to index.html:\n1. Add a Notes field to the client form\n2. Show note preview on client cards\n3. Add Notes column to CSV export</code>'
+      +'Claude works through them in order — one <code>str_replace</code> at a time — confirms each with "✓ Change N complete", re-reads the affected line range before each edit (in case prior edits shifted numbers), and prints a full summary at the end.</li>'
+      +'<li>Reload <code>index.html</code> in your browser to test. No download needed.</li>'
+      +'<li>After the session: regenerate CLAUDE.md via Settings → Advanced → Download Claude Guide and overwrite the file in your folder.</li>'
+      +'</ol>'
+
+      +'<h4 style="margin-top:20px;border-top:1px solid var(--bdr);padding-top:16px">Keeping Token Usage Minimal</h4>'
+      +'<ul>'
+      +'<li><strong>CLAUDE.md is the gatekeeper</strong> — ~3k tokens vs. ~25k for the full HTML. Always let it load first.</li>'
+      +'<li><strong>Be specific.</strong> "Add a Notes textarea to vClients persisted via saveOne" costs far fewer tokens than a vague request that triggers exploratory reads.</li>'
+      +'<li><strong>Batch related changes</strong> in one numbered list rather than separate sessions — less context overhead, no guide-refresh between changes.</li>'
+      +'<li>Use <code>/compact</code> in Claude Code mid-session if the window grows long.</li>'
+      +'<li>Start a fresh <code>claude</code> session for <em>unrelated</em> changes — don\'t carry a stale long context forward.</li>'
+      +'<li>Never ask Claude to add CDN libraries or external dependencies — this app is intentionally zero-dependency.</li>'
+      +'</ul>',
 
     faq:'<h3>FAQ</h3>'+[
       ['Where is my data stored?','In your browser\'s IndexedDB — a local database built into every modern browser. Nothing is ever uploaded or sent anywhere. App preferences are also cached in localStorage for instant startup.'],
@@ -3537,7 +3677,7 @@ function buildImportModal(){
 function buildSettings(){
   var s=ST.settings;
   var stab=ST.settingsTab||'export';
-  var settingsTabs=[['export','Backup'],['appearance','Appearance'],['descriptions','Descriptions'],['email','Email'],['advanced','Advanced']];
+  var settingsTabs=[['export','Export'],['backup','Backup'],['firm','Firm'],['appearance','Appearance'],['descriptions','Descriptions'],['email','Email'],['advanced','Advanced']];
   var tabNav='<div class="set-tabs">'+settingsTabs.map(function(t){return '<button class="set-tab'+(stab===t[0]?' on':'')+'" onclick="A.setStab(\''+t[0]+'\')">'+H(t[1])+'</button>';}).join('')+'</div>';
   var body='';
 
@@ -3695,30 +3835,51 @@ function buildSettings(){
 
       +'</div>'
 
-      +'<div class="set-section">'
+    ;
+  }
+
+  if(stab==='backup'){
+    body+='<div class="set-section">'
       +'<h3 style="margin-bottom:8px">Full Backup</h3>'
       +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Export everything (clients, matters, entries, contacts, settings, preferences) as a single JSON file. Perfect for complete backups before browser changes.</p>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
       +'<button class="btn btn-dk" onclick="A.exportJSON()">'+IC.dl+' Download Full Backup (.json)</button>'
       +'</div></div>'
-      +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
+      +'<div class="set-section">'
       +'<h3 style="margin-bottom:8px">Restore</h3>'
-      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Restore a previously downloaded JSON backup file.</p>'
+      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Restore a previously downloaded JSON backup file. Replaces all current data — export a backup first.</p>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
       +'<button class="btn btn-gh" onclick="ST.modal=\'importData\';render()">'+IC.ul+' Restore / Import…</button>'
       +'</div></div>'
+      +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
+      +'<h3 style="margin-bottom:8px">Save App as HTML</h3>'
+      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:10px;line-height:1.5">Download a self-contained copy of the app itself as a single HTML file. No data is included — use this to get the latest version or archive the app offline.</p>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +'<button class="btn btn-gh" onclick="A.downloadApp()">&#128190; Save App as HTML</button>'
+      +'</div></div>';
+  }
 
-    // ── Firm Profile Builder ─────────────────────────────────────────────────────────────────────────────────────
+  if(stab==='firm'){
     var fp=ST.firmProfile||{};
+    var p2=ST.prefs;
     var itUsers=fp.users||[];
-    body+='<div class="set-section" style="margin-top:8px">'
+    body+='<div class="set-section">'
+      +'<h3>Firm Identity</h3>'
+      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Your firm name and app display name used across exports, invoices, and the header.</p>'
+      +'<div class="frow c2" style="margin-bottom:12px">'
+      +'<div class="fl"><label>Firm Name</label><input type="text" id="it-firmname" value="'+H(fp.firmName||'')+'" placeholder="e.g. Smith &amp; Associates LLP" style="padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink);width:100%;box-sizing:border-box" /></div>'
+      +'<div class="fl"><label>App Name</label><input type="text" id="pref-name" value="'+H(p2.appName||'SixMinuteLog.com')+'" placeholder="SixMinuteLog.com" style="padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink);width:100%;box-sizing:border-box" /></div>'
+      +'</div>'
+      +'<button class="btn btn-dk" onclick="A.saveAppName()">Save Firm Identity</button>'
+      +'</div>'
+      +'<div class="set-section">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
-      +'<h3 style="margin:0">Firm Profile Builder</h3>'
+      +'<div><h3 style="margin:0">Firm Profile Builder</h3></div>'
       +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'
       +'<input type="checkbox" '+(ST.itMode?'checked':'')+' onchange="A.togITMode(this.checked)">'
       +'<span>'+(ST.itMode?'<strong style="color:var(--blue)">Enabled</strong>':'Disabled')+'</span></label>'
       +'</div>'
-      +'<p style="font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:0">Build a shareable firm profile — pre-configured clients, contacts, users, and description presets — that team members can import on first setup or via Restore / Import.</p>'
+      +'<p style="font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:0">Build a shareable firm profile — pre-configured clients, contacts, users, and description presets — that team members can import on first setup. Enable to configure and export.</p>'
       +'</div>'
       +(ST.itMode?
         '<div class="set-section">'
@@ -3749,27 +3910,16 @@ function buildSettings(){
         +'</div>'
         +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
         +'<h3>Export &amp; Share</h3>'
-        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Download the firm profile as a <code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">.json</code> file. Share it with your team — they import it via Backup → Restore / Import.</p>'
+        +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Download the firm profile as a <code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">.json</code> file. Share it with your team — they import it via Settings → Backup → Restore / Import.</p>'
         +'<button class="btn btn-gr" onclick="A.exportFirmProfile()">'+IC.dl+' Download Firm Profile (.json)</button>'
         +'</div>'
-      : '')
-    ;
+      : '');
   }
 
   if(stab==='appearance'){
     var p=ST.prefs;
     var layouts=[['comfortable','Comfortable','Default balanced spacing'],['compact','Compact','Dense UI for more data'],['spacious','Spacious','Relaxed layout, larger text']];
-    var fp2=ST.firmProfile||{};
-    body+='<div class="set-section">'
-      +'<h3>Firm Identity</h3>'
-      +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.5">Set your firm name and the name that appears in the app header and exports.</p>'
-      +'<div class="frow c2" style="margin-bottom:12px">'
-      +'<div class="fl"><label>Firm Name</label><input type="text" id="it-firmname" value="'+H(fp2.firmName||'')+'" placeholder="e.g. Smith &amp; Associates LLP" style="padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink);width:100%;box-sizing:border-box" /></div>'
-      +'<div class="fl"><label>App Name</label><input type="text" id="pref-name" value="'+H(p.appName||'SixMinuteLog.com')+'" placeholder="SixMinuteLog.com" style="padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink);width:100%;box-sizing:border-box" /></div>'
-      +'</div>'
-      +'<button class="btn btn-dk" onclick="A.saveAppName()">Save Firm Identity</button>'
-      +'</div>'
-      +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
+    body+='<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
       +'<h3>Dark Mode</h3>'
       +'<div class="preset-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:18px">'
       +[['null','Auto','Follows your browser or OS setting'],['false','Light','Always use light theme'],['true','Dark','Always use dark theme']].map(function(opt){
@@ -3891,10 +4041,14 @@ function buildSettings(){
       +'<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);border-radius:8px;padding:12px 16px;margin-bottom:10px">'
       +'<div><div style="font-weight:500;font-size:13px">'+H(ST.user?ST.user.name:'Not set')+'</div>'
       +'<div style="font-size:12px;color:var(--ink3)">'+(ST.user&&ST.user.initials?ST.user.initials+' \u00b7 ':'')+( ST.prefs.revenueSplit&&ST.user&&ST.user.ownPct!=null?ST.user.ownPct+'% personal cut\u00b7 ':'')+(ST.user?roleBadge(ST.user.role):'')+' '+'</div></div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button class="btn btn-gh" onclick="A.closeM();ST.prefs.contactsEnabled=true;savePrefs();A.setTab(\'contacts\')" style="font-size:13px">Manage Contacts</button>'
       +'<button class="btn btn-gh" onclick="A.chgUser()" style="font-size:13px">Edit Profile</button>'
+      +'</div>'
       +'</div></div>'
       +'<div class="set-section"><h3>Analytics &amp; Reporting</h3>'
       +'<label class="crow"><input type="checkbox" '+(ST.prefs.analyticsEnabled?'checked':'')+' onchange="A.togAnalytics(this.checked)"><div><strong>Enable Analytics Tab</strong><span>Show the Analytics tab in the navigation. Includes billing summaries, client breakdowns, revenue split, and per-person earnings.</span></div></label>'
+      +'<label class="crow"><input type="checkbox" '+(ST.prefs.contactsEnabled?'checked':'')+' onchange="A.togContacts(this.checked)"><div><strong>Enable Contacts Tab</strong><span>Show the Team Contacts tab in the navigation. Allows managing firm team members and their billing rates. When hidden, contacts are still managed automatically via imported transfer packages and are accessible in Settings.</span></div></label>'
       +'</div>'
       +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
       +'<div class="danger"><h3>Danger Zone</h3><p>Permanently delete all data. Export a backup first!</p>'
@@ -3906,7 +4060,7 @@ function buildSettings(){
     +'<div class="modal-bd">'+tabNav+body+'</div>'
     +'<div class="modal-ft" style="flex-wrap:wrap;gap:8px">'
     +'<button class="btn btn-gh" onclick="A.closeM()">Close</button>'
-    +'<button class="btn btn-gh" onclick="A.dlManifest()" title="Regenerate CLAUDE_BILLING.md" style="color:var(--purple);border-color:var(--purple)">'+IC.dl+' Claude Guide</button>'
+    +'<button class="btn btn-gh" onclick="A.dlManifest()" title="Regenerate CLAUDE.md" style="color:var(--purple);border-color:var(--purple)">'+IC.dl+' Claude Guide</button>'
     +'<button class="btn btn-gh" onclick="A.downloadApp()" title="Download app as .html for offline use" style="color:var(--ink2)">&#128190; Save App</button>'
     +'</div></div></div>';
 }
@@ -4854,7 +5008,7 @@ var TABS=[
 // Invoice functions call buildEntryLookup() directly when needed.
 var _lu={cl:{},ma:{},ct:{},en:{}};
 var _luDirty=true;
-function markLuDirty(){_luDirty=true;}
+function markLuDirty(){_luDirty=true;_dataVer++;}
 function buildLookups(){
   if(!_luDirty) return;
   var cl={},ma={},ct={};
@@ -4870,6 +5024,42 @@ function buildEntryLookup(){
   ST.entries.forEach(function(r){en[r.id]=r;});
   _lu.en=en;
 }
+
+// === RENDER CACHE
+//
+// _dataVer: monotonically increases whenever ST.entries/clients/matters/contacts
+//   mutate (via markLuDirty). Used as the authoritative "data freshness" token
+//   for all view caches. Filter/sort state is included separately in cache keys.
+//
+// Zone rendering: #app is split into three independently morphed zones:
+//   z-hdr  — header + nav bar
+//   z-main — current tab content
+//   z-ov   — modal overlays
+//
+// Zones are only morphed when their composite key changes, eliminating the
+// full-app DOM diff that fired on every user interaction. The critical hot
+// paths that are now free:
+//   • Opening settings/help/ql/up modal while on Timesheet tab → z-main skipped
+//   • Changing a dropdown inside the entry form (ef) → z-main rebuilt, but
+//     the timesheet TABLE is returned from _tsCache (see below) → O(page_size)
+//     not O(total_entries)
+//
+var _dataVer=0; // incremented by markLuDirty() on any data mutation
+
+// ── Timesheet table cache ────────────────────────────────────────────────────
+// Caches the expensive filter+sort+paginate+row-build inside vTimesheet().
+// Key encodes every input that affects the table output; the entry form (ef)
+// is NOT part of this key, so typing in the form hits the cache every time.
+var _tsCache={key:null,hrs:0,bill:0,filteredLen:0,tableH:'',statRows:null};
+
+// ── Analytics cache ──────────────────────────────────────────────────────────
+// vAnalytics() has no inline form; the entire output can be cached.
+var _anCache={key:null,html:''};
+
+// ── Zone render-state tracking ───────────────────────────────────────────────
+// Stores the key from the last successful morph of each zone.
+// A zone is only re-morphed when its new key differs from the stored key.
+var _rKeys={hdr:null,main:null,mainModal:null,ov:null};
 
 // === MORPH
 // Incremental DOM patching (no CDN, no external deps).
@@ -4974,67 +5164,106 @@ function dRender(){
 
 function render(){
   buildLookups(); // no-op if clean; rebuilds cl/ma/ct maps when markLuDirty() was called
-  // applyPrefs() removed: it runs in savePrefs() before every prefs-changing
-  // render, and in INIT. Calling it on every render was wasted DOM classList work.
   var views={timesheet:vTimesheet,clients:vClients,matters:vMatters,contacts:vContacts,analytics:vAnalytics,approvals:vApprovals,invoices:vInvoices};
   var role=myRole();
   var visTabs=TABS.filter(function(t){
     if(t.id==='analytics'&&!ST.prefs.analyticsEnabled) return false;
+    if(t.id==='contacts'&&!ST.prefs.contactsEnabled) return false;
     return (!t.roleOnly||t.roleOnly===role)&&(!t.roleExclude||t.roleExclude.indexOf(role)===-1);
   });
-  var nav=visTabs.map(function(t){
-    var pcount=(t.id==='approvals'&&role==='partner')?(ST.entries.filter(function(e){return (e.status||'approved')==='pending';}).length + (ST.invoices||[]).filter(function(i){return i.status==='review';}).length):0;
-    var badge=pcount>0?' <span style="background:var(--amber);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+pcount+'</span>':'';
-    return '<button class="nav-btn'+(ST.tab===t.id?' on':'')+'" onclick="A.setTab(\''+t.id+'\')">'+t.ic+' '+t.lbl+badge+'</button>';
-  }).join('');
   var tabDef=TABS.find(function(t){return t.id===ST.tab;});
   if(tabDef&&tabDef.roleOnly&&tabDef.roleOnly!==role){ST.tab="timesheet";}
   if(ST.tab==='analytics'&&!ST.prefs.analyticsEnabled){ST.tab='timesheet';}
-  var viewH=(views[ST.tab]||vTimesheet)();
-  var overlays='';
-  if(ST.modal==='up') overlays=buildUP();
-  else if(ST.modal==='ql') overlays=buildQL();
-  else if(ST.modal==='help') overlays=buildHelp();
-  else if(ST.modal==='settings') overlays=buildSettings();
-  else if(ST.modal==='mailpreset') overlays=buildMailPreset();
-  else if(ST.modal==='mailph') overlays=buildMailPH();
-  else if(ST.modal==='mailsend') overlays=buildMailSend();
-  else if(ST.modal==='mailcompose') overlays=buildMailCompose();
-  else if(ST.modal==='importData') overlays=buildImportModal();
-  else if(ST.modal==='exportModal') overlays=buildExportModal();
-  else if(ST.modal==='submitTimesheet') overlays=buildSubmitTimesheetModal();
-  else if(ST.modal==='receivePackage') overlays=buildReceivePackageModal();
-  else if(ST.modal==='ituser') overlays=buildITUserModal();
-  else if(ST.modal==='profileImport') overlays=buildProfileImport();
-  else if(ST.modal==='userSelect') overlays=buildITUserSelect();
-  else if(ST.modal==='invForm') overlays=buildInvoiceForm();
-  else if(ST.modal==='invReview') overlays=buildInvoiceReview();
-  else if(ST.modal==='invPrint') overlays=buildInvoicePrint();
-  else if(ST.modal==='pref') overlays=buildPartnerReview();
-  else if(ST.modal==='workflowImport') overlays=buildWorkflowImportPreview();
-  else if(ST.modal==='billingEdit') overlays=buildBillingEditModal();
+  if(ST.tab==='contacts'&&!ST.prefs.contactsEnabled){ST.tab='timesheet';}
 
-  var appName=H(ST.prefs.appName||'SixMinuteLog.com');
-  var dmCur=ST.prefs.darkMode;
-  var dmIcon=dmCur===true?IC.sun:IC.moon;
-  var dmTitle=dmCur===null?'Theme: Auto (click for Dark)':dmCur===true?'Theme: Dark (click for Light)':'Theme: Light (click for Auto)';
+  // ── Zone 1: Header + nav ────────────────────────────────────────────────
+  // Cheap to recompute; only skip if literally nothing changed.
+  var pendingCount=(role==='partner')
+    ?(ST.entries.filter(function(e){return (e.status||'approved')==='pending';}).length
+      +(ST.invoices||[]).filter(function(i){return i.status==='review';}).length)
+    :0;
+  var hdrKey=ST.tab+'|'+pendingCount+'|'+role+'|'+(ST.user?ST.user.name:'')+'|'+ST.prefs.darkMode+'|'+(ST.prefs.appName||'');
+  if(_rKeys.hdr!==hdrKey){
+    var appName=H(ST.prefs.appName||'SixMinuteLog.com');
+    var dmCur=ST.prefs.darkMode;
+    var dmIcon=dmCur===true?IC.sun:IC.moon;
+    var dmTitle=dmCur===null?'Theme: Auto (click for Dark)':dmCur===true?'Theme: Dark (click for Light)':'Theme: Light (click for Auto)';
+    var nav=visTabs.map(function(t){
+      var pc=(t.id==='approvals'&&role==='partner')?pendingCount:0;
+      var badge=pc>0?' <span style="background:var(--amber);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">'+pc+'</span>':'';
+      return '<button class="nav-btn'+(ST.tab===t.id?' on':'')+'" onclick="A.setTab(\''+t.id+'\')">'+t.ic+' '+t.lbl+badge+'</button>';
+    }).join('');
+    morph(document.getElementById('z-hdr'),
+      '<div class="header">'
+      +'<div class="header-inner">'
+      +'<div class="logo"><div class="logo-mark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="5" x2="12" y2="12"/><line x1="12" y1="12" x2="17" y2="9"/></svg></div>'
+      +'<div class="logo-text"><h1>'+appName+'</h1>'+(ST.user?'<div class="logo-sub" style="display:flex;align-items:center;gap:5px"><button class="btn-link" onclick="A.chgUser()" title="Edit your profile" style="font-size:10px;color:var(--ink3);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px;letter-spacing:.03em">'+H(ST.user.name)+'</button> '+roleBadge(ST.user.role)+'</div>':'')+'</div></div>'
+      +'<div class="header-btns">'
+      +'<button class="btn btn-gh" onclick="ST.modal=\'importData\';render()" title="Restore from backup">'+IC.ul+' Restore</button>'
+      +'<button class="btn btn-gh" onclick="A.csvQuickExport()" title="Download CSV with your saved preset (configure in Settings → Backup)">'+IC.dl+' CSV</button>'
+      +'<button class="btn btn-gr" onclick="A.exportJSON()" title="Download full backup (.json)">'+IC.dl+' Backup</button>'
+      +'<button class="btn-ic" onclick="A.togDark()" title="'+dmTitle+'" style="'+(dmCur===true?'color:var(--amber)':dmCur===null?'color:var(--ink3)':'')+'">'+(dmIcon)+'</button>'
+      +'<button class="btn-ic" onclick="A.openHelp()" title="Help">'+IC.help+'</button>'
+      +'<button class="btn-ic" onclick="A.openSettings()" title="Settings">'+IC.gear+'</button>'
+      +'</div></div>'
+      +'<div class="nav">'+nav+'</div></div>');
+    _rKeys.hdr=hdrKey;
+  }
 
-  morph(document.getElementById('app'),
-    '<div class="header">'
-    +'<div class="header-inner">'
-    +'<div class="logo"><span style="font-size:1.4rem">&#9878;&#65039;</span>'
-    +'<div><h1>'+appName+'</h1>'+(ST.user?'<div class="logo-sub" style="display:flex;align-items:center;gap:6px">'+H(ST.user.name)+' '+roleBadge(ST.user.role)+'</div>':'')+'</div></div>'
-    +'<div class="header-btns">'
-    +'<button class="btn btn-gh" onclick="ST.modal=\'importData\';render()" title="Restore from backup">'+IC.ul+' Restore</button>'
-    +'<button class="btn btn-gh" onclick="A.csvQuickExport()" title="Download CSV with your saved preset (configure in Settings → Backup)">'+IC.dl+' CSV</button>'
-    +'<button class="btn btn-gr" onclick="A.exportJSON()" title="Download full backup (.json)">'+IC.dl+' Backup</button>'
-    +'<button class="btn-ic" onclick="A.togDark()" title="'+dmTitle+'" style="'+( dmCur===true?'color:var(--amber)':dmCur===null?'color:var(--ink3)':'')+'">'+(dmIcon)+'</button>'
-    +'<button class="btn-ic" onclick="A.openHelp()" title="Help">'+IC.help+'</button>'
-    +'<button class="btn-ic" onclick="A.openSettings()" title="Settings">'+IC.gear+'</button>'
-    +'</div></div>'
-    +'<div class="nav">'+nav+'</div></div>'
-    +'<div class="main">'+viewH+'</div>'
-    +overlays);
+  // ── Zone 2: Main tab content ─────────────────────────────────────────────
+  // Skipped when only an overlay modal opens/closes (the main view hasn't changed).
+  // EXCEPTION: when the entry form (ef) is open it is rendered INSIDE vTimesheet(),
+  // so we must always rebuild the main zone when ef is or was active.
+  //
+  // mainKey encodes all tab-view inputs EXCEPT ef form state (handled by ef exception).
+  var mainKey=ST.tab+'|'+_dataVer
+    +'|'+(ST.tsFilter||'')+(ST.tsClientFilter||'')+(ST.tsMatterFilter||'')+ST.tsSort+ST.tsPage
+    +'|'+(ST.anFilter||'')
+    +'|'+(ST.clSearch||'')+(ST.maSearch||'')+(ST.ctSearch||'')+(ST.maClientFilter||'')
+    +'|'+(ST.rowTmr?'t'+ST.rowTmr.entId:'');
+  var efInvolved=(ST.modal==='ef'||_rKeys.mainModal==='ef');
+  var skipMain=(!efInvolved&&_rKeys.main===mainKey);
+  if(!skipMain){
+    var viewH=(views[ST.tab]||vTimesheet)();
+    morph(document.getElementById('z-main'),'<div class="main">'+viewH+'</div>');
+    _rKeys.main=mainKey;
+    _rKeys.mainModal=ST.modal;
+  }
+
+  // ── Zone 3: Overlays ─────────────────────────────────────────────────────
+  // Overlay forms (settings, pref, ql, up, billingEdit) change on every syncForm;
+  // those always produce a new ST.modal value that matches the current key, but
+  // their CONTENT changes — so we do NOT cache overlays. The overlay zone is
+  // always rebuilt when the modal is open. When modal is null (and was null),
+  // the morph is skipped via the empty-string fast path.
+  var ovKey=ST.modal||'';
+  var prevOv=_rKeys.ov||'';
+  if(ovKey||prevOv){  // skip morph only if both are empty
+    var overlays='';
+    if(ST.modal==='up') overlays=buildUP();
+    else if(ST.modal==='ql') overlays=buildQL();
+    else if(ST.modal==='help') overlays=buildHelp();
+    else if(ST.modal==='settings') overlays=buildSettings();
+    else if(ST.modal==='mailpreset') overlays=buildMailPreset();
+    else if(ST.modal==='mailph') overlays=buildMailPH();
+    else if(ST.modal==='mailsend') overlays=buildMailSend();
+    else if(ST.modal==='mailcompose') overlays=buildMailCompose();
+    else if(ST.modal==='importData') overlays=buildImportModal();
+    else if(ST.modal==='exportModal') overlays=buildExportModal();
+    else if(ST.modal==='submitTimesheet') overlays=buildSubmitTimesheetModal();
+    else if(ST.modal==='receivePackage') overlays=buildReceivePackageModal();
+    else if(ST.modal==='ituser') overlays=buildITUserModal();
+    else if(ST.modal==='profileImport') overlays=buildProfileImport();
+    else if(ST.modal==='userSelect') overlays=buildITUserSelect();
+    else if(ST.modal==='invForm') overlays=buildInvoiceForm();
+    else if(ST.modal==='invReview') overlays=buildInvoiceReview();
+    else if(ST.modal==='invPrint') overlays=buildInvoicePrint();
+    else if(ST.modal==='pref') overlays=buildPartnerReview();
+    else if(ST.modal==='workflowImport') overlays=buildWorkflowImportPreview();
+    else if(ST.modal==='billingEdit') overlays=buildBillingEditModal();
+    morph(document.getElementById('z-ov'),overlays);
+    _rKeys.ov=ovKey;
+  }
 
   document.getElementById('fab').style.display=((isBilling()&&ST.tab!=='timesheet')||(ST.modal&&ST.modal!=='help'&&ST.modal!=='settings'))?'none':'flex';
   if(ST.modal==='up') setTimeout(function(){var el=document.getElementById('up-n');if(el)el.focus();},50);
@@ -5126,6 +5355,14 @@ var A={
     ST.prefs.revenueSplit=v;
     if(!v&&ST.tab==='analytics') ST.tab='timesheet';
     toast(v?'Analytics enabled':'Analytics hidden','ok');
+    savePrefs(); render();
+  },
+
+  // == Contacts Tab ==
+  togContacts:function(v){
+    ST.prefs.contactsEnabled=v;
+    if(!v&&ST.tab==='contacts') ST.tab='timesheet';
+    toast(v?'Contacts tab enabled':'Contacts tab hidden','ok');
     savePrefs(); render();
   },
 
@@ -5567,8 +5804,21 @@ var A={
 
   // Entry form
   openEF:function(){
+    // For attorney role, pre-populate contactId from the logged-in user's own contact record
+    // so that matter/client-specific negotiated rates are looked up correctly via autoRate.
+    var selfContactId='';
+    var selfRate='';
+    if(myRole()==='attorney'&&ST.user){
+      var selfCt=ST.contacts.find(function(c){return c.isUser||(c.name&&ST.user.name&&c.name===ST.user.name);});
+      if(selfCt){
+        selfContactId=String(selfCt.id);
+        // Pre-fill rate from own rate history/rate
+        var r0=autoRate('','',selfCt.id,today());
+        if(r0) selfRate=String(r0);
+      }
+    }
     // Billing staff CAN add entries on behalf of attorneys/partners
-    ST.ef={date:today(),clientId:'',matterId:'',contactId:'',byContactId:'',hours:'',rate:'',description:'',abaCode:'',errs:{}};
+    ST.ef={date:today(),clientId:'',matterId:'',contactId:selfContactId,byContactId:'',hours:'',rate:selfRate,description:'',abaCode:'',errs:{}};
     ST.modal='ef'; render();
     var el=document.getElementById('ef'); if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
   },
@@ -5595,9 +5845,11 @@ var A={
     var f=ST.ef;
     f.date=g('ef-d'); f.clientId=g('ef-cl'); f.matterId=g('ef-ma');
     // Billing staff: contactId is derived from the attorney selection, not a separate field
-    f.contactId=(entRole==='billing_staff')?f.byContactId:g('ef-ct');
-    f.hours=g('ef-h'); f.rate=fmtCur(g('ef-r')||''); f.description=g('ef-desc'); f.abaCode=g('ef-aba')||'';
+    // Attorney: contactId was pre-set to self in openEF — preserve it (ef-ct is hidden for attorney)
     var entRole=myRole();
+    f.contactId=(entRole==='billing_staff')?f.byContactId:(entRole==='attorney'?f.contactId:g('ef-ct'));
+    f.hours=g('ef-h'); f.rate=fmtCur(g('ef-r')||''); f.description=g('ef-desc'); f.abaCode=g('ef-aba')||'';
+    // (entRole already set above)
     // Billing staff: read & validate the "Logged By" attorney selector
     if(entRole==='billing_staff'){
       var byEl=document.getElementById('ef-by');
@@ -5949,11 +6201,11 @@ var A={
 
 
   // Client form
-  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',contactIds:[],clientPeople:[],attorneyRates:[],newPerson:{},errs:{}};ST.modal='cf';render();},
+  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',contactIds:[],clientPeople:[],attorneyRates:[],newPerson:{},editPersonIdx:-1,errs:{}};ST.modal='cf';render();},
   editCl:function(id){var c=ST.clients.find(function(x){return x.id==id;});if(!c)return;ST.editId=id;
     // Migrate legacy contactId to contactIds array
     var cids=c.contactIds&&c.contactIds.length?c.contactIds:(c.contactId?[Number(c.contactId)]:[]);
-    ST.cf=Object.assign({},c,{contactIds:cids,clientPeople:c.clientPeople||[],attorneyRates:(c.attorneyRates||[]).map(function(r){return Object.assign({},r);}),newPerson:{},errs:{}});ST.modal='cf';render();},
+    ST.cf=Object.assign({},c,{contactIds:cids,clientPeople:c.clientPeople||[],attorneyRates:(c.attorneyRates||[]).map(function(r){return Object.assign({},r);}),newPerson:{},editPersonIdx:-1,errs:{}});ST.modal='cf';render();},
   cfTogCt:function(cb){
     var id=Number(cb.getAttribute('data-cf-ct'));
     var ids=ST.cf.contactIds||[];
@@ -5973,13 +6225,38 @@ var A={
     var ro=(document.getElementById('cf-pro')||{}).value||'';
     var em=(document.getElementById('cf-pe')||{}).value||'';
     var ph=(document.getElementById('cf-pp')||{}).value||'';
-    ST.cf.clientPeople=(ST.cf.clientPeople||[]).concat([{id:uid(),name:n,role:ro.trim(),email:em.trim(),phone:ph.trim()}]);
+    var idx=ST.cf.editPersonIdx;
+    if(idx>=0){
+      // Update existing entry
+      var updated=Object.assign({},ST.cf.clientPeople[idx],{name:n,role:ro.trim(),email:em.trim(),phone:ph.trim()});
+      ST.cf.clientPeople=ST.cf.clientPeople.map(function(p,i){return i===idx?updated:p;});
+      ST.cf.editPersonIdx=-1;
+    } else {
+      ST.cf.clientPeople=(ST.cf.clientPeople||[]).concat([{id:uid(),name:n,role:ro.trim(),email:em.trim(),phone:ph.trim()}]);
+    }
     ST.cf.newPerson={};
     render();
     var el=document.getElementById('cf-pn'); if(el){el.focus();}
   },
+  cfEditPerson:function(i){
+    syncForm();
+    var p=ST.cf.clientPeople[i];
+    if(!p) return;
+    ST.cf.editPersonIdx=i;
+    ST.cf.newPerson={name:p.name,role:p.role||'',email:p.email||'',phone:p.phone||''};
+    render();
+    var el=document.getElementById('cf-pn'); if(el){el.focus();}
+  },
+  cfCancelEditPerson:function(){
+    syncForm();
+    ST.cf.editPersonIdx=-1;
+    ST.cf.newPerson={};
+    render();
+  },
   cfRemPerson:function(i){
     syncForm();
+    if(ST.cf.editPersonIdx===i){ST.cf.editPersonIdx=-1;ST.cf.newPerson={};}
+    else if(ST.cf.editPersonIdx>i){ST.cf.editPersonIdx=ST.cf.editPersonIdx-1;}
     ST.cf.clientPeople=(ST.cf.clientPeople||[]).filter(function(_,idx){return idx!==i;});
     render();
   },
@@ -6083,6 +6360,9 @@ var A={
     // Prevent duplicate effective dates
     if(rh.some(function(r){return r.effectiveDate===dateVal;})){toast('A rate entry already exists for that date','err');return;}
     ST.ctf.rateHistory=(rh).concat([{effectiveDate:dateVal,rate:rateVal,note:noteVal}]);
+    // Sync the Default Rate field to the latest effective rate today so autoRate fallback stays current
+    var newLatest=_rateOnDate(ST.ctf.rateHistory,today());
+    if(newLatest) ST.ctf.rate=String(newLatest);
     render();
   },
   ctfRemRate:function(idx){
@@ -6107,10 +6387,11 @@ var A={
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
     var existing=ST.editId?ST.contacts.find(function(x){return x.id==ST.editId;}):null;
-    // If rate history has entries, derive the current .rate from the latest applicable entry today
+    // If rate history has entries, the latest applicable entry today is the authoritative current rate.
+    // It overrides the manually-typed default rate to keep autoRate lookups accurate.
     var rh=f.rateHistory||[];
     var latestR=_rateOnDate(rh,today());
-    var savedRate=f.rate?Number(f.rate):(latestR||'');
+    var savedRate=latestR||(f.rate?Number(f.rate):'');
     var c={id:ST.editId||uid(),name:f.name.trim(),role:f.role||'',email:f.email||'',phone:f.phone||'',rate:savedRate,ownPct:f.ownPct,salary:f.salary?Number(f.salary):'',rateHistory:rh,createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     // Preserve isUser flag if this contact is the logged-in user
     if(existing&&existing.isUser) c.isUser=true;
@@ -6271,10 +6552,30 @@ var A={
   resetAll:function(){
     if(!confirm('Delete ALL data? This cannot be undone!\nExport a backup first.')) return;
     if(!confirm('Are you absolutely sure?')) return;
+    // Reset all in-memory collections
     ST.clients=[]; ST.matters=[]; ST.entries=[]; ST.contacts=[]; ST.invoices=[];
+    ST.descPresets=[]; ST.mailPresets=[]; ST.mailPlaceholders=[];
     ST._entriesMode='full'; ST._totalEntryCount=0; markLuDirty();
-    Store.clearData();
-    ST.user=null; ST._splashMode=true; ST.modal='profileImport'; toast('All data reset','warn'); render();
+    // Reset settings to defaults
+    ST.settings={te:true,cl:true,ma:true,co:true,su:true,split:false,
+      tc_date:true,tc_client:true,tc_matter:true,tc_team:true,
+      tc_desc:true,tc_hours:true,tc_rate:true,tc_amount:true,tc_by:false,
+      expFrom:'',expTo:'',te_group:false};
+    // Reset prefs to defaults
+    ST.prefs={appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',
+      revenueSplit:false,analyticsEnabled:false,contactsEnabled:false,
+      csvQuick:{dataset:'entries',datePreset:'month',
+        cols:{date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false},
+        clCols:{name:true,email:true,phone:true,rate:true,contact:false},
+        maCols:{name:true,client:true,desc:true,rate:true,contact:false},
+        ctCols:{name:true,role:true,email:true,phone:true,rate:false,ownPct:false},
+        groupBy:'none',includeTotals:true,includeGrandTotal:true,
+        dateFormat:'iso',currencySymbol:true,filenamePrefix:''}};
+    ST.user=null;
+    // Clear IndexedDB, then redirect to setup
+    Store.clearData().then(function(){
+      ST._splashMode=true; ST.modal='profileImport'; toast('All data reset','warn'); render();
+    });
   },
 
 
@@ -6756,12 +7057,12 @@ var A={
       try{
         var b=JSON.parse(ev.target.result);
         if(!b||!b._version){ toast('Invalid backup file','err'); return; }
-        if(b.clients)  ST.clients=b.clients;
-        if(b.matters)  ST.matters=b.matters;
-        if(b.entries)  ST.entries=b.entries;
-        if(b.contacts) ST.contacts=b.contacts;
+        if(b.clients)  replaceCollection('clients',  'clients',  b.clients);
+        if(b.matters)  replaceCollection('matters',  'matters',  b.matters);
+        if(b.entries)  replaceCollection('entries',  'entries',  b.entries);
+        if(b.contacts) replaceCollection('contacts', 'contacts', b.contacts);
         if(b.user)     ST.user=b.user;
-        if(b.prefs)    ST.prefs=Object.assign({appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false},b.prefs);
+        if(b.prefs)    ST.prefs=Object.assign({appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false,contactsEnabled:false},b.prefs);
         if(b.settings) ST.settings=Object.assign({},ST.settings,b.settings);
         if(b.descPresets) ST.descPresets=b.descPresets;
         if(b.mailPresets) ST.mailPresets=b.mailPresets;
@@ -6777,7 +7078,7 @@ var A={
     reader.readAsText(file); inp.value='';
   },
 
-  // Download a freshly-generated CLAUDE_BILLING.md with current line numbers
+  // Download a freshly-generated CLAUDE.md with current line numbers
   dlManifest: function(){
     // Scan own script source for // === SECTION markers and their line numbers
     var src = document.querySelector('script').textContent;
@@ -6824,13 +7125,14 @@ var A={
 
     var md = [
 '# SixMinuteLog.com - Claude Architecture Guide',
-'> **Claude: Read ONLY this file first. Then `view` specific line ranges in Billing_Tracker.html.**',
+'> **Claude Code: this file is auto-loaded. No need to read it explicitly.**',
+'> **Web chat: upload this file and index.html together.**',
 '> **Never read the full HTML. Use `str_replace` for all edits.**',
 '> Auto-generated: '+now+' | HTML file: ~'+totalLines+' lines',
 '',
 '---',
 '',
-'## SECTION MAP (current line numbers in Billing_Tracker.html)',
+'## SECTION MAP (current line numbers in index.html)',
 '',
 '| Search String | ~Line | Contents |',
 '|---|---|---|',
@@ -6914,9 +7216,9 @@ tableRows,
 '',
 'FOR A COLLECTION (array of objects each with .id):',
 '1. Add to ST: myData: []',
-'2. Add to _flushSave(): if(_dirty.mydata||_dirty._all) ops.push(Store.syncCollection(\'mydata\', ST.mydata));',
+'2. Add to _flushSave(): if(_dirty.mydata||_dirty._all) ops.push(Store.putBatch(\'mydata\', ST.mydata));',
 '3. In actions: use saveOne(\'mydata\',rec) for single upserts, delOne(\'mydata\',id) for deletes.',
-'   Use save() only for bulk/import operations (triggers full syncCollection).',
+'   Use replaceCollection(\'mydata\',\'mydata\',newArr) for bulk replace (import/restore).',
 '4. Add to INIT Promise.all: Store.getAll(\'mydata\')',
 '5. Load in .then(res): try{if(res[N]&&res[N].length)ST.myData=res[N];}catch(e){}',
 '   (N = index; current: 0=user(meta), 1=clients, 2=matters, 3=entries, 4=contacts)',
@@ -6969,7 +7271,7 @@ tableRows,
 '  saveOne(\'coll\', rec); A.closeF();   // immediate atomic write — no data-loss window',
 '',
 'Bulk save (imports, finalize, approve-all):',
-'  // Mutate ST arrays, then call save() — triggers syncCollection on all dirty colls',
+'  // Use replaceCollection() for bulk replace, then save() — putBatch upserts, no getAll scan',
 '  save(); toast(\'Done\'); render();',
 '',
 'Dropdown onChange (CHANGE DELEGATION):',
@@ -6989,28 +7291,57 @@ tableRows,
 '5. IDs: always uid() for new records',
 '6. No external deps - 100% offline, no CDN',
 '7. Prefer saveOne/delOne over save() for single-record mutations (atomic, no clear, instant)',
-'8. save() is for bulk ops only — still safe (uses syncCollection not clear+putAll)',
+'8. save() is for bulk add/update only — use replaceCollection() for bulk replace (handles orphan deletes)',
 '9. render() uses morph() (incremental DOM patching). Focused inputs are NEVER destroyed.',
 '   Do NOT implement focus-save/restore hacks — morph handles cursor position automatically.',
 '   The old _dFocusSel pattern has been removed. dRender() is just a debounced render().',
 '',
 '---',
 '',
+'## MULTI-CHANGE SESSIONS (Claude Code)',
+'',
+'You can apply several changes in a single session. Follow this protocol:',
+'',
+'1. User will provide a numbered list of changes.',
+'2. Work through them in order, one str_replace at a time.',
+'3. After each edit, state: "✓ Change N complete — [one-line summary]."',
+'4. If a change depends on a previous one, view the relevant line range again',
+'   before editing (line numbers may have shifted after prior inserts/deletes).',
+'5. After all changes: print a summary list of every edit made.',
+'6. Never batch multiple edits into a single str_replace — each change gets',
+'   its own targeted replace so failures are isolated and easy to diagnose.',
+'',
+'Example prompt format that works well:',
+'  "Make the following changes to index.html:',
+'   1. Add a Notes field to the client form',
+'   2. Show note preview on client cards',
+'   3. Add Notes column to CSV export"',
+'',
+'---',
+'',
 '## USAGE',
 '',
-'Tell Claude:',
-'  "Read CLAUDE_BILLING.md first. Then add [feature] to Billing_Tracker.html."',
+'Claude Code (recommended):',
+'  This file is named CLAUDE.md — Claude Code reads it automatically before every prompt.',
+'  No preamble needed. Just describe your changes:',
+'  "Modify index.html to [feature]"',
+'  Or for multiple changes:',
+'  "Make the following changes to index.html: 1. ... 2. ... 3. ..."',
+'',
+'Web chat (claude.ai):',
+'  Upload both CLAUDE.md and index.html, then send:',
+'  "Read CLAUDE.md first. Then modify index.html to [feature]"',
 '',
 'Claude reads this (~3k tokens) instead of the full HTML (~25k tokens).',
 '',
-'To regenerate this file: open Billing_Tracker.html → Settings (gear) → Download Claude Guide.',
-'Line numbers update automatically based on the current file state.',
+'To regenerate: open index.html → Settings (gear) → Download Claude Guide.',
+'Overwrite this file with the download. Line numbers update automatically.',
 '',
 '---',
 'SixMinuteLog.com | Line numbers auto-generated on '+now
     ].join('\n');
 
-    A._dlData(md, 'CLAUDE_BILLING.md', 'text/markdown');
+    A._dlData(md, 'CLAUDE.md', 'text/markdown');
     toast('Claude guide downloaded with live line numbers!');
   },
 
@@ -7105,9 +7436,9 @@ tableRows,
   },
   _applyProfileData: function(p){
     if(!p) return;
-    if(p.clients&&p.clients.length) ST.clients=p.clients;
-    if(p.matters&&p.matters.length) ST.matters=p.matters;
-    if(p.contacts&&p.contacts.length) ST.contacts=p.contacts;
+    if(p.clients&&p.clients.length) replaceCollection('clients',  'clients',  p.clients);
+    if(p.matters&&p.matters.length) replaceCollection('matters',  'matters',  p.matters);
+    if(p.contacts&&p.contacts.length) replaceCollection('contacts','contacts', p.contacts);
     if(p.descPresets&&p.descPresets.length) ST.descPresets=p.descPresets;
     save();
     toast('Firm profile applied: '+(p.firmName||p.appName||'Profile'));
@@ -7632,6 +7963,28 @@ function _importWorkflowPackage(pkg){
     }
   });
 
+  // === Auto-create contact for package sender (if not already present) ===
+  var senderName=(pkg._fromUser||'').trim();
+  if(senderName){
+    var senderExists=ST.contacts.find(function(c){return c.name.toLowerCase()===senderName.toLowerCase();});
+    if(!senderExists){
+      var sc={
+        id:uid(),
+        name:senderName,
+        role:pkg._fromRole||'',
+        initials:pkg._fromInitials||senderName.split(' ').filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase().substring(0,3),
+        email:'',
+        phone:'',
+        rate:'',
+        ownPct:100,
+        rateHistory:[]
+      };
+      ST.contacts=ST.contacts.concat([sc]);
+      saveOne('contacts',sc);
+      added.contacts++;
+    }
+  }
+
   // Rebuild lookups so ID resolution works for entries
   markLuDirty(); buildLookups();
 
@@ -7764,15 +8117,20 @@ document.addEventListener('change',function(e){
   }
   else if(id==='ef-cl'){
     ST.ef.clientId=e.target.value; ST.ef.matterId='';
-    // Only auto-fill rate if the rate field is empty
+    // Always re-evaluate rate when client changes — negotiated rates differ per client.
+    // Only skip re-evaluation if the user has manually typed a custom rate (no way to detect,
+    // so we always update: the rate field remains editable for manual override after auto-fill).
     var _efDate1=ST.ef.date||today();
-    if(!ST.ef.rate){var r=autoRate(e.target.value,'',ST.ef.contactId||'',_efDate1);if(r)ST.ef.rate=String(r);}
+    var r1=autoRate(e.target.value,'',ST.ef.contactId||'',_efDate1);
+    if(r1) ST.ef.rate=String(r1);
     render();
   }
   else if(id==='ef-ma'){
     ST.ef.matterId=e.target.value;
     var _efDate2=ST.ef.date||today();
-    if(!ST.ef.rate){var r=autoRate(ST.ef.clientId||'',e.target.value,ST.ef.contactId||'',_efDate2);if(r)ST.ef.rate=String(r);}
+    // Re-evaluate rate on matter change — matter-level rates override client rates.
+    var r2=autoRate(ST.ef.clientId||'',e.target.value,ST.ef.contactId||'',_efDate2);
+    if(r2) ST.ef.rate=String(r2);
     render();
   }
   else if(id==='ef-ct'){
@@ -7859,7 +8217,7 @@ document.addEventListener('keydown',function(e){
       }
     }
     try{if(res[5]){
-      var _pDefaults={appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false,csvQuick:{dataset:'entries',datePreset:'month',cols:{date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false},clCols:{name:true,email:true,phone:true,rate:true,contact:false},maCols:{name:true,client:true,desc:true,rate:true,contact:false},ctCols:{name:true,role:true,email:true,phone:true,rate:false,ownPct:false},groupBy:'none',includeTotals:true,includeGrandTotal:true,dateFormat:'iso',currencySymbol:true,filenamePrefix:''}};
+      var _pDefaults={appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false,contactsEnabled:false,csvQuick:{dataset:'entries',datePreset:'month',cols:{date:true,client:true,matter:true,contact:false,hours:true,rate:true,amount:true,desc:true,by:false,entryId:false,abaCode:false},clCols:{name:true,email:true,phone:true,rate:true,contact:false},maCols:{name:true,client:true,desc:true,rate:true,contact:false},ctCols:{name:true,role:true,email:true,phone:true,rate:false,ownPct:false},groupBy:'none',includeTotals:true,includeGrandTotal:true,dateFormat:'iso',currencySymbol:true,filenamePrefix:''}};
       ST.prefs=Object.assign({},_pDefaults,res[5]);
       // Deep-merge csvQuick so individual keys survive partial stored values
       if(res[5].csvQuick) ST.prefs.csvQuick=Object.assign({},_pDefaults.csvQuick,res[5].csvQuick,{cols:Object.assign({},_pDefaults.csvQuick.cols,(res[5].csvQuick||{}).cols),clCols:Object.assign({},_pDefaults.csvQuick.clCols,(res[5].csvQuick||{}).clCols),maCols:Object.assign({},_pDefaults.csvQuick.maCols,(res[5].csvQuick||{}).maCols),ctCols:Object.assign({},_pDefaults.csvQuick.ctCols,(res[5].csvQuick||{}).ctCols)});
