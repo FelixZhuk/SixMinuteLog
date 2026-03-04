@@ -658,9 +658,9 @@ html,body{overflow-x:hidden;max-width:100vw}
 const Store=(function(){
   var _db=null;
   var DB_NAME='SixMinuteLog';
-  var DB_VER=4;
-  var COLLECTIONS=['clients','matters','entries','contacts','invoices'];
-  var COLL_SET={clients:1,matters:1,entries:1,contacts:1,invoices:1};
+  var DB_VER=5;
+  var COLLECTIONS=['clients','matters','entries','contacts','invoices','groups'];
+  var COLL_SET={clients:1,matters:1,entries:1,contacts:1,invoices:1,groups:1};
   var META_KEYS=['user','prefs','descpresets','mailpresets','mailplaceholders','itmode'];
 
   function _open(){
@@ -875,7 +875,7 @@ const Store=(function(){
 // === STATE
 var ST={
   tab:'timesheet',
-  clients:[],matters:[],entries:[],contacts:[],
+  clients:[],matters:[],entries:[],contacts:[],groups:[],
   invoices:[],
   user:null,
   settings:{
@@ -934,15 +934,15 @@ var ST={
   tsFilter:'all',anFilter:'month',
   // Timesheet extra filters/sort (collapsed by default on load)
   tsClientFilter:'',tsMatterFilter:'',tsContactFilter:'',tsSort:'date-desc',tsFiltersOpen:false,
-  // Clients sort
-  clSort:'alpha',clSearch:'',
+  // Clients sort/filter
+  clSort:'alpha',clSearch:'',clGrpFilter:'',clGrpsOpen:false,
   // Matters group/filter/sort
   maGroup:false,maClientFilter:'',maSort:'alpha',maSearch:'',
   // Contacts sort/search
   ctSort:'alpha',ctSearch:'',
   tmrOn:false,tmrStart:0,tmrMs:0,tmrIv:null,
   rowTmr:null, // {entId, startMs, accMs, iv} — per-row stopwatch
-  ef:{},cf:{},mf:{},ctf:{},ql:{},
+  ef:{},cf:{},mf:{},ctf:{},ql:{},gf:{},
   mpf:{},
   // Pagination (timesheet)
   tsPage:0,
@@ -1115,36 +1115,52 @@ function _rateOnDate(history, forDate){
 // Rate precedence (most-specific wins):
 //   1. Matter  + attorney rate history (entry date)
 //   2. Client  + attorney rate history (entry date)
+//   2.5 Group  + attorney rate history (entry date)
 //   3. Attorney's own rate history (entry date), then attorney's current .rate
 //   4. If no attorney selected: user's own .rate
-//   5. Matter default rate
-//   6. Client default rate
+//   5. Group default rate (lowest priority fallback)
 function autoRate(cid,mid,ctid,date){
   var d=date||today();
+  buildLookups(); // ensure _lu maps are current (no-op if already clean)
   if(ctid){
-    // 1. Matter-specific attorney rate
-    var m=ST.matters.find(function(x){return x.id==mid;});
+    // 1. Matter-specific attorney rate — O(1) map lookup
+    var m=_lu.ma[mid];
     if(m&&m.attorneyRates){
       var mar=m.attorneyRates.filter(function(r){return r.contactId==ctid;});
       var mRate=_rateOnDate(mar,d);
       if(mRate) return mRate;
     }
-    // 2. Client-specific attorney rate
-    var cl=ST.clients.find(function(x){return x.id==cid;});
+    // 2. Client-specific attorney rate — O(1) map lookup
+    var cl=_lu.cl[cid];
     if(cl&&cl.attorneyRates){
       var car=cl.attorneyRates.filter(function(r){return r.contactId==ctid;});
       var cRate=_rateOnDate(car,d);
       if(cRate) return cRate;
     }
-    // 3. Attorney's own rate history, then current rate
-    var ct=ST.contacts.find(function(x){return x.id==ctid;});
+    // 2.5. Group-specific attorney rate — O(1) map lookup
+    var gr=cl&&cl.groupId?_lu.gr[cl.groupId]:null;
+    if(gr&&gr.attorneyRates){
+      var gar=gr.attorneyRates.filter(function(r){return r.contactId==ctid;});
+      var gAtRate=_rateOnDate(gar,d);
+      if(gAtRate) return gAtRate;
+    }
+    // 3. Attorney's own rate history, then current rate — O(1) map lookup
+    var ct=_lu.ct[ctid];
     if(ct){
       var ctRate=_rateOnDate(ct.rateHistory,d)||(ct.rate?Number(ct.rate):null);
       if(ctRate) return ctRate;
     }
+    // 5. Group default rate (fallback when attorney has no rate)
+    if(gr&&gr.rate) return Number(gr.rate);
   } else {
     // 4. No attorney selected — use logged-in user's rate
     if(ST.user&&ST.user.rate) return ST.user.rate;
+    // 5. Group default rate fallback — O(1) map lookup
+    var clNoAt=_lu.cl[cid];
+    if(clNoAt&&clNoAt.groupId){
+      var grNoAt=_lu.gr[clNoAt.groupId];
+      if(grNoAt&&grNoAt.rate) return Number(grNoAt.rate);
+    }
   }
   return '';
 }
@@ -1269,6 +1285,20 @@ function syncForm(){
     if(pro!==undefined) ST.cf.newPerson.role=pro;
     if(pe!==undefined) ST.cf.newPerson.email=pe;
     if(pp!==undefined) ST.cf.newPerson.phone=pp;
+  }
+  if(ST.modal==='gf'){
+    var gn=g('gf-n'),gdesc=g('gf-desc'),gr=g('gf-rate'),gnotes=g('gf-notes');
+    if(gn!==undefined) ST.gf.name=gn;
+    if(gdesc!==undefined) ST.gf.description=gdesc;
+    if(gr!==undefined) ST.gf.rate=gr;
+    if(gnotes!==undefined) ST.gf.notes=gnotes;
+    // Preserve new-person draft
+    var gpn=g('gf-pn'),gpro=g('gf-pro'),gpe=g('gf-pe'),gpp=g('gf-pp');
+    if(gpn!==undefined) ST.gf.newPerson=ST.gf.newPerson||{};
+    if(gpn!==undefined) ST.gf.newPerson.name=gpn;
+    if(gpro!==undefined) ST.gf.newPerson.role=gpro;
+    if(gpe!==undefined) ST.gf.newPerson.email=gpe;
+    if(gpp!==undefined) ST.gf.newPerson.phone=gpp;
   }
   if(ST.modal==='mf'){
     var n=g('mf-n'),desc=g('mf-desc');
@@ -1409,6 +1439,7 @@ function _flushSave(){
   }
   if(_dirty.contacts||_dirty._all)  ops.push(Store.putBatch('contacts', ST.contacts));
   if(_dirty.invoices||_dirty._all)  ops.push(Store.putBatch('invoices', ST.invoices));
+  if(_dirty.groups||_dirty._all)    ops.push(Store.putBatch('groups',   ST.groups));
   // Drain pending delete queue — each is a cheap single-key IDB delete
   Object.keys(_pendingDeletes).forEach(function(coll){
     Object.keys(_pendingDeletes[coll]).forEach(function(id){
@@ -1937,21 +1968,81 @@ function entryForm(){
 // == Clients ==
 function vClients(){
   var formH=ST.modal==='cf'?clientForm():'';
+  var groupFormH=ST.modal==='gf'?groupForm():'';
   var cardsH='';
   var list=ST.clients;
   // Search
   if(ST.clSearch) list=list.filter(function(c){var s=ST.clSearch.toLowerCase();return c.name.toLowerCase().indexOf(s)!==-1||(c.email&&c.email.toLowerCase().indexOf(s)!==-1);});
+  // Group filter
+  if(ST.clGrpFilter==='ungrouped') list=list.filter(function(c){return !c.groupId;});
+  else if(ST.clGrpFilter) list=list.filter(function(c){return String(c.groupId)===String(ST.clGrpFilter);});
   // Sort
   list=[].concat(list).sort(function(a,b){
     if(ST.clSort==='matters'){
       var mc=function(c){return ST.matters.filter(function(m){return m.clientId==c.id;}).length;};
       return mc(b)-mc(a);
     }
+    if(ST.clSort==='group'){
+      var ga=_lu.gr[a.groupId],gb=_lu.gr[b.groupId];
+      var gna=ga?ga.name:'zzz', gnb=gb?gb.name:'zzz';
+      if(gna!==gnb) return gna.localeCompare(gnb);
+      return a.name.localeCompare(b.name);
+    }
     if(ST.clSort==='rate') return 0;
     return a.name.localeCompare(b.name); // alpha
   });
   var selectStyle='padding:7px 11px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--white);color:var(--ink)';
-  var sortOpts=[['alpha','Name A\u2013Z'],['matters','Most Matters']].map(function(x){return '<option value="'+x[0]+'"'+(ST.clSort===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('');
+  var sortOpts=[['alpha','Name A\u2013Z'],['matters','Most Matters'],['group','By Group']].map(function(x){return '<option value="'+x[0]+'"'+(ST.clSort===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('');
+
+  // ── Groups section ─────────────────────────────────────────────────────────
+  var groupsH='';
+  if(ST.groups.length||ST.clGrpsOpen){
+    var grpCards=ST.groups.length===0
+      ?'<p style="font-size:12px;color:var(--ink3);margin:4px 0 0">No groups yet. Groups let you share billing rates and contacts across multiple clients.</p>'
+      :'<div class="cgrid">'+ST.groups.map(function(g){
+          var memberCount=ST.clients.filter(function(c){return c.groupId==g.id;}).length;
+          var grpCts=(g.contactIds||[]).map(function(id){return _lu.ct[id];}).filter(Boolean);
+          var rateH=g.rate?'<span style="color:var(--blue);font-weight:500">'+$m(g.rate)+'/hr default</span>':'<span style="color:var(--ink3)">No default rate</span>';
+          var arCount=(g.attorneyRates||[]).length;
+          return '<div class="card" style="border-left:3px solid var(--blue)">'
+            +'<div class="card-hd"><div class="avatar" style="background:var(--blue);color:#fff">'+H(g.name.charAt(0).toUpperCase())+'</div>'
+            +'<div class="card-act">'
+            +'<button onclick="A.editGrp('+g.id+')" title="Edit group">'+IC.edit+'</button>'
+            +'<button onclick="A.delGrp('+g.id+')" title="Delete group">'+IC.trash+'</button>'
+            +'</div></div>'
+            +'<h3>'+H(g.name)+'</h3>'
+            +(g.description?'<p style="font-size:12px;color:var(--ink3);margin:2px 0 6px">'+H(g.description)+'</p>':'')
+            +'<div style="font-size:12px;margin:6px 0 4px">'+rateH+'</div>'
+            +(arCount?'<div style="font-size:11px;color:var(--blue);margin:2px 0">'+arCount+' negotiated attorney rate'+(arCount!==1?'s':'')+'</div>':'')
+            +(grpCts.length?'<div style="font-size:11px;color:var(--ink3);margin-top:4px">Firm team: '+grpCts.map(function(ct){return H(ct.name);}).join(', ')+'</div>':'')
+            +(g.notes?'<div style="font-size:11px;color:var(--ink3);margin-top:4px;font-style:italic">'+H(g.notes)+'</div>':'')
+            +'<div class="card-rate" style="border-top:none;padding-top:0;margin-top:6px"><span style="color:var(--ink3)">'+memberCount+' client'+(memberCount!==1?'s':'')+'</span></div>'
+            +'</div>';
+        }).join('')+'</div>';
+
+    groupsH='<div style="margin-bottom:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);cursor:pointer;user-select:none" onclick="A.togGrpsOpen()">'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
+      +'<span style="font-size:13px;font-weight:600;color:var(--ink2)">Client Groups</span>'
+      +'<span style="font-size:11px;color:var(--ink3)">('+ST.groups.length+')</span>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<button class="btn btn-gh" style="font-size:11px;padding:4px 10px" onclick="event.stopPropagation();A.openGF()">+ New Group</button>'
+      +'<span style="font-size:12px;color:var(--ink3)">'+(ST.clGrpsOpen?'▲':'▼')+'</span>'
+      +'</div></div>'
+      +(ST.clGrpsOpen?'<div style="padding:12px 14px;border-top:1px solid var(--border-l)">'+grpCards+'</div>':'')
+      +'</div>';
+  }
+
+  // ── Group filter bar (only when groups exist) ──────────────────────────────
+  var grpFilterH='';
+  if(ST.groups.length){
+    var grpFOpts='<option value="">All Clients</option><option value="ungrouped"'+(ST.clGrpFilter==='ungrouped'?' selected':'')+'>Ungrouped</option>'
+      +ST.groups.map(function(g){return '<option value="'+g.id+'"'+(ST.clGrpFilter==g.id?' selected':'')+'>'+H(g.name)+'</option>';}).join('');
+    grpFilterH='<select onchange="syncForm();ST.clGrpFilter=this.value;render();" style="'+selectStyle+'">'+grpFOpts+'</select>';
+  }
+
   if(ST.clients.length===0){
     cardsH='<div class="empty"><div class="empty-ico">&#128188;</div><p>No clients yet</p><small>Add your first client to get started</small></div>';
   } else if(list.length===0){
@@ -1961,24 +2052,43 @@ function vClients(){
       // Support both legacy contactId and new contactIds[]
       var ctIds=c.contactIds&&c.contactIds.length?c.contactIds:(c.contactId?[c.contactId]:[]);
       var linkedCts=ctIds.map(function(id){return _lu.ct[id];}).filter(Boolean);
+      // Inherited group contacts (shown when not already listed directly)
+      var grp=c.groupId?_lu.gr[c.groupId]:null;
+      var grpCtIds=grp&&grp.contactIds?grp.contactIds:[];
+      var inheritedCts=grpCtIds.filter(function(id){return ctIds.indexOf(id)===-1;}).map(function(id){return _lu.ct[id];}).filter(Boolean);
       var cppl=c.clientPeople&&c.clientPeople.length?c.clientPeople:[];
+      // Inherited group client-side people
+      var grpCppl=grp&&grp.clientPeople&&grp.clientPeople.length?grp.clientPeople:[];
       // Find most recent approved invoice for this client
       var clientInvs=(ST.invoices||[]).filter(function(i){return i.clientId==c.id&&(i.status==='sent'||i.status==='approved');});
       clientInvs.sort(function(a,b){return b.id-a.id;});
       var latestApproved=clientInvs[0]||null;
+      // Group badge
+      var grpBadge=grp?'<span style="display:inline-block;font-size:10px;background:var(--blue-l,#eff6ff);color:var(--blue);border:1px solid var(--blue);border-radius:10px;padding:1px 8px;margin-bottom:5px;letter-spacing:.02em">&#128203; '+H(grp.name)+'</span>':'';
+      // Effective rate hint
+      var effRate='';
+      if(grp&&grp.rate&&!(c.attorneyRates&&c.attorneyRates.length)){
+        effRate='<div style="font-size:11px;color:var(--ink3);margin-top:2px">Group rate: '+$m(grp.rate)+'/hr</div>';
+      }
       return '<div class="card">'
         +'<div class="card-hd"><div class="avatar">'+H(c.name.charAt(0).toUpperCase())+'</div>'
         +'<div class="card-act">'
         +(latestApproved?'<button onclick="A.emailInvoice('+latestApproved.id+')" title="Email latest invoice to client" style="color:var(--blue)">'+IC.mail+'</button>':'')
         +'<button onclick="A.editCl('+c.id+')" title="Edit">'+IC.edit+'</button><button onclick="A.delCl('+c.id+')" title="Delete">'+IC.trash+'</button></div></div>'
+        +(grp?grpBadge:'')
         +'<h3>'+H(c.name)+'</h3>'
         +(c.email?'<p style="font-size:12px">'+mailLink(c.email)+'</p>':'')
         +(c.phone?'<p style="font-size:12px">'+telLink(c.phone)+'</p>':'')
         +(cppl.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Client Contacts</div>'
           +cppl.map(function(p){return '<div style="font-size:12px;padding:2px 0"><strong>'+H(p.name)+'</strong>'+(p.role?' <span style="color:var(--ink3)">&middot; '+H(p.role)+'</span>':'')+(p.email?'<br>'+mailLink(p.email,'color:var(--ink2);'):'')+(p.phone?'<span style="color:var(--ink3);font-size:11px"> '+telLink(p.phone)+'</span>':'')+'</div>';}).join('')+'</div>':'')
+        +(grpCppl.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Group Contacts <span style="color:var(--blue)">(via '+H(grp.name)+')</span></div>'
+          +grpCppl.map(function(p){return '<div style="font-size:12px;padding:2px 0;color:var(--ink2)"><strong>'+H(p.name)+'</strong>'+(p.role?' <span style="color:var(--ink3)">&middot; '+H(p.role)+'</span>':'')+(p.email?'<br>'+mailLink(p.email,'color:var(--ink2);'):'')+'</div>';}).join('')+'</div>':'')
         +(linkedCts.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Firm Team</div>'
           +linkedCts.map(function(ct){return '<p style="font-size:12px;margin:2px 0">&#128203; '+H(ct.name)+(ct.role?' <span style="color:var(--ink3)">&middot; '+H(ct.role)+'</span>':'')+(ct.email?'<br><span style="padding-left:18px">'+mailLink(ct.email,'color:var(--ink2);font-size:11px;')+'</span>':'')+(ct.phone?' '+telLink(ct.phone,'color:var(--ink3);font-size:11px;'):'')+'</p>';}).join('')+'</div>':'')
+        +(inheritedCts.length?'<div style="margin:2px 0 4px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:3px">Group Team <span style="color:var(--blue)">(via '+H(grp.name)+')</span></div>'
+          +inheritedCts.map(function(ct){return '<p style="font-size:11px;margin:2px 0;color:var(--ink2)">&#128203; '+H(ct.name)+(ct.role?' &middot; '+H(ct.role):'')+'</p>';}).join('')+'</div>':'')
         +((c.attorneyRates&&c.attorneyRates.length)?'<div class="card-rate" style="color:var(--blue)">'+c.attorneyRates.length+' negotiated attorney rate'+(c.attorneyRates.length!==1?'s':'')+'</div>':'')
+        +effRate
         +'<div class="card-rate" style="border-top:none;padding-top:0;margin-top:6px">'
         +(function(){var mc=ST.matters.filter(function(m){return m.clientId==c.id;}).length;return '<span style="color:var(--ink3)">'+mc+' matter'+(mc!==1?'s':'')+'</span>';})()
         +'</div>'
@@ -1991,10 +2101,13 @@ function vClients(){
     +'<p style="font-size:12px;color:var(--ink3)">'+list.length+' of '+ST.clients.length+' client'+(ST.clients.length!==1?'s':'')+'</p></div>'
     +'<button class="btn btn-dk" onclick="A.openCF()">'+IC.plus+' Add Client</button>'
     +'</div>'
+    +(!ST.groups.length?'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px">No groups yet. <a href="#" onclick="event.preventDefault();A.openGF()" style="color:var(--blue)">Create a client group</a> to share rates and contacts across multiple clients.</p>':'')
+    +groupsH+groupFormH
     +(ST.clients.length>1?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
     +'<input id="cl-search" type="text" value="'+H(ST.clSearch||'')+'" oninput="A.setClSearch(this.value)" placeholder="Search clients..." style="'+selectStyle+';min-width:160px">'
+    +grpFilterH
     +'<select onchange="A.setClSort(this.value)" style="'+selectStyle+'">'+sortOpts+'</select>'
-    +(ST.clSearch?'<button class="btn btn-gh" onclick="A.setClSearch(\'\')" style="font-size:12px;padding:7px 12px">&#10006; Clear</button>':'')
+    +(ST.clSearch||ST.clGrpFilter?'<button class="btn btn-gh" onclick="ST.clSearch=\'\';ST.clGrpFilter=\'\';render();" style="font-size:12px;padding:7px 12px">&#10006; Clear</button>':'')
     +'</div>':'')
     +formH+cardsH+'</div>';
 }
@@ -2126,6 +2239,26 @@ function clientForm(){
     +'<h3>'+(ST.editId?'Edit':'New')+' Client</h3>'
     +'<div class="frow">'+field('Client Name','cf-n',{ph:'Acme Corp',val:f.name||'',req:true,err:f.errs&&f.errs.n})+'</div>'
     +'<div class="frow c2">'+field('Email','cf-e',{type:'email',ph:'billing@acme.com',val:f.email||'',err:f.errs&&f.errs.e})+field('Phone','cf-p',{type:'tel',ph:'(555) 123-4567',val:f.phone||'',oninput:"A.livePhone('cf-p')"})+'</div>'
+    +(function(){
+      // Group assignment field
+      var grpOpts='<option value="">— No Group —</option>'+ST.groups.map(function(g){return '<option value="'+g.id+'"'+(f.groupId==g.id?' selected':'')+'>'+H(g.name)+(g.rate?' ('+$m(g.rate)+'/hr)':'')+'</option>';}).join('');
+      var selGrp=f.groupId?ST.groups.find(function(g){return g.id==f.groupId;}):null;
+      var inheritH='';
+      if(selGrp){
+        var hints=[];
+        if(selGrp.rate) hints.push('Default rate: <strong>'+$m(selGrp.rate)+'/hr</strong>');
+        var grpCts=(selGrp.contactIds||[]).map(function(id){return _lu.ct[id];}).filter(Boolean);
+        if(grpCts.length) hints.push('Firm team: '+grpCts.map(function(c){return H(c.name);}).join(', '));
+        var grpPpl=(selGrp.clientPeople||[]);
+        if(grpPpl.length) hints.push('Client contacts: '+grpPpl.map(function(p){return H(p.name);}).join(', '));
+        var arCount=(selGrp.attorneyRates||[]).length;
+        if(arCount) hints.push(arCount+' negotiated attorney rate'+(arCount!==1?'s':''));
+        if(hints.length) inheritH='<div style="font-size:11px;color:var(--ink2);background:var(--bg);border:1px solid var(--border-l);border-radius:6px;padding:7px 10px;margin-top:-4px"><span style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);display:block;margin-bottom:3px">Inherited from group (client-specific settings override)</span>'+hints.join(' &nbsp;&middot;&nbsp; ')+'</div>';
+      }
+      return !ST.groups.length?''
+        :'<div class="frow">'+field('Client Group','cf-grp',{type:'select',opts:[{v:'',l:'— No Group —'}].concat(ST.groups.map(function(g){return {v:String(g.id),l:g.name+(g.rate?' ('+$m(g.rate)+'/hr)':'')};})),val:f.groupId?String(f.groupId):'',hint:'Inherit group rates and contacts — overridden by client-specific settings'})+'</div>'
+        +(inheritH?'<div class="frow" style="padding-top:0;margin-top:-8px"><div>'+inheritH+'</div></div>':'');
+    })()
     +'<div class="frow">'+field('Firm Team','cf-ct',{type:'select',opts:ctOpts,val:'',hint:'Assign firm contacts to this client'})+'</div>'
     +(chipsRow?'<div class="frow" style="padding-top:0;margin-top:-8px"><div>'+chipsRow+'</div></div>':'')
     // Client-side contacts section
@@ -2514,6 +2647,25 @@ function vAnalytics(){
   }).filter(function(c){return c.hrs>0;}).sort(function(a,b){return b.bill-a.bill;});
   var maxB=byClient.length?byClient[0].bill:1;
 
+  // Revenue by group — O(C + E) single pass: build clientId→groupId map, then accumulate
+  var byGroup=[];
+  if(ST.groups.length){
+    var _clToGrp={};
+    ST.clients.forEach(function(c){ if(c.groupId) _clToGrp[c.id]=c.groupId; });
+    var _grpAcc={};
+    fe.forEach(function(e){
+      var gid=_clToGrp[e.clientId];
+      if(!gid) return;
+      if(!_grpAcc[gid]) _grpAcc[gid]={hrs:0,bill:0};
+      _grpAcc[gid].hrs+=Number(e.hours);
+      _grpAcc[gid].bill+=Math.round(Number(e.hours)*10)/10*Number(e.rate);
+    });
+    byGroup=ST.groups.map(function(g){
+      var acc=_grpAcc[g.id]||{hrs:0,bill:0};
+      return {name:g.name,hrs:acc.hrs,bill:acc.bill};
+    }).filter(function(g){return g.hrs>0;}).sort(function(a,b){return b.bill-a.bill;});
+  }
+
   // Filter options — rolling + calendar periods
   var filterGroups=[
     {label:'Rolling',opts:[
@@ -2541,6 +2693,18 @@ function vAnalytics(){
         +'<span><strong>'+$m(c.bill)+'</strong> <span style="color:var(--ink3);font-size:12px">'+$h(c.hrs)+'</span></span></div>'
         +'<div class="bar-track"><div class="bar-fill" style="width:'+((c.bill/maxB)*100).toFixed(1)+'%"></div></div></div>';
     }).join('')+'</div>':'';
+
+  var groupBarsH='';
+  if(byGroup.length>0){
+    var maxGrpB=byGroup[0].bill||1;
+    groupBarsH='<div class="card" style="margin-top:20px">'
+      +'<h3 style="font-weight:500;margin-bottom:16px;font-size:.93rem">Revenue by Client Group</h3>'
+      +byGroup.map(function(g){
+        return '<div class="bar-row"><div class="bar-lbl"><span style="color:var(--blue)">'+H(g.name)+'</span>'
+          +'<span><strong>'+$m(g.bill)+'</strong> <span style="color:var(--ink3);font-size:12px">'+$h(g.hrs)+'</span></span></div>'
+          +'<div class="bar-track"><div class="bar-fill" style="width:'+((g.bill/maxGrpB)*100).toFixed(1)+'%;background:var(--blue)"></div></div></div>';
+      }).join('')+'</div>';
+  }
 
   // ---- Revenue Split card ----
   var splitH='';
@@ -2678,7 +2842,7 @@ function vAnalytics(){
     +'<select onchange="A.setAnF(this.value)" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink)">'+fopts+'</select>'
     +'</div>'
     +(ST.prefs.revenueSplit?stats([['Total Billing',$m(bill),''],['Total Hours',$h(hrs),''],['Own Portion',$m(totalOwn),'highlight'],['Firm Portion',$m(totalFirm),'highlight2']]):stats([['Total Billing',$m(bill),''],['Total Hours',$h(hrs),'']]))
-    +barsH+myEarningsH+splitH+emptyH+'</div>';
+    +groupBarsH+barsH+myEarningsH+splitH+emptyH+'</div>';
   _anCache={key:anCacheKey,html:_anHtml};
   return _anHtml;
 }
@@ -3074,6 +3238,96 @@ function buildInvoicePrint(){
 }
 
 // == Firm Tab ==
+
+// == Group Form (inline in Clients tab) ==
+function groupForm(){
+  var f=ST.gf||{};
+  var ctOpts=[{v:'',l:'— Add firm contact —'}].concat(ST.contacts.map(function(c){return {v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};}));
+  var selIds=f.contactIds||[];
+  var chipsH=selIds.map(function(id){
+    var ct=_lu.ct[id];
+    if(!ct) return '';
+    return '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px 3px 8px;font-size:12px">'
+      +'<span class="avatar" style="width:18px;height:18px;font-size:9px;flex-shrink:0">'+H(ct.name.charAt(0).toUpperCase())+'</span>'
+      +H(ct.name)+(ct.role?'<span style="color:var(--ink3)"> &middot; '+H(ct.role)+'</span>':'')
+      +'<button type="button" onclick="A.gfRemCt('+id+')" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;color:var(--ink3);font-size:14px;margin-left:2px" title="Remove">&times;</button>'
+      +'</span>';
+  }).join('');
+  var chipsRow=selIds.length>0?'<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px">'+chipsH+'</div>':'';
+  // Client-side people chips
+  var cppl=f.clientPeople||[];
+  var editIdx=f.editPersonIdx!=null?f.editPersonIdx:-1;
+  var ppChips=cppl.length===0?''
+    :'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+cppl.map(function(p,i){
+        var isEditing=i===editIdx;
+        return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+(isEditing?'var(--blue-l,#eff6ff)':'var(--bg)')+';border:1px solid '+(isEditing?'var(--blue)':'var(--border)')+';border-radius:20px;padding:3px 10px 3px 8px;font-size:12px">'
+          +'<span class="avatar" style="width:18px;height:18px;font-size:9px;background:#7c3aed;color:#fff;flex-shrink:0">'+H(p.name.charAt(0).toUpperCase())+'</span>'
+          +H(p.name)+(p.role?'<span style="color:var(--ink3)"> &middot; '+H(p.role)+'</span>':'')
+          +(p.email?'<span style="color:var(--ink2);font-size:11px"> '+mailLink(p.email)+'</span>':'')
+          +'<button type="button" onclick="A.gfEditPerson('+i+')" style="background:none;border:none;cursor:pointer;padding:0 2px;line-height:1;color:var(--blue);font-size:12px;margin-left:2px" title="Edit">✏</button>'
+          +'<button type="button" onclick="A.gfRemPerson('+i+')" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;color:var(--ink3);font-size:14px;margin-left:1px" title="Remove">&times;</button>'
+          +'</span>';
+      }).join('')+'</div>';
+  var np=f.newPerson||{};
+  var isEditingPerson=editIdx>=0;
+  // Per-attorney rates
+  var ar=f.attorneyRates||[];
+  var atOpts='<option value="">Select attorney…</option>'+ST.contacts.map(function(c){return '<option value="'+c.id+'">'+H(c.name)+(c.role?' – '+H(c.role):'')+'</option>';}).join('');
+  var arRows=ar.length===0
+    ?'<tr><td colspan="5" style="text-align:center;padding:8px;color:var(--ink3);font-size:11px">No per-attorney rates. Attorneys default to their own rate schedule.</td></tr>'
+    :ar.map(function(r,i){
+        var ct=ST.contacts.find(function(c){return c.id==r.contactId;});
+        return '<tr>'
+          +'<td style="font-weight:500">'+H(ct?ct.name:'?')+'</td>'
+          +'<td><strong>'+$m(r.rate)+'/hr</strong></td>'
+          +'<td>'+r.effectiveDate+'</td>'
+          +'<td style="color:var(--ink3)">'+H(r.note||'')+'</td>'
+          +'<td style="text-align:right"><button type="button" class="btn-ic" style="padding:2px 6px;font-size:11px" onclick="A.gfRemAtRate('+i+')" title="Remove">&#10005;</button></td>'
+          +'</tr>';
+      }).join('');
+
+  return '<div class="fbox" id="gf" style="margin-bottom:16px">'
+    +'<h3>'+(ST.editId?'Edit':'New')+' Client Group</h3>'
+    +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px">Groups share billing rates and contacts across member clients. Client-specific settings always override group defaults.</p>'
+    +'<div class="frow">'+field('Group Name','gf-n',{ph:'BigCo Group, Insurance Portfolio…',val:f.name||'',req:true,err:f.errs&&f.errs.n})+'</div>'
+    +'<div class="frow c2">'+field('Description','gf-desc',{ph:'Parent company, industry sector…',val:f.description||''})+field('Default Rate ($/hr)','gf-rate',{type:'number',ph:'250.00',val:f.rate||'',hint:'Applies when no client or attorney rate is set'})+'</div>'
+    +'<div class="frow">'+field('Notes','gf-notes',{ph:'Internal notes about this group…',val:f.notes||''})+'</div>'
+    // Firm contacts
+    +'<div class="frow">'+field('Firm Team','gf-ct',{type:'select',opts:ctOpts,val:'',hint:'Assign firm contacts to all group clients'})+'</div>'
+    +(chipsRow?'<div class="frow" style="padding-top:0;margin-top:-8px"><div>'+chipsRow+'</div></div>':'')
+    // Client-side contacts section
+    +'<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
+    +'<div style="font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:10px">Group-Level Client Contacts <span style="font-size:11px;font-weight:400;color:var(--ink3)">(common contacts across all group clients)</span></div>'
+    +ppChips
+    +(isEditingPerson?'<div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:6px">Editing: '+H((cppl[editIdx]||{}).name||'')+'</div>':'')
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">'
+    +'<div class="fl"><label style="font-size:11px">Name</label><input type="text" id="gf-pn" placeholder="Jane Smith" value="'+H(np.name||'')+'" style="width:100%"></div>'
+    +'<div class="fl"><label style="font-size:11px">Role / Title</label><input type="text" id="gf-pro" placeholder="Group Billing Manager" value="'+H(np.role||'')+'" style="width:100%"></div>'
+    +'<div class="fl"><label style="font-size:11px">Email</label><input type="email" id="gf-pe" placeholder="billing@bigco.com" value="'+H(np.email||'')+'" style="width:100%"></div>'
+    +'<div class="fl"><label style="font-size:11px">Phone</label><input type="tel" id="gf-pp" placeholder="(555) 123-4567" value="'+H(np.phone||'')+'" oninput="A.livePhone(\'gf-pp\')" style="width:100%"></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:6px;align-items:center">'
+    +'<button type="button" class="btn '+(isEditingPerson?'btn-dk':'btn-gh')+'" style="font-size:12px;padding:6px 14px" onclick="A.gfAddPerson()">'+(isEditingPerson?'✓ Save Changes':'+ Add Contact')+'</button>'
+    +(isEditingPerson?'<button type="button" class="btn btn-gh" style="font-size:12px;padding:6px 12px" onclick="A.gfCancelEditPerson()">Cancel</button>':'')
+    +'</div>'
+    +'</div></div>'
+    // Per-attorney negotiated rates section
+    +'<div class="frow"><div style="border-top:1px solid var(--border-l);padding-top:14px;width:100%">'
+    +'<div class="rate-section-hd"><h4>Negotiated Attorney Rates</h4><small>Override attorney rates for all clients in this group</small></div>'
+    +'<p style="font-size:11px;color:var(--ink3);margin-bottom:8px">When any client in this group is selected, these rates take effect — unless the client has its own more-specific override.</p>'
+    +'<table class="rate-hist-table"><thead><tr><th>Attorney</th><th>Rate</th><th>Effective Date</th><th>Note</th><th></th></tr></thead><tbody>'+arRows+'</tbody></table>'
+    +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:5px">Add negotiated rate:</div>'
+    +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;align-items:end">'
+    +'<div class="fl"><label style="font-size:11px">Attorney</label><select id="gf-ar-ct" style="width:100%;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--white);color:var(--ink)">'+atOpts+'</select></div>'
+    +'<div class="fl"><label style="font-size:11px">Rate ($/hr)</label><input type="number" id="gf-ar-rate" placeholder="200.00" min="0" step="0.01" style="width:100%"></div>'
+    +'<div class="fl"><label style="font-size:11px">Effective Date</label><input type="date" id="gf-ar-date" value="'+today()+'" style="width:100%"></div>'
+    +'<div class="fl"><label style="font-size:11px">Note</label><input type="text" id="gf-ar-note" placeholder="Insurance cap, retainer…" style="width:100%"></div>'
+    +'<button type="button" class="btn btn-gh" style="padding:6px 12px;font-size:12px;white-space:nowrap" onclick="A.gfAddAtRate()">+ Add</button>'
+    +'</div></div>'
+    +'</div></div>'
+    +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveGrp()">'+IC.save+' Save Group</button></div>'
+    +'</div>';
+}
 
 // === MODALS
 // == Partner Review Entry Modal ==
@@ -3614,6 +3868,7 @@ function buildExportModal(){
     // Grouping & structure
     var grpOpts=[
       {v:'none',l:'Flat list (no grouping)'},
+      {v:'group',l:'Group by Client Group'},
       {v:'client',l:'Group by Client'},
       {v:'matter',l:'Group by Matter'},
       {v:'date-month',l:'Group by Month'},
@@ -3808,6 +4063,7 @@ function buildSettings(){
     // ── Grouping options (entries only) ──
     var qGrpOpts=[
       {v:'none',l:'No grouping'},
+      {v:'group',l:'By Client Group'},
       {v:'client',l:'By Client'},
       {v:'matter',l:'By Matter'},
       {v:'date-month',l:'By Month'},
@@ -3995,6 +4251,7 @@ function buildSettings(){
         +'<h3>Data to Bundle into Profile</h3>'
         +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.5">Choose which current app data to bundle into the exported profile. New users who import the profile will receive this data as a starting point.</p>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
+        +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-groups" '+(fp.includeGroups?'checked':'')+' onchange="A.togITInclude(\'includeGroups\',this.checked)"><div><strong>Client Groups</strong><span>'+ST.groups.length+' in app</span></div></label>'
         +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-clients" '+(fp.includeClients?'checked':'')+' onchange="A.togITInclude(\'includeClients\',this.checked)"><div><strong>Clients</strong><span>'+ST.clients.length+' in app</span></div></label>'
         +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-matters" '+(fp.includeMatters?'checked':'')+' onchange="A.togITInclude(\'includeMatters\',this.checked)"><div><strong>Matters</strong><span>'+ST.matters.length+' in app</span></div></label>'
         +'<label class="crow" style="background:var(--bg);border-radius:8px;padding:10px 14px"><input type="checkbox" id="it-inc-contacts" '+(fp.includeContacts?'checked':'')+' onchange="A.togITInclude(\'includeContacts\',this.checked)"><div><strong>Contacts</strong><span>'+ST.contacts.length+' in app</span></div></label>'
@@ -4249,7 +4506,7 @@ function buildProfileImport(){
 
     +'<div class="splash-features">'
     +'<div class="splash-features-title">What a firm profile includes</div>'
-    +['Firm name &amp; app branding','Pre-configured clients &amp; matters','Team contacts &amp; roles','Description presets','Pre-defined user profiles'].map(function(t){
+    +['Firm name &amp; app branding','Client groups &amp; group rates','Pre-configured clients &amp; matters','Team contacts &amp; roles','Description presets','Pre-defined user profiles'].map(function(t){
       return '<div class="splash-feature"><div class="splash-feature-dot"></div><span>'+t+'</span></div>';
     }).join('')
     +'</div>'
@@ -5266,17 +5523,18 @@ var TABS=[
 // _lu.en (entries map) is intentionally NOT rebuilt here — with tens of thousands
 // of entries it's expensive and only invoice-review actually needs it.
 // Invoice functions call buildEntryLookup() directly when needed.
-var _lu={cl:{},ma:{},ct:{},en:{}};
+var _lu={cl:{},ma:{},ct:{},gr:{},en:{}};
 var _luDirty=true;
 var _luEnVer=-1; // _dataVer when _lu.en was last built; -1 = never built
 function markLuDirty(){_luDirty=true;_dataVer++;ST._anEntries=null;_anLoading=false;}
 function buildLookups(){
   if(!_luDirty) return;
-  var cl={},ma={},ct={};
+  var cl={},ma={},ct={},gr={};
   ST.clients.forEach(function(r){cl[r.id]=r;});
   ST.matters.forEach(function(r){ma[r.id]=r;});
   ST.contacts.forEach(function(r){ct[r.id]=r;});
-  _lu.cl=cl; _lu.ma=ma; _lu.ct=ct;
+  ST.groups.forEach(function(r){gr[r.id]=r;});
+  _lu.cl=cl; _lu.ma=ma; _lu.ct=ct; _lu.gr=gr;
   _luDirty=false;
 }
 // Lazily rebuild the entries lookup — call only when invoice review needs it.
@@ -5487,9 +5745,9 @@ function render(){
   var mainKey=ST.tab+'|'+_dataVer
     +'|'+(ST.tsFilter||'')+(ST.tsClientFilter||'')+(ST.tsMatterFilter||'')+(ST.tsContactFilter||'')+ST.tsSort+ST.tsPage
     +'|'+(ST.anFilter||'')+'|an'+_anFetchVer
-    +'|'+(ST.clSearch||'')+(ST.clSort||'')+(ST.maSearch||'')+(ST.maSort||'')+(ST.maGroup?'1':'0')+(ST.maClientFilter||'')+(ST.ctSearch||'')+(ST.ctSort||'')
+    +'|'+(ST.clSearch||'')+(ST.clSort||'')+(ST.clGrpFilter||'')+(ST.clGrpsOpen?'1':'0')+(ST.maSearch||'')+(ST.maSort||'')+(ST.maGroup?'1':'0')+(ST.maClientFilter||'')+(ST.ctSearch||'')+(ST.ctSort||'')
     +'|'+(ST.rowTmr?'t'+ST.rowTmr.entId:'');
-  var _inlineModal=function(m){return m==='ef'||m==='cf'||m==='mf'||m==='ctf';};
+  var _inlineModal=function(m){return m==='ef'||m==='cf'||m==='mf'||m==='ctf'||m==='gf';};
   var efInvolved=(_inlineModal(ST.modal)||_inlineModal(_rKeys.mainModal));
   var skipMain=(!efInvolved&&_rKeys.main===mainKey);
   if(!skipMain){
@@ -6528,11 +6786,11 @@ var A={
 
 
   // Client form
-  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',contactIds:[],clientPeople:[],attorneyRates:[],phRoutes:{},newPerson:{},editPersonIdx:-1,errs:{}};ST.modal='cf';render();},
+  openCF:function(){ST.editId=null;ST.cf={name:'',email:'',phone:'',rate:'',groupId:'',contactIds:[],clientPeople:[],attorneyRates:[],phRoutes:{},newPerson:{},editPersonIdx:-1,errs:{}};ST.modal='cf';render();},
   editCl:function(id){var c=ST.clients.find(function(x){return x.id==id;});if(!c)return;ST.editId=id;
     // Migrate legacy contactId to contactIds array
     var cids=c.contactIds&&c.contactIds.length?c.contactIds:(c.contactId?[Number(c.contactId)]:[]);
-    ST.cf=Object.assign({},c,{contactIds:cids,clientPeople:c.clientPeople||[],attorneyRates:(c.attorneyRates||[]).map(function(r){return Object.assign({},r);}),phRoutes:c.phRoutes||{},newPerson:{},editPersonIdx:-1,errs:{}});ST.modal='cf';render();},
+    ST.cf=Object.assign({},c,{groupId:c.groupId||'',contactIds:cids,clientPeople:c.clientPeople||[],attorneyRates:(c.attorneyRates||[]).map(function(r){return Object.assign({},r);}),phRoutes:c.phRoutes||{},newPerson:{},editPersonIdx:-1,errs:{}});ST.modal='cf';render();},
   cfTogCt:function(cb){
     var id=Number(cb.getAttribute('data-cf-ct'));
     var ids=ST.cf.contactIds||[];
@@ -6611,6 +6869,8 @@ var A={
   saveCl:function(){
     var f=ST.cf;
     f.name=g('cf-n'); f.email=g('cf-e'); f.phone=g('cf-p');
+    // Sync group selection
+    var grpEl=document.getElementById('cf-grp'); if(grpEl) f.groupId=grpEl.value?Number(grpEl.value):'';
     // Sync new-person draft fields
     var pn=g('cf-pn')||''; if(pn.trim())f.newPerson={name:pn,role:g('cf-pro')||'',email:g('cf-pe')||'',phone:g('cf-pp')||''};
     var errs={};
@@ -6618,12 +6878,83 @@ var A={
     if(f.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) errs.e='Invalid email';
     f.errs=errs;
     if(Object.keys(errs).length){render();return;}
-    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],phRoutes:f.phRoutes||{},createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    var c={id:ST.editId||uid(),name:f.name.trim(),email:f.email||'',phone:f.phone||'',groupId:f.groupId||'',contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],phRoutes:f.phRoutes||{},createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
     if(ST.editId){ST.clients=ST.clients.map(function(x){return x.id==ST.editId?c:x;});toast('Client updated');}
     else{ST.clients=ST.clients.concat([c]);toast('Client added');}
     saveOne('clients',c); A.closeF();
   },
   delCl:function(id){if(!confirm('Delete this client?'))return;ST.clients=ST.clients.filter(function(c){return c.id!=id;});delOne('clients',id);toast('Deleted','warn');render();},
+
+  // Group form actions
+  openGF:function(){ST.editId=null;ST.gf={name:'',description:'',rate:'',notes:'',contactIds:[],clientPeople:[],attorneyRates:[],newPerson:{},editPersonIdx:-1,errs:{}};ST.modal='gf';ST.clGrpsOpen=true;render();},
+  editGrp:function(id){var g=ST.groups.find(function(x){return x.id==id;});if(!g)return;ST.editId=id;ST.gf=Object.assign({},g,{contactIds:(g.contactIds||[]).slice(),clientPeople:(g.clientPeople||[]).slice(),attorneyRates:(g.attorneyRates||[]).map(function(r){return Object.assign({},r);}),newPerson:{},editPersonIdx:-1,errs:{}});ST.modal='gf';ST.clGrpsOpen=true;render();},
+  saveGrp:function(){
+    syncForm();
+    var f=ST.gf;
+    f.name=g('gf-n')||f.name||''; f.description=g('gf-desc')||f.description||''; f.rate=g('gf-rate')||f.rate||''; f.notes=g('gf-notes')||f.notes||'';
+    var errs={};
+    if(!f.name||!f.name.trim()) errs.n='Group name required';
+    f.errs=errs;
+    if(Object.keys(errs).length){render();return;}
+    var rec={id:ST.editId||uid(),name:f.name.trim(),description:(f.description||'').trim(),rate:fmtCur(String(f.rate||'')),notes:(f.notes||'').trim(),contactIds:f.contactIds||[],clientPeople:(f.clientPeople||[]).map(function(p){return p.id?p:Object.assign({id:uid()},p);}),attorneyRates:f.attorneyRates||[],createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?'};
+    if(ST.editId){ST.groups=ST.groups.map(function(x){return x.id==ST.editId?rec:x;});toast('Group updated');}
+    else{ST.groups=ST.groups.concat([rec]);toast('Group created');}
+    saveOne('groups',rec); A.closeF();
+  },
+  delGrp:function(id){
+    if(!confirm('Delete this group? Clients in this group will become ungrouped.')) return;
+    // Unlink clients from deleted group — single O(N) pass, one batch write
+    var unlinkedIds={};
+    var unlinkedRecs=[];
+    ST.clients.forEach(function(c){if(c.groupId==id){var u=Object.assign({},c,{groupId:''});unlinkedIds[c.id]=u;unlinkedRecs.push(u);}});
+    if(unlinkedRecs.length){
+      ST.clients=ST.clients.map(function(c){return unlinkedIds[c.id]||c;});
+      _markDirty('clients');
+      unlinkedRecs.forEach(function(u){Store.putRecord('clients',u).catch(function(e){console.warn('delGrp client unlink failed',e);});});
+    }
+    ST.groups=ST.groups.filter(function(g){return g.id!=id;});
+    delOne('groups',id); toast('Group deleted','warn'); render();
+  },
+  togGrpsOpen:function(){ST.clGrpsOpen=!ST.clGrpsOpen;render();},
+  // Group contact chips
+  gfRemCt:function(id){syncForm();ST.gf.contactIds=(ST.gf.contactIds||[]).filter(function(x){return x!=id;});render();},
+  gfAddPerson:function(){
+    syncForm();
+    var n=(document.getElementById('gf-pn')||{}).value||'';
+    n=n.trim();
+    if(!n){toast('Enter a name','err');return;}
+    var ro=(document.getElementById('gf-pro')||{}).value||'';
+    var em=(document.getElementById('gf-pe')||{}).value||'';
+    var ph=(document.getElementById('gf-pp')||{}).value||'';
+    var idx=ST.gf.editPersonIdx;
+    if(idx>=0){
+      ST.gf.clientPeople=ST.gf.clientPeople.map(function(p,i){return i===idx?Object.assign({},p,{name:n,role:ro.trim(),email:em.trim(),phone:ph.trim()}):p;});
+      ST.gf.editPersonIdx=-1;
+    } else {
+      ST.gf.clientPeople=(ST.gf.clientPeople||[]).concat([{id:uid(),name:n,role:ro.trim(),email:em.trim(),phone:ph.trim()}]);
+    }
+    ST.gf.newPerson={};
+    render();
+    var el=document.getElementById('gf-pn'); if(el) el.focus();
+  },
+  gfEditPerson:function(i){syncForm();var p=ST.gf.clientPeople[i];if(!p)return;ST.gf.editPersonIdx=i;ST.gf.newPerson={name:p.name,role:p.role||'',email:p.email||'',phone:p.phone||''};render();var el=document.getElementById('gf-pn');if(el)el.focus();},
+  gfCancelEditPerson:function(){syncForm();ST.gf.editPersonIdx=-1;ST.gf.newPerson={};render();},
+  gfRemPerson:function(i){syncForm();if(ST.gf.editPersonIdx===i){ST.gf.editPersonIdx=-1;ST.gf.newPerson={};}else if(ST.gf.editPersonIdx>i){ST.gf.editPersonIdx--;}ST.gf.clientPeople=(ST.gf.clientPeople||[]).filter(function(_,idx){return idx!==i;});render();},
+  gfAddAtRate:function(){
+    syncForm();
+    var ctVal=((document.getElementById('gf-ar-ct')||{}).value||'').trim();
+    var rateVal=parseFloat((document.getElementById('gf-ar-rate')||{}).value||'');
+    var dateVal=((document.getElementById('gf-ar-date')||{}).value||'').trim();
+    var noteVal=((document.getElementById('gf-ar-note')||{}).value||'').trim();
+    if(!ctVal){toast('Select an attorney','err');return;}
+    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(!dateVal){toast('Enter an effective date','err');return;}
+    var ar=ST.gf.attorneyRates||[];
+    if(ar.some(function(r){return r.contactId==ctVal&&r.effectiveDate===dateVal;})){toast('A rate entry for this attorney/date already exists','err');return;}
+    ST.gf.attorneyRates=ar.concat([{contactId:Number(ctVal),rate:rateVal,effectiveDate:dateVal,note:noteVal}]);
+    render();
+  },
+  gfRemAtRate:function(idx){syncForm();ST.gf.attorneyRates=(ST.gf.attorneyRates||[]).filter(function(_,i){return i!==idx;});render();},
 
   // Matter form
   openMF:function(){ST.editId=null;ST.mf={name:'',clientId:'',description:'',rate:'',contactId:'',matterNumber:'',linkedClientPeopleIds:[],attorneyRates:[],phRoutes:{},errs:{}};ST.modal='mf';render();},
@@ -7013,7 +7344,7 @@ var A={
     if(!confirm('Delete ALL data? This cannot be undone!\nExport a backup first.')) return;
     if(!confirm('Are you absolutely sure?')) return;
     // Reset all in-memory collections
-    ST.clients=[]; ST.matters=[]; ST.entries=[]; ST.contacts=[]; ST.invoices=[];
+    ST.clients=[]; ST.matters=[]; ST.entries=[]; ST.contacts=[]; ST.invoices=[]; ST.groups=[];
     ST.descPresets=[]; ST.mailPresets=[]; ST.mailPlaceholders=[];
     ST._entriesMode='full'; ST._totalEntryCount=0; markLuDirty();
     // Reset settings to defaults
@@ -7205,6 +7536,11 @@ var A={
     function fmtAmt(hrs,rate){ var h=parseFloat(hrs)||0; if(x.roundHours) h=Math.round(h*10)/10; return fmtMoney(h*Number(rate)); }
 
     function groupKey(e){
+      if(x.groupBy==='group'){
+        var ecl=_lu.cl[e.clientId];
+        if(ecl&&ecl.groupId){ var eg=_lu.gr[ecl.groupId]; return eg?eg.name:'(No Group)'; }
+        return '(No Group)';
+      }
       if(x.groupBy==='client'){ var cl=_lu.cl[e.clientId]; return cl?cl.name:'(No Client)'; }
       if(x.groupBy==='matter'){ var ma=_lu.ma[e.matterId]; return ma?ma.name:'(No Matter)'; }
       if(x.groupBy==='date-month'){ var p=e.date.split('-'); return p[0]+'-'+p[1]; }
@@ -7510,6 +7846,7 @@ var A={
       _version:1,
       _exported:new Date().toISOString(),
       user:ST.user,
+      groups:ST.groups,
       clients:ST.clients,
       matters:ST.matters,
       entries:ST.entries,
@@ -7537,6 +7874,7 @@ var A={
       try{
         var b=JSON.parse(ev.target.result);
         if(!b||!b._version){ toast('Invalid backup file','err'); return; }
+        if(b.groups)   replaceCollection('groups',    'groups',    b.groups);
         if(b.clients)  replaceCollection('clients',  'clients',  b.clients);
         if(b.matters)  replaceCollection('matters',  'matters',  b.matters);
         if(b.entries)  replaceCollection('entries',  'entries',  b.entries);
@@ -7881,6 +8219,7 @@ tableRows,
       firmName:fp.firmName||'',
       appName:fp.appName||ST.prefs.appName||'SixMinuteLog.com',
       users:fp.users||[],
+      groups:fp.includeGroups?ST.groups:[],
       clients:fp.includeClients?ST.clients:[],
       matters:fp.includeMatters?ST.matters:[],
       contacts:fp.includeContacts?ST.contacts:[],
@@ -7916,6 +8255,7 @@ tableRows,
   },
   _applyProfileData: function(p){
     if(!p) return;
+    if(p.groups&&p.groups.length)   replaceCollection('groups',   'groups',   p.groups);
     if(p.clients&&p.clients.length) replaceCollection('clients',  'clients',  p.clients);
     if(p.matters&&p.matters.length) replaceCollection('matters',  'matters',  p.matters);
     if(p.contacts&&p.contacts.length) replaceCollection('contacts','contacts', p.contacts);
@@ -8467,6 +8807,19 @@ document.addEventListener('change',function(e){
     if(!ids.some(function(x){return x==Number(val);}))ST.cf.contactIds=ids.concat([Number(val)]);
     render();
   }
+  else if(id==='cf-grp'){
+    // Live-update group inheritance hint in client form
+    ST.cf.groupId=e.target.value?Number(e.target.value):'';
+    render();
+  }
+  else if(id==='gf-ct'){
+    var gval=e.target.value;
+    if(!gval) return;
+    syncForm();
+    var gids=ST.gf.contactIds||[];
+    if(!gids.some(function(x){return x==Number(gval);}))ST.gf.contactIds=gids.concat([Number(gval)]);
+    render();
+  }
   // Invoice form: update matter dropdown when client changes
   else if(id==='inv-cl'){
     if(ST.invf) ST.invf.clientId=e.target.value;
@@ -8667,7 +9020,8 @@ document.addEventListener('keydown',function(e){
     Store.getMeta('itmode'),
     Store.getAll('invoices'),
     Store.getMeta('mailplaceholders'),
-    Store.countEntries()                       // cheap count — no data transfer
+    Store.countEntries(),                       // cheap count — no data transfer
+    Store.getAll('groups')
   ]).then(function(res){
     // res values are already parsed native JS objects — no JSON.parse needed
     try{if(res[0])ST.user=res[0];}catch(e){}
@@ -8802,6 +9156,7 @@ document.addEventListener('keydown',function(e){
     try{if(res[8]){ST.itMode=!!res[8].itMode;if(res[8].firmProfile)ST.firmProfile=res[8].firmProfile;}}catch(e){}
     try{if(res[9]&&res[9].length)ST.invoices=res[9];}catch(e){}
     try{if(res[10]&&res[10].length)ST.mailPlaceholders=res[10];}catch(e){}
+    try{if(res[12]&&res[12].length)ST.groups=res[12];}catch(e){}
     markLuDirty();
     applyPrefs();
     if(!ST.user){
