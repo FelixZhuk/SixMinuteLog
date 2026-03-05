@@ -136,7 +136,7 @@ body.dark .nav-btn.on{color:var(--ink);border-bottom-color:var(--gold)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 input,select,textarea,button{font-family:inherit;font-size:14px}
-button{cursor:pointer}
+button{cursor:pointer;touch-action:manipulation}
 
 /* Layout */
 .header{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 1px 0 var(--border-l)}
@@ -194,7 +194,7 @@ body.dark .nav-btn.on{color:var(--ink);border-bottom-color:var(--gold);font-weig
 .card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}
 .card-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
 .avatar{width:40px;height:40px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:1rem;border:1px solid var(--border)}
-.card-act button{padding:5px;border:none;background:transparent;color:var(--ink3);border-radius:5px}
+.card-act button{padding:5px;border:none;background:transparent;color:var(--ink3);border-radius:5px;touch-action:manipulation}
 .card-act button:hover{color:var(--ink);background:var(--bg)}
 .card h3{font-weight:600;font-size:.88rem;margin-bottom:3px;letter-spacing:-.01em}
 .card p{font-size:12px;color:var(--ink2);margin-bottom:2px;line-height:1.5}
@@ -238,7 +238,7 @@ td{padding:9px 13px;border-bottom:1px solid var(--border-l);vertical-align:middl
 tr:last-child td{border-bottom:none}
 tr:hover td{background:var(--bg)}
 .tda{display:flex;gap:4px}
-.tda button{padding:5px;border:none;background:transparent;color:var(--ink3);border-radius:4px}
+.tda button{padding:5px;border:none;background:transparent;color:var(--ink3);border-radius:4px;touch-action:manipulation;display:inline-flex;align-items:center;justify-content:center}
 .tda button:hover{color:var(--ink);background:var(--bg)}
 .badge{width:26px;height:26px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ink2)}
 
@@ -500,9 +500,8 @@ html,body{overflow-x:hidden;max-width:100vw}
   /* Tables: compact cell padding + smaller font so more fits before scrolling */
   th{padding:7px 9px;font-size:10px}
   td{padding:7px 9px;font-size:12px}
-  /* Tighten action buttons inside table cells */
+  /* Tighten action buttons inside table cells — desktop only; mobile gets 44px targets via card layout */
   .tda{gap:2px}
-  .tda button{padding:4px}
 
 }
 /* Invoice */
@@ -569,8 +568,9 @@ html,body{overflow-x:hidden;max-width:100vw}
   .tscroll tbody td:nth-child(5){grid-column:1;grid-row:5}
   .tscroll tbody td:nth-child(6){grid-column:2;grid-row:5;text-align:right;color:var(--ink3)}
   .tscroll tbody td:nth-child(8){grid-column:1/span 2;grid-row:6}
-  .tscroll tbody td:last-child{grid-column:1/span 2;grid-row:99;padding-top:8px;border-top:1px solid var(--border);margin-top:6px}
-  .tscroll tbody td:last-child .tda{justify-content:flex-end}
+  .tscroll tbody td:last-child{grid-column:1/span 2;grid-row:99;padding-top:8px;border-top:1px solid var(--border);margin-top:6px;overflow:visible}
+  .tscroll tbody td:last-child .tda{justify-content:flex-end;gap:0}
+  .tscroll tbody td:last-child .tda button{min-width:44px;min-height:44px;padding:10px;font-size:16px}
 }
 
 #z-tablock{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(14,12,10,.72);backdrop-filter:blur(4px);padding:16px}
@@ -1046,6 +1046,10 @@ var ST={
   // Pagination (timesheet)
   tsPage:0,
   TS_PAGE_SIZE:50,
+  // Pagination (clients / matters / contacts)
+  clPage:0, CL_PAGE_SIZE:50,
+  maPage:0, MA_PAGE_SIZE:50,
+  ctPage:0, CT_PAGE_SIZE:50,
   // Entries loading tier:
   //   'partial' = only loaded YEAR_START … today (default, fast startup)
   //   'full'    = all entries loaded (only by explicit export/import)
@@ -1173,7 +1177,7 @@ function msToHMS(ms){
   return hh+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');
 }
 function $d(s){if(!s)return '';var d=new Date(s+'T00:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
-function H(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function H(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 // Interactive contact link helpers — use in all display-side email/phone output
 function mailLink(email,style){if(!email)return '';var je=H(email).replace(/'/g,'&#39;');return '<a href="#" style="'+(style||'')+'color:inherit;text-decoration:none" onclick="event.preventDefault();A.openMailTo(\''+ je +'\')" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(email)+'</a>';}
 function telLink(phone,style){if(!phone)return '';var stripped=phone.replace(/[^\d+]/g,'');return '<a href="tel:'+H(stripped)+'" style="'+(style||'')+'color:inherit;text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(phone)+'</a>';}
@@ -1216,11 +1220,11 @@ function roleBadge(role){
 // Each entry in history must have { effectiveDate:'YYYY-MM-DD', rate:Number }.
 function _rateOnDate(history, forDate){
   if(!history||!history.length) return null;
-  var valid=history.filter(function(r){return r.effectiveDate&&r.effectiveDate<=forDate&&Number(r.rate)>0;});
+  var valid=history.filter(function(r){return r.effectiveDate&&r.effectiveDate<=forDate&&r.rate!==''&&r.rate!==null&&r.rate!==undefined&&!isNaN(Number(r.rate))&&Number(r.rate)>=0;});
   if(!valid.length) return null;
   // Sort descending by date → first entry is the latest applicable
   valid=valid.slice().sort(function(a,b){return a.effectiveDate<b.effectiveDate?1:-1;});
-  return Number(valid[0].rate)||null;
+  return Number(valid[0].rate);
 }
 
 // Rate precedence (most-specific wins):
@@ -1239,38 +1243,39 @@ function autoRate(cid,mid,ctid,date){
     if(m&&m.attorneyRates){
       var mar=m.attorneyRates.filter(function(r){return r.contactId==ctid;});
       var mRate=_rateOnDate(mar,d);
-      if(mRate) return mRate;
+      if(mRate!=null) return mRate;
     }
     // 2. Client-specific attorney rate — O(1) map lookup
     var cl=_lu.cl[cid];
     if(cl&&cl.attorneyRates){
       var car=cl.attorneyRates.filter(function(r){return r.contactId==ctid;});
       var cRate=_rateOnDate(car,d);
-      if(cRate) return cRate;
+      if(cRate!=null) return cRate;
     }
     // 2.5. Group-specific attorney rate — O(1) map lookup
     var gr=cl&&cl.groupId?_lu.gr[cl.groupId]:null;
     if(gr&&gr.attorneyRates){
       var gar=gr.attorneyRates.filter(function(r){return r.contactId==ctid;});
       var gAtRate=_rateOnDate(gar,d);
-      if(gAtRate) return gAtRate;
+      if(gAtRate!=null) return gAtRate;
     }
     // 3. Attorney's own rate history, then current rate — O(1) map lookup
     var ct=_lu.ct[ctid];
     if(ct){
-      var ctRate=_rateOnDate(ct.rateHistory,d)||(ct.rate?Number(ct.rate):null);
-      if(ctRate) return ctRate;
+      var ctRate=_rateOnDate(ct.rateHistory,d);
+      if(ctRate===null) ctRate=(ct.rate!==''&&ct.rate!=null)?Number(ct.rate):null;
+      if(ctRate!=null) return ctRate;
     }
     // 5. Group default rate (fallback when attorney has no rate)
-    if(gr&&gr.rate) return Number(gr.rate);
+    if(gr&&gr.rate!==''&&gr.rate!=null) return Number(gr.rate);
   } else {
     // 4. No attorney selected — use logged-in user's rate
-    if(ST.user&&ST.user.rate) return ST.user.rate;
+    if(ST.user&&ST.user.rate!==''&&ST.user.rate!=null) return ST.user.rate;
     // 5. Group default rate fallback — O(1) map lookup
     var clNoAt=_lu.cl[cid];
     if(clNoAt&&clNoAt.groupId){
       var grNoAt=_lu.gr[clNoAt.groupId];
-      if(grNoAt&&grNoAt.rate) return Number(grNoAt.rate);
+      if(grNoAt&&grNoAt.rate!==''&&grNoAt.rate!=null) return Number(grNoAt.rate);
     }
   }
   return '';
@@ -1493,6 +1498,12 @@ var _needsOrphanPrune=false;
 // Safety cap: if more than this many unique entry records are queued in
 // _dirtyEntries (e.g. after repeated IDB failures), promote to a full
 // putBatch of ST.entries and discard the per-record map to bound memory use.
+// NOTE: _capDirtyEntries sets _fullEntriesSync=true but NOT _needsOrphanPrune,
+// so needsSyncCollection stays false on its own.  The additional
+// ST._entriesMode==='full' guard in _flushSave provides a second line of
+// defence: even if _needsOrphanPrune is already true from a prior failed
+// replaceCollection, syncCollection will not run while in partial mode.
+// The putBatch fallback is always safe in partial mode — it only upserts.
 var _MAX_DIRTY_ENTRIES=300;
 function _capDirtyEntries(){
   if(Object.keys(_dirtyEntries).length>_MAX_DIRTY_ENTRIES){
@@ -1556,7 +1567,13 @@ function _flushSave(skipFullSync){
   // Two sub-paths:
   //   • replaceCollection + _needsOrphanPrune + !skipFullSync → syncCollection (cursor prune, separate)
   //   • everything else → putBulkAll with only changed records (or full array for bulk replace)
-  var needsSyncCollection = _dirty.entries && _fullEntriesSync && _needsOrphanPrune && !skipFullSync;
+  // SAFETY: never run the cursor-prune (syncCollection) unless the full entry set is in
+  // memory.  If _entriesMode==='partial', ST.entries holds only the current year; allowing
+  // syncCollection here would delete every prior-year IDB record not in that slice.
+  // This guards the scenario where _capDirtyEntries() fires (setting _fullEntriesSync=true)
+  // while _needsOrphanPrune is already true from a prior failed replaceCollection —
+  // both flags being true would otherwise route into syncCollection with partial data.
+  var needsSyncCollection = _dirty.entries && _fullEntriesSync && _needsOrphanPrune && !skipFullSync && ST._entriesMode==='full';
   if(_dirty.entries && !needsSyncCollection){
     var _entriesToWrite=Object.keys(_dirtyEntries).length
       ? Object.keys(_dirtyEntries).map(function(id){return _dirtyEntries[id];})
@@ -1688,6 +1705,11 @@ function _patchEntry(rec){
       return e;
     });
     if(!found) ST._tsAllEntries=ST._tsAllEntries.concat([rec]);
+  } else if(_tsAllLoading){
+    // Cache not yet populated but a load is in flight — buffer this mutation so
+    // it can be replayed once the IDB fetch resolves (fixes async race condition).
+    _tsPendingPatches=_tsPendingPatches.filter(function(p){return p.op!=='upsert'||p.rec.id!==rec.id;});
+    _tsPendingPatches.push({op:'upsert',rec:rec});
   }
   if(ST._approvalEntries){
     var found2=false;
@@ -1703,13 +1725,20 @@ function _patchEntry(rec){
 function _removeEntry(id){
   if(ST._tsAllEntries)
     ST._tsAllEntries=ST._tsAllEntries.filter(function(e){return e.id!=id;});
+  else if(_tsAllLoading){
+    // Buffer removal so it is applied when the IDB fetch resolves.
+    _tsPendingPatches=_tsPendingPatches.filter(function(p){
+      return !(p.op==='remove'&&p.id===id);
+    });
+    _tsPendingPatches.push({op:'remove',id:id});
+  }
   if(ST._approvalEntries)
     ST._approvalEntries=ST._approvalEntries.filter(function(e){return e.id!=id;});
 }
 
 // Invalidate both caches (bulk operations: import, reset, restore).
 function _invalidateEntryCaches(){
-  ST._tsAllEntries=null; _tsAllLoading=false;
+  ST._tsAllEntries=null; _tsAllLoading=false; _tsPendingPatches=[];
   ST._approvalEntries=null; _approvalsLoading=false;
 }
 
@@ -1753,6 +1782,10 @@ function _loadApprovalsEntries(){
 // Loads full history into ST._tsAllEntries. ST.entries (partial year) is never replaced.
 // The cache is live-patched by _patchEntry/_removeEntry, never cleared by markLuDirty.
 var _tsAllLoading=false;
+// Mutations (upserts/removes) that arrive while _loadTsAllEntries is in flight
+// are buffered here and replayed onto ST._tsAllEntries when the fetch resolves,
+// preventing the async IDB response from silently overwriting in-flight changes.
+var _tsPendingPatches=[]; // [{op:'upsert',rec}|{op:'remove',id}]
 function _loadTsAllEntries(){
   if(_tsAllLoading) return;
   _tsAllLoading=true;
@@ -1761,11 +1794,26 @@ function _loadTsAllEntries(){
     return Store.getEntriesInRange('','');
   }).then(function(entries){
     _tsAllLoading=false;
+    // Replay any mutations that arrived while the IDB fetch was in flight,
+    // so entries logged/edited/deleted during that window are not lost.
+    if(_tsPendingPatches.length){
+      _tsPendingPatches.forEach(function(p){
+        if(p.op==='upsert'){
+          var found=false;
+          entries=entries.map(function(e){if(e.id==p.rec.id){found=true;return p.rec;}return e;});
+          if(!found) entries=entries.concat([p.rec]);
+        } else if(p.op==='remove'){
+          entries=entries.filter(function(e){return e.id!=p.id;});
+        }
+      });
+      _tsPendingPatches=[];
+    }
     ST._tsAllEntries=entries;
     render();
   }).catch(function(e){
     console.warn('_loadTsAllEntries failed',e);
     _tsAllLoading=false;
+    _tsPendingPatches=[];
     ST._tsAllEntries=[];
     render();
   });
@@ -1788,35 +1836,35 @@ function save(){
 // Immediate single-record upsert — use after saving a form (no data-loss window).
 function saveOne(coll, rec){
   if(!rec||rec.id==null) return;
-  _dirty[coll]=true;
-  // For entries, track the specific record so _flushSave only writes what changed,
-  // not the entire ST.entries array (which can be tens of thousands of records).
-  if(coll==='entries'){ _dirtyEntries[rec.id]=rec; _capDirtyEntries(); }
+  // putRecord is the authoritative atomic write — we deliberately do NOT set
+  // _dirty[coll] here. Touching _dirty from saveOne would create a race: the
+  // 200ms meta-flush timer would need to clear it again, but by then another
+  // operation might have legitimately dirtied the same (or another) collection,
+  // causing _flushSave to skip data it should have written.
   markLuDirty(); // lookup maps must be rebuilt after any record mutation
   Store.putRecord(coll, rec).catch(function(e){ console.warn('saveOne failed',coll,e); toast('Save failed \u2014 check disk space.','err'); });
-  // Also sync meta on the debounced path so prefs etc. stay consistent
+  // Debounce meta writes only. _dirty/_dirtyEntries are intentionally left
+  // untouched so concurrent bulk-save state is never silently discarded.
+  // (_flushSave always writes the full metaMap too, so if a tab-hide flush fires
+  // first it will clear _saveTimer and write meta itself — no double-write risk.)
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(function(){
+    _saveTimer=null;
     Store.setMeta('prefs',ST.prefs);
     Store.setMeta('descpresets',ST.descPresets);
     Store.setMeta('mailpresets',ST.mailPresets);
     Store.setMeta('mailplaceholders',ST.mailPlaceholders);
     Store.setMeta('itmode',{itMode:ST.itMode,firmProfile:ST.firmProfile});
-    _dirty={};
-    _dirtyEntries={};
   }, 200);
 }
 
 // Immediate single-record delete — use after confirming a delete action.
-// Store.deleteRecord fires immediately; _dirty is just a signal for the
-// _closeFlush safety flush (which uses putBatch, not syncCollection).
+// Store.deleteRecord is atomic; no dirty flag or cleanup timer is needed here.
+// Any concurrent bulk-save dirty state is left intact for _flushSave to handle.
 function delOne(coll, id){
   if(id==null) return;
-  _dirty[coll]=true;
   markLuDirty(); // lookup maps must be rebuilt after any record deletion
   Store.deleteRecord(coll, id).catch(function(e){ console.warn('delOne failed',coll,id,e); toast('Delete failed \u2014 check disk space.','err'); });
-  clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(function(){ _dirty={}; _pendingDeletes={}; _dirtyEntries={}; }, 200);
 }
 
 // ── Flush immediately when tab is hidden or page is being unloaded ──
@@ -2227,7 +2275,7 @@ function entryForm(){
   var avMat=ST.matters.filter(function(m){return m.clientId==f.clientId;});
   var maOpts=[{v:'',l:'General work'}].concat(avMat.map(function(m){return{v:m.id,l:m.name};}));
   var ctOpts=[{v:'',l:'Select team member...'}].concat(ST.contacts.map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
-  var total=(f.hours&&f.rate)?$m(Number(f.hours)*Number(f.rate)):null;
+  var total=(f.hours&&f.rate!==''&&f.rate!=null)?$m(Number(f.hours)*Number(f.rate)):null;
   var matHint=!f.clientId?'Select a client first':(avMat.length===0?'No matters for this client':'');
   var existingStatus=ST.editId?(ST.entries.find(function(e){return e.id==ST.editId;})||{}).status||'pending':null;
   var statusNotice='';
@@ -2257,8 +2305,8 @@ function entryForm(){
     +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d})+field('Hours','ef-h',{type:'number',ph:'1.0',val:f.hours||'',req:true,err:f.errs&&f.errs.h,hint:'e.g. 1.5 or 0.25',step:'0.01',min:'0.01'})+'</div>'
     +'<div class="frow c2">'+field('Client','ef-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl})+field('Matter','ef-ma',{type:'select',opts:maOpts,val:f.matterId||'',hint:matHint})+'</div>'
     +((role==='billing_staff'||role==='attorney')
-      ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Auto-filled from attorney rate schedule on entry date':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
-      :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:f.rate||'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule':'Priority: Matter-attorney > Client-attorney > Attorney schedule'})+'</div>')
+      ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Auto-filled from attorney rate schedule on entry date':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
+      :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule':'Priority: Matter-attorney > Client-attorney > Attorney schedule'})+'</div>')
     +'<div class="frow c2">'+field('ABA/UTBMS Code','ef-aba',{type:'select',opts:ABA_TASK_CODES,val:f.abaCode||'',hint:'Optional task code for billing compliance'})+field('Description','ef-desc',{type:'textarea',rows:2,ph:'Describe the work performed...',val:f.description||''})+'</div>'
     +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ef-desc\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'')
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-bl" onclick="A.efSaveAndTimer()" title="Save entry and immediately start timer">⏱ Save &amp; Start Timer</button><button class="btn btn-dk" onclick="A.saveEnt()">'+IC.save+' Save Entry</button></div>'
@@ -2278,10 +2326,14 @@ function vClients(){
   if(ST.clGrpFilter==='ungrouped') list=list.filter(function(c){return !c.groupId;});
   else if(ST.clGrpFilter) list=list.filter(function(c){return String(c.groupId)===String(ST.clGrpFilter);});
   // Sort
+  // Pre-compute matter counts in O(M) to avoid O(M) filter inside O(N log N) comparator
+  var _matterCounts={};
+  if(ST.clSort==='matters'){
+    ST.matters.forEach(function(m){ _matterCounts[m.clientId]=(_matterCounts[m.clientId]||0)+1; });
+  }
   list=[].concat(list).sort(function(a,b){
     if(ST.clSort==='matters'){
-      var mc=function(c){return ST.matters.filter(function(m){return m.clientId==c.id;}).length;};
-      return mc(b)-mc(a);
+      return (_matterCounts[b.id]||0)-(_matterCounts[a.id]||0);
     }
     if(ST.clSort==='group'){
       var ga=_lu.gr[a.groupId],gb=_lu.gr[b.groupId];
@@ -2303,7 +2355,7 @@ function vClients(){
       :'<div class="cgrid">'+ST.groups.map(function(g){
           var memberCount=ST.clients.filter(function(c){return c.groupId==g.id;}).length;
           var grpCts=(g.contactIds||[]).map(function(id){return _lu.ct[id];}).filter(Boolean);
-          var rateH=g.rate?'<span style="color:var(--blue);font-weight:500">'+$m(g.rate)+'/hr default</span>':'<span style="color:var(--ink3)">No default rate</span>';
+          var rateH=(g.rate!==''&&g.rate!=null)?'<span style="color:var(--blue);font-weight:500">'+$m(g.rate)+'/hr default</span>':'<span style="color:var(--ink3)">No default rate</span>';
           var arCount=(g.attorneyRates||[]).length;
           return '<div class="card" style="border-left:3px solid var(--blue)">'
             +'<div class="card-hd"><div class="avatar" style="background:var(--blue);color:#fff">'+H(g.name.charAt(0).toUpperCase())+'</div>'
@@ -2341,12 +2393,29 @@ function vClients(){
   if(ST.groups.length){
     var grpFOpts='<option value="">All Clients</option><option value="ungrouped"'+(ST.clGrpFilter==='ungrouped'?' selected':'')+'>Ungrouped</option>'
       +ST.groups.map(function(g){return '<option value="'+g.id+'"'+(ST.clGrpFilter==g.id?' selected':'')+'>'+H(g.name)+'</option>';}).join('');
-    grpFilterH='<select onchange="syncForm();ST.clGrpFilter=this.value;render();" style="'+selectStyle+'">'+grpFOpts+'</select>';
+    grpFilterH='<select onchange="syncForm();ST.clGrpFilter=this.value;ST.clPage=0;render();" style="'+selectStyle+'">'+grpFOpts+'</select>';
   }
 
+  var clTotalFiltered=list.length;
+  var CL_PS=ST.CL_PAGE_SIZE||50;
+  var clTotalPages=Math.max(1,Math.ceil(clTotalFiltered/CL_PS));
+  if(ST.clPage>=clTotalPages) ST.clPage=clTotalPages-1;
+  if(ST.clPage<0) ST.clPage=0;
+  var clPageStart=ST.clPage*CL_PS;
+  list=list.slice(clPageStart,clPageStart+CL_PS);
+  var clBtnStyle='padding:5px 11px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--white);color:var(--ink);cursor:pointer';
+  var clPagH=clTotalPages>1
+    ?'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--ink3)">'
+    +'<button style="'+clBtnStyle+'" '+(ST.clPage===0?'disabled':'')+' onclick="A.clFirstPage()">&#8676; First</button>'
+    +'<button style="'+clBtnStyle+'" '+(ST.clPage===0?'disabled':'')+' onclick="A.clPrevPage()">&#8249; Prev</button>'
+    +'<span>Page '+(ST.clPage+1)+' of '+clTotalPages+' ('+(clPageStart+1)+'–'+Math.min(clPageStart+CL_PS,clTotalFiltered)+' of '+clTotalFiltered+')</span>'
+    +'<button style="'+clBtnStyle+'" '+(ST.clPage>=clTotalPages-1?'disabled':'')+' onclick="A.clNextPage()">Next &#8250;</button>'
+    +'<button style="'+clBtnStyle+'" '+(ST.clPage>=clTotalPages-1?'disabled':'')+' onclick="A.clLastPage('+(clTotalPages-1)+')">Last &#8677;</button>'
+    +'</div>'
+    :'';
   if(ST.clients.length===0){
     cardsH='<div class="empty"><div class="empty-ico">&#128188;</div><p>No clients yet</p><small>Add your first client to get started</small></div>';
-  } else if(list.length===0){
+  } else if(clTotalFiltered===0){
     cardsH='<div class="empty"><p>No clients match your search</p></div>';
   } else {
     cardsH='<div class="cgrid">'+list.map(function(c){
@@ -2394,12 +2463,12 @@ function vClients(){
         +(function(){var mc=ST.matters.filter(function(m){return m.clientId==c.id;}).length;return '<span style="color:var(--ink3)">'+mc+' matter'+(mc!==1?'s':'')+'</span>';})()
         +'</div>'
         +'</div>';
-    }).join('')+'</div>';
+    }).join('')+'</div>'+clPagH;
   }
   return '<div>'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px">'
     +'<div><h2 style="font-size:1.3rem;font-weight:300;margin-bottom:3px">Clients</h2>'
-    +'<p style="font-size:12px;color:var(--ink3)">'+list.length+' of '+ST.clients.length+' client'+(ST.clients.length!==1?'s':'')+'</p></div>'
+    +'<p style="font-size:12px;color:var(--ink3)">'+clTotalFiltered+' of '+ST.clients.length+' client'+(ST.clients.length!==1?'s':'')+'</p></div>'
     +'<button class="btn btn-dk" onclick="A.openCF()">'+IC.plus+' Add Client</button>'
     +'</div>'
     +(!ST.groups.length?'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px">No groups yet. <a href="#" onclick="event.preventDefault();A.openGF()" style="color:var(--blue)">Create a client group</a> to share rates and contacts across multiple clients.</p>':'')
@@ -2408,7 +2477,7 @@ function vClients(){
     +'<input id="cl-search" type="text" value="'+H(ST.clSearch||'')+'" oninput="A.setClSearch(this.value)" placeholder="Search clients..." style="'+selectStyle+';min-width:160px">'
     +grpFilterH
     +'<select onchange="A.setClSort(this.value)" style="'+selectStyle+'">'+sortOpts+'</select>'
-    +(ST.clSearch||ST.clGrpFilter?'<button class="btn btn-gh" onclick="ST.clSearch=\'\';ST.clGrpFilter=\'\';render();" style="font-size:12px;padding:7px 12px">&#10006; Clear</button>':'')
+    +(ST.clSearch||ST.clGrpFilter?'<button class="btn btn-gh" onclick="ST.clSearch=\'\';ST.clGrpFilter=\'\';ST.clPage=0;render();" style="font-size:12px;padding:7px 12px">&#10006; Clear</button>':'')
     +'</div>':'')
     +formH+cardsH+'</div>';
 }
@@ -2641,29 +2710,49 @@ function vMatters(){
     });
     if(list.length===0){
       cardsH='<div class="empty"><p>No matters match your filters</p></div>';
-    } else if(ST.maGroup){
-      // Grouped by client
-      var groups={};var gOrder=[];
-      list.forEach(function(m){
-        var key=m.clientId||'__none__';
-        if(!groups[key]){groups[key]=[];gOrder.push(key);}
-        groups[key].push(m);
-      });
-      cardsH=gOrder.map(function(key){
-        var cl=_lu.cl[key];
-        var gName=cl?H(cl.name):'<em>No Client</em>';
-        var cards=groups[key].map(function(m){return matterCard(m);}).join('');
-        return '<div style="margin-bottom:18px">'
-          +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:8px;display:flex;align-items:center;gap:8px">'
-          +'<span style="flex:1;height:1px;background:var(--border-l)"></span>'
-          +'<span>'+gName+'</span>'
-          +'<span style="flex:1;height:1px;background:var(--border-l)"></span>'
-          +'</div>'
-          +'<div class="cgrid">'+cards+'</div>'
-          +'</div>';
-      }).join('');
     } else {
-      cardsH='<div class="cgrid">'+list.map(function(m){return matterCard(m);}).join('')+'</div>';
+      // Paginate the sorted list before rendering (grouped view paginates the same slice)
+      var maTotalFiltered=list.length;
+      var MA_PS=ST.MA_PAGE_SIZE||50;
+      var maTotalPages=Math.max(1,Math.ceil(maTotalFiltered/MA_PS));
+      if(ST.maPage>=maTotalPages) ST.maPage=maTotalPages-1;
+      if(ST.maPage<0) ST.maPage=0;
+      var maPageStart=ST.maPage*MA_PS;
+      list=list.slice(maPageStart,maPageStart+MA_PS);
+      var maBtnStyle='padding:5px 11px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--white);color:var(--ink);cursor:pointer';
+      var maPagH=maTotalPages>1
+        ?'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--ink3)">'
+        +'<button style="'+maBtnStyle+'" '+(ST.maPage===0?'disabled':'')+' onclick="A.maFirstPage()">&#8676; First</button>'
+        +'<button style="'+maBtnStyle+'" '+(ST.maPage===0?'disabled':'')+' onclick="A.maPrevPage()">&#8249; Prev</button>'
+        +'<span>Page '+(ST.maPage+1)+' of '+maTotalPages+' ('+(maPageStart+1)+'–'+Math.min(maPageStart+MA_PS,maTotalFiltered)+' of '+maTotalFiltered+')</span>'
+        +'<button style="'+maBtnStyle+'" '+(ST.maPage>=maTotalPages-1?'disabled':'')+' onclick="A.maNextPage()">Next &#8250;</button>'
+        +'<button style="'+maBtnStyle+'" '+(ST.maPage>=maTotalPages-1?'disabled':'')+' onclick="A.maLastPage('+(maTotalPages-1)+')">Last &#8677;</button>'
+        +'</div>'
+        :'';
+      if(ST.maGroup){
+        // Grouped by client
+        var groups={};var gOrder=[];
+        list.forEach(function(m){
+          var key=m.clientId||'__none__';
+          if(!groups[key]){groups[key]=[];gOrder.push(key);}
+          groups[key].push(m);
+        });
+        cardsH=gOrder.map(function(key){
+          var cl=_lu.cl[key];
+          var gName=cl?H(cl.name):'<em>No Client</em>';
+          var cards=groups[key].map(function(m){return matterCard(m);}).join('');
+          return '<div style="margin-bottom:18px">'
+            +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:8px;display:flex;align-items:center;gap:8px">'
+            +'<span style="flex:1;height:1px;background:var(--border-l)"></span>'
+            +'<span>'+gName+'</span>'
+            +'<span style="flex:1;height:1px;background:var(--border-l)"></span>'
+            +'</div>'
+            +'<div class="cgrid">'+cards+'</div>'
+            +'</div>';
+        }).join('')+maPagH;
+      } else {
+        cardsH='<div class="cgrid">'+list.map(function(m){return matterCard(m);}).join('')+'</div>'+maPagH;
+      }
     }
   }
   var addBtn=ST.clients.length>0
@@ -2673,7 +2762,7 @@ function vMatters(){
   return '<div>'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px">'
     +'<div><h2 style="font-size:1.3rem;font-weight:300;margin-bottom:3px">Matters</h2>'
-    +'<p style="font-size:12px;color:var(--ink3)">'+ST.matters.length+' matter'+(ST.matters.length!==1?'s':'')+'</p></div>'
+    +'<p style="font-size:12px;color:var(--ink3)">'+(typeof maTotalFiltered!=='undefined'?maTotalFiltered:ST.matters.length)+' of '+ST.matters.length+' matter'+(ST.matters.length!==1?'s':'')+'</p></div>'
     +addBtn+'</div>'
     +(ST.matters.length>0?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
     +'<input id="ma-search" type="text" value="'+H(ST.maSearch||'')+'" oninput="A.setMaSearch(this.value)" placeholder="Search matters..." style="'+selectStyle+';min-width:160px">'
@@ -2800,6 +2889,23 @@ function vContacts(){
     if(list.length===0){
       cardsH='<div class="empty"><p>No contacts match your search</p></div>';
     } else {
+      var ctTotalFiltered=list.length;
+      var CT_PS=ST.CT_PAGE_SIZE||50;
+      var ctTotalPages=Math.max(1,Math.ceil(ctTotalFiltered/CT_PS));
+      if(ST.ctPage>=ctTotalPages) ST.ctPage=ctTotalPages-1;
+      if(ST.ctPage<0) ST.ctPage=0;
+      var ctPageStart=ST.ctPage*CT_PS;
+      list=list.slice(ctPageStart,ctPageStart+CT_PS);
+      var ctBtnStyle='padding:5px 11px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--white);color:var(--ink);cursor:pointer';
+      var ctPagH=ctTotalPages>1
+        ?'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--ink3)">'
+        +'<button style="'+ctBtnStyle+'" '+(ST.ctPage===0?'disabled':'')+' onclick="A.ctFirstPage()">&#8676; First</button>'
+        +'<button style="'+ctBtnStyle+'" '+(ST.ctPage===0?'disabled':'')+' onclick="A.ctPrevPage()">&#8249; Prev</button>'
+        +'<span>Page '+(ST.ctPage+1)+' of '+ctTotalPages+' ('+(ctPageStart+1)+'–'+Math.min(ctPageStart+CT_PS,ctTotalFiltered)+' of '+ctTotalFiltered+')</span>'
+        +'<button style="'+ctBtnStyle+'" '+(ST.ctPage>=ctTotalPages-1?'disabled':'')+' onclick="A.ctNextPage()">Next &#8250;</button>'
+        +'<button style="'+ctBtnStyle+'" '+(ST.ctPage>=ctTotalPages-1?'disabled':'')+' onclick="A.ctLastPage('+(ctTotalPages-1)+')">Last &#8677;</button>'
+        +'</div>'
+        :'';
       cardsH='<div class="cgrid">'+list.map(function(c){
         var pct=c.ownPct!=null?Number(c.ownPct):100;
         var firmPct=100-pct;
@@ -2816,13 +2922,13 @@ function vContacts(){
           +(c.rate?'<div class="card-rate">Rate <strong>'+$m(c.rate)+'/hr</strong></div>':'')
           +((c.rateHistory&&c.rateHistory.length)?'<div class="card-rate" style="color:var(--blue)">'+c.rateHistory.length+' rate schedule entr'+(c.rateHistory.length!==1?'ies':'y')+'</div>':'')
           +'</div>';
-      }).join('')+'</div>';
+      }).join('')+'</div>'+ctPagH;
     }
   }
   return '<div>'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px">'
     +'<div><h2 style="font-size:1.3rem;font-weight:300;margin-bottom:3px">Team Contacts</h2>'
-    +'<p style="font-size:12px;color:var(--ink3)">'+ST.contacts.length+' contact'+(ST.contacts.length!==1?'s':'')+'</p></div>'
+    +'<p style="font-size:12px;color:var(--ink3)">'+(typeof ctTotalFiltered!=='undefined'?ctTotalFiltered:ST.contacts.length)+' of '+ST.contacts.length+' contact'+(ST.contacts.length!==1?'s':'')+'</p></div>'
     +'<button class="btn btn-dk" onclick="A.openCTF()">'+IC.plus+' Add Contact</button>'
     +'</div>'
     +(ST.contacts.length>1?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
@@ -2870,7 +2976,7 @@ function contactForm(){
     +'<h3>'+(ST.editId?'Edit':'New')+' Contact</h3>'
     +'<div class="frow c2">'+field('Name','ctf-n',{ph:'Jane Smith',val:f.name||'',req:true,err:f.errs&&f.errs.n})+field('Role / Title','ctf-ro',{ph:'Associate Attorney',val:f.role||''})+'</div>'
     +'<div class="frow c2">'+field('Email','ctf-e',{type:'email',ph:'jane@firm.com',val:f.email||'',err:f.errs&&f.errs.e})+field('Phone','ctf-p',{type:'tel',ph:'(555) 123-4567',val:f.phone||'',oninput:"A.livePhone('ctf-p')"})+'</div>'
-    +'<div class="frow c2">'+field('Default Rate ($/hr)','ctf-rate',{pfx:'$',ph:'175.00',val:f.rate||'',hint:'Used when no rate history entry matches the entry date'})+(ST.prefs.revenueSplit?field('Personal Cut %','ctf-op',{type:'number',sfx:'%',ph:'100',val:String(pct),hint:'% of billed amount this person keeps (firm gets the rest)'}):'')+'</div>'
+    +'<div class="frow c2">'+field('Default Rate ($/hr)','ctf-rate',{pfx:'$',ph:'175.00',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',hint:'Used when no rate history entry matches the entry date'})+(ST.prefs.revenueSplit?field('Personal Cut %','ctf-op',{type:'number',sfx:'%',ph:'100',val:String(pct),hint:'% of billed amount this person keeps (firm gets the rest)'}):'')+'</div>'
     +(ST.prefs.revenueSplit?'<div class="frow c2">'+field('Annual Salary','ctf-sal',{pfx:'$',ph:'120,000',val:f.salary!=null&&f.salary!==''?String(f.salary):'',hint:'Used to calculate net income and bonus/deficit vs. billed earnings'})+'<div></div>'+'</div>':'')
     +rateSection
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-dk" onclick="A.saveCt()">'+IC.save+' Save Contact</button></div>'
@@ -2909,27 +3015,29 @@ function vAnalytics(){
   var salPeriodFn=function(annual){ return salaryForPeriod(annual,ST.anFilter); };
   var salLbl=salaryPeriodLabel(ST.anFilter); // e.g. "monthly (÷12)"
 
-  // Revenue split: per team member (includes salary & prorated income calc)
+  // Revenue split: per team member — O(E) single pass accumulator, then map contacts
+  var _ctAcc={};
+  var _ctSet=new Set(ST.contacts.map(function(c){return c.id;}));
+  fe.forEach(function(e){
+    var key=e.contactId&&_ctSet.has(e.contactId)?e.contactId:'__unassigned';
+    if(!_ctAcc[key]) _ctAcc[key]={hrs:0,bill:0};
+    var h=Number(e.hours), b=Math.round(h*10)/10*Number(e.rate);
+    _ctAcc[key].hrs+=h; _ctAcc[key].bill+=b;
+  });
   var contactSplit=ST.contacts.map(function(c){
-    var ces=fe.filter(function(e){return e.contactId==c.id;});
-    var chrs=ces.reduce(function(s,e){return s+Number(e.hours);},0);
-    var cbill=ces.reduce(function(s,e){return s+Math.round(Number(e.hours)*10)/10*Number(e.rate);},0);
+    var acc=_ctAcc[c.id]||{hrs:0,bill:0};
     var pct=c.ownPct!=null?Number(c.ownPct):100;
-    var own=cbill*pct/100;
+    var own=acc.bill*pct/100;
     var annualSal=c.salary!=null&&c.salary!==''?Number(c.salary):null;
     var periodSal=salPeriodFn(annualSal);
     var net=periodSal!=null?own-periodSal:null;
-    return {id:c.id,name:c.name,hrs:chrs,bill:cbill,ownPct:pct,own:own,firm:cbill*(100-pct)/100,
+    return {id:c.id,name:c.name,hrs:acc.hrs,bill:acc.bill,ownPct:pct,own:own,firm:acc.bill*(100-pct)/100,
             annualSalary:annualSal,periodSalary:periodSal,net:net};
   }).filter(function(c){return c.hrs>0;});
 
-  // Unassigned entries
-  var unassignedEntries=fe.filter(function(e){
-    if(!e.contactId) return true;
-    return !ST.contacts.find(function(c){return c.id==e.contactId;});
-  });
-  var uHrs=unassignedEntries.reduce(function(s,e){return s+Number(e.hours);},0);
-  var uBill=unassignedEntries.reduce(function(s,e){return s+Math.round(Number(e.hours)*10)/10*Number(e.rate);},0);
+  // Unassigned entries — pulled from single-pass accumulator above (O(1) lookup)
+  var _unacc=_ctAcc['__unassigned']||{hrs:0,bill:0};
+  var uHrs=_unacc.hrs, uBill=_unacc.bill;
   var userPct=ST.user&&ST.user.ownPct!=null?Number(ST.user.ownPct):100;
   var userAnnualSalary=ST.user&&ST.user.salary!=null&&ST.user.salary!==''?Number(ST.user.salary):null;
   if(uHrs>0){
@@ -2941,10 +3049,20 @@ function vAnalytics(){
   var totalOwn=contactSplit.reduce(function(s,c){return s+c.own;},0);
   var totalFirm=contactSplit.reduce(function(s,c){return s+c.firm;},0);
 
-  var byClient=ST.clients.map(function(c){
-    var es=fe.filter(function(e){return e.clientId==c.id;});
-    return {name:c.name,hrs:es.reduce(function(s,e){return s+Number(e.hours);},0),
-            bill:es.reduce(function(s,e){return s+Math.round(Number(e.hours)*10)/10*Number(e.rate);},0)};
+  // Revenue by client — O(E) single pass accumulator
+  var _clAcc={};
+  fe.forEach(function(e){
+    if(!e.clientId) return;
+    if(!_clAcc[e.clientId]) _clAcc[e.clientId]={hrs:0,bill:0};
+    var h=Number(e.hours);
+    _clAcc[e.clientId].hrs+=h;
+    _clAcc[e.clientId].bill+=Math.round(h*10)/10*Number(e.rate);
+  });
+  var _clMap={};
+  ST.clients.forEach(function(c){ _clMap[c.id]=c.name; });
+  var byClient=Object.keys(_clAcc).map(function(cid){
+    var acc=_clAcc[cid];
+    return {name:_clMap[cid]||'Unknown',hrs:acc.hrs,bill:acc.bill};
   }).filter(function(c){return c.hrs>0;}).sort(function(a,b){return b.bill-a.bill;});
   var maxB=byClient.length?byClient[0].bill:1;
 
@@ -3308,7 +3426,19 @@ function vInvoices(){
 }
 
 // Invoice total calculator (applies cuts)
+// invTotal: returns invoice total including tax.
+// Primary path: use persisted snapshot (inv.total) stored at save time — guarantees
+// correct display even when prior-year entries are not loaded in memory.
+// Fallback: live calculation for legacy invoices saved before snapshot fields existed.
 function invTotal(inv){
+  if(!inv) return 0;
+  if(inv.total!=null) return Number(inv.total)||0;
+  // Legacy fallback: derive from live entry lookup (may return 0 for cross-year entries)
+  return invTotalLive(inv);
+}
+
+// invTotalLive: raw live calculation from _lu.en (used at save time and as legacy fallback).
+function invTotalLive(inv){
   if(!inv||!inv.entryIds) return 0;
   buildEntryLookup(); // ensure _lu.en is populated
   var cuts=inv.cuts||{};
@@ -3600,7 +3730,7 @@ function groupForm(){
     +'<h3>'+(ST.editId?'Edit':'New')+' Client Group</h3>'
     +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px">Groups share billing rates and contacts across member clients. Client-specific settings always override group defaults.</p>'
     +'<div class="frow">'+field('Group Name','gf-n',{ph:'BigCo Group, Insurance Portfolio…',val:f.name||'',req:true,err:f.errs&&f.errs.n})+'</div>'
-    +'<div class="frow c2">'+field('Description','gf-desc',{ph:'Parent company, industry sector…',val:f.description||''})+field('Default Rate ($/hr)','gf-rate',{type:'number',ph:'250.00',val:f.rate||'',hint:'Applies when no client or attorney rate is set'})+'</div>'
+    +'<div class="frow c2">'+field('Description','gf-desc',{ph:'Parent company, industry sector…',val:f.description||''})+field('Default Rate ($/hr)','gf-rate',{type:'number',ph:'250.00',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',hint:'Applies when no client or attorney rate is set'})+'</div>'
     +'<div class="frow">'+field('Notes','gf-notes',{ph:'Internal notes about this group…',val:f.notes||''})+'</div>'
     // Firm contacts
     +'<div class="frow">'+field('Firm Team','gf-ct',{type:'select',opts:ctOpts,val:'',hint:'Assign firm contacts to all group clients'})+'</div>'
@@ -3652,7 +3782,7 @@ function buildPartnerReview(){
   var rateChanged=String(f.rate)!==String(orig.rate);
   var descChanged=(f.description||'')!==(orig.description||'');
   var anyEdited=hoursChanged||rateChanged||descChanged;
-  var total=(f.hours&&f.rate)?$m(Number(f.hours)*Number(f.rate)):null;
+  var total=(f.hours&&f.rate!==''&&f.rate!=null)?$m(Number(f.hours)*Number(f.rate)):null;
   return '<div class="ov"><div class="modal modal-md" style="max-height:92vh;display:flex;flex-direction:column">'
     +'<div class="modal-hd"><h2>'+IC.edit+' Partner Review: Time Entry</h2>'
     +'<button class="btn-ic" onclick="A.closeM()">'+IC.x+'</button></div>'
@@ -3750,7 +3880,13 @@ function buildUP(){
       +'<input type="hidden" id="up-role" value="'+H(curRole)+'">'
       +'</div>'
       +'<div class="splash-footer">'
+      +'<div style="display:flex;flex-direction:column;gap:5px">'
       +'<span class="splash-footer-note">\ud83d\udd12 Stored only on this device</span>'
+      +'<span class="splash-footer-note">'
+      +'<a onclick="A.downloadApp()" style="color:var(--blue);cursor:pointer;text-decoration:none;font-weight:500" title="Download a self-contained copy of this app \u2014 works 100% offline, no internet required">\u2193 Save app to your computer</a>'
+      +' \u2014 works without internet'
+      +'</span>'
+      +'</div>'
       +'<button class="btn btn-dk" onclick="A.saveUser()" style="padding:10px 28px">Continue \u2192</button>'
       +'</div>'
       +'</div></div>';
@@ -3796,7 +3932,7 @@ function buildQL(){
   var ss=String(Math.floor((ms%60000)/1000)).padStart(2,'0');
   var rnd=ms/3600000;
   var avMat=ST.matters.filter(function(m){return m.clientId==f.clientId;});
-  var total=(f.hours&&f.rate)?$m(Number(f.hours)*Number(f.rate)):null;
+  var total=(f.hours&&f.rate!==''&&f.rate!=null)?$m(Number(f.hours)*Number(f.rate)):null;
   var todayStr=today();
   var todayEntries=ST.entries.filter(function(e){return e.date===todayStr;}).slice().reverse();
   var continueH='';
@@ -6225,17 +6361,29 @@ var A={
   tsLastPage:function(p){ST.tsPage=p;render();},
   clearTsFilters:function(){ST.tsClientFilter='';ST.tsMatterFilter='';ST.tsContactFilter='';ST.tsSort='date-desc';ST.tsPage=0;ST.tsFiltersOpen=false;render();},
   // Clients
-  setClSort:function(v){ST.clSort=v;render();},
-  setClSearch:function(v){ST.clSearch=v;dRender();},
+  setClSort:function(v){ST.clSort=v;ST.clPage=0;render();},
+  setClSearch:function(v){ST.clSearch=v;ST.clPage=0;dRender();},
+  clPrevPage:function(){if(ST.clPage>0){ST.clPage--;render();}},
+  clNextPage:function(){ST.clPage++;render();},
+  clFirstPage:function(){ST.clPage=0;render();},
+  clLastPage:function(p){ST.clPage=p;render();},
   // Matters
-  setMaSort:function(v){ST.maSort=v;render();},
-  setMaClF:function(v){ST.maClientFilter=v;render();},
-  setMaSearch:function(v){ST.maSearch=v;dRender();},
-  toggleMaGroup:function(){ST.maGroup=!ST.maGroup;render();},
-  clearMaFilters:function(){ST.maClientFilter='';ST.maSearch='';ST.maSort='alpha';ST.maGroup=false;render();},
+  setMaSort:function(v){ST.maSort=v;ST.maPage=0;render();},
+  setMaClF:function(v){ST.maClientFilter=v;ST.maPage=0;render();},
+  setMaSearch:function(v){ST.maSearch=v;ST.maPage=0;dRender();},
+  toggleMaGroup:function(){ST.maGroup=!ST.maGroup;ST.maPage=0;render();},
+  clearMaFilters:function(){ST.maClientFilter='';ST.maSearch='';ST.maSort='alpha';ST.maGroup=false;ST.maPage=0;render();},
+  maPrevPage:function(){if(ST.maPage>0){ST.maPage--;render();}},
+  maNextPage:function(){ST.maPage++;render();},
+  maFirstPage:function(){ST.maPage=0;render();},
+  maLastPage:function(p){ST.maPage=p;render();},
   // Contacts
-  setCtSort:function(v){ST.ctSort=v;render();},
-  setCtSearch:function(v){ST.ctSearch=v;dRender();},
+  setCtSort:function(v){ST.ctSort=v;ST.ctPage=0;render();},
+  setCtSearch:function(v){ST.ctSearch=v;ST.ctPage=0;dRender();},
+  ctPrevPage:function(){if(ST.ctPage>0){ST.ctPage--;render();}},
+  ctNextPage:function(){ST.ctPage++;render();},
+  ctFirstPage:function(){ST.ctPage=0;render();},
+  ctLastPage:function(p){ST.ctPage=p;render();},
   setHT:function(t){ST.helpTab=t;render();},
   closeF:function(){ST.modal=null;ST.editId=null;ST._exportEntries=null;render();},
   closeM:function(){ST.modal=null;ST._exportEntries=null;render();},
@@ -7339,7 +7487,7 @@ var A={
     var dateVal=((document.getElementById('cf-ar-date')||{}).value||'').trim();
     var noteVal=((document.getElementById('cf-ar-note')||{}).value||'').trim();
     if(!ctVal){toast('Select an attorney','err');return;}
-    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(isNaN(rateVal)||rateVal<0){toast('Enter a valid rate (0 or greater)','err');return;}
     if(!dateVal){toast('Enter an effective date','err');return;}
     var ar=ST.cf.attorneyRates||[];
     // Prevent exact duplicate
@@ -7434,7 +7582,7 @@ var A={
     var dateVal=((document.getElementById('gf-ar-date')||{}).value||'').trim();
     var noteVal=((document.getElementById('gf-ar-note')||{}).value||'').trim();
     if(!ctVal){toast('Select an attorney','err');return;}
-    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(isNaN(rateVal)||rateVal<0){toast('Enter a valid rate (0 or greater)','err');return;}
     if(!dateVal){toast('Enter an effective date','err');return;}
     var ar=ST.gf.attorneyRates||[];
     if(ar.some(function(r){return r.contactId==ctVal&&r.effectiveDate===dateVal;})){toast('A rate entry for this attorney/date already exists','err');return;}
@@ -7475,7 +7623,7 @@ var A={
     var dateVal=((document.getElementById('mf-ar-date')||{}).value||'').trim();
     var noteVal=((document.getElementById('mf-ar-note')||{}).value||'').trim();
     if(!ctVal){toast('Select an attorney','err');return;}
-    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(isNaN(rateVal)||rateVal<0){toast('Enter a valid rate (0 or greater)','err');return;}
     if(!dateVal){toast('Enter an effective date','err');return;}
     var ar=ST.mf.attorneyRates||[];
     if(ar.some(function(r){return r.contactId==ctVal&&r.effectiveDate===dateVal;})){toast('A rate entry for this attorney/date already exists','err');return;}
@@ -7560,7 +7708,7 @@ var A={
     var rateVal=parseFloat((document.getElementById('ctf-rh-rate')||{}).value||'');
     var dateVal=((document.getElementById('ctf-rh-date')||{}).value||'').trim();
     var noteVal=((document.getElementById('ctf-rh-note')||{}).value||'').trim();
-    if(!rateVal||rateVal<=0){toast('Enter a valid rate','err');return;}
+    if(isNaN(rateVal)||rateVal<0){toast('Enter a valid rate (0 or greater)','err');return;}
     if(!dateVal){toast('Enter an effective date','err');return;}
     var rh=ST.ctf.rateHistory||[];
     // Prevent duplicate effective dates
@@ -7568,7 +7716,7 @@ var A={
     ST.ctf.rateHistory=(rh).concat([{effectiveDate:dateVal,rate:rateVal,note:noteVal}]);
     // Sync the Default Rate field to the latest effective rate today so autoRate fallback stays current
     var newLatest=_rateOnDate(ST.ctf.rateHistory,today());
-    if(newLatest) ST.ctf.rate=String(newLatest);
+    if(newLatest!==null) ST.ctf.rate=String(newLatest);
     render();
   },
   ctfRemRate:function(idx){
@@ -7737,6 +7885,13 @@ var A={
 
   // Row-level stopwatch
   rowTmrStart:function(entId){
+    // Mutual exclusion: stop global Quick Log timer before starting a row timer
+    if(ST.tmrOn){
+      stopTmr();
+      ST.ql.hours=String(Math.round((ST.tmrMs/3600000)*10000)/10000);
+      ST.ql.rawMs=ST.tmrMs;
+      toast('Quick Log timer stopped \u2014 row timer started','warn');
+    }
     var rt=ST.rowTmr;
     if(rt&&String(rt.entId)!==String(entId)){
       if(!confirm('Timer is running on another entry. Switch to this one?\n(Time on the other entry will be discarded.)'))return;
@@ -7813,6 +7968,12 @@ var A={
       ST.ql.hours=String(Math.round(hrs*10000)/10000);
       ST.ql.rawMs=ST.tmrMs; // carry exact ms to save
     } else {
+      // Mutual exclusion: stop any running row timer before starting the global timer
+      if(ST.rowTmr){
+        clearInterval(ST.rowTmr.iv);
+        ST.rowTmr=null;
+        toast('Row timer stopped \u2014 Quick Log timer started','warn');
+      }
       ST.tmrStart=Date.now();
       ST.tmrOn=true;
       ST.tmrIv=setInterval(function(){
@@ -8311,7 +8472,14 @@ var A={
   csvQTogCtCol:function(k){ syncForm(); ST.prefs.csvQuick.ctCols[k]=!ST.prefs.csvQuick.ctCols[k]; A._csvQSave(); },
   csvQAllCtCols:function(v){ syncForm(); var c=ST.prefs.csvQuick.ctCols; Object.keys(c).forEach(function(k){c[k]=v;}); A._csvQSave(); },
   downloadApp:function(){
-    var html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+    var docClone=document.documentElement.cloneNode(true);
+    var zh=docClone.querySelector('#z-hdr');   if(zh)zh.innerHTML='';
+    var zm=docClone.querySelector('#z-main');  if(zm)zm.innerHTML='';
+    var zo=docClone.querySelector('#z-ov');    if(zo)zo.innerHTML='';
+    var zt=docClone.querySelector('#toasts');  if(zt)zt.innerHTML='';
+    var ld=docClone.querySelector('#loading'); if(ld)ld.style.display='flex';
+    var ap=docClone.querySelector('#app');     if(ap)ap.style.display='none';
+    var html='<!DOCTYPE html>\n'+docClone.outerHTML;
     var blob=new Blob([html],{type:'text/html;charset=utf-8'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');
@@ -8842,6 +9010,16 @@ tableRows,
     var inv=ST.editId
       ?Object.assign({},ST.invoices.find(function(i){return i.id==ST.editId;})||{},f,{id:ST.editId,updatedAt:now})
       :Object.assign({},f,{id:uid(),createdAt:now,updatedAt:now,cuts:{},mergedEntries:[],comments:[]});
+
+    // Snapshot totals at save time — entries are in memory here, so invTotalLive() is reliable.
+    // These snapshots let invTotal() display correct amounts even when prior-year entries
+    // are absent from ST.entries / _lu.en under the partial-load strategy.
+    buildEntryLookup();
+    var _snapSub=invTotalLive(inv);
+    var _snapTaxPct=Number(inv.taxPct||0);
+    inv.subtotal=_snapSub;
+    inv.taxAmt=_snapSub*_snapTaxPct/100;
+    inv.total=inv.subtotal+inv.taxAmt;
 
     if(ST.editId){
       ST.invoices=ST.invoices.map(function(i){return i.id==ST.editId?inv:i;});
