@@ -1435,7 +1435,8 @@ function syncForm(){
     ef:{
       obj:ST.ef, pfx:'ef-',
       alias:{d:'date',h:'hours',r:'rate',desc:'description',by:'byContactId',
-             cl:'clientId',ma:'matterId',ct:'contactId',aba:'abaCode'}
+             cl:'clientId',ma:'matterId',ct:'contactId',aba:'abaCode',
+             ncn:'newClName',nmn:'newMaName'}
     },
     cf:{
       obj:ST.cf, pfx:'cf-',
@@ -2305,9 +2306,9 @@ function vTimesheet(){
 function entryForm(){
   var role=myRole();
   var f=ST.ef;
-  var clOpts=[{v:'',l:'Select client...'}].concat(ST.clients.map(function(c){return{v:c.id,l:c.name};}));
+  var clOpts=[{v:'',l:'Select client...'},{v:'__new__',l:'+ Add new client\u2026'}].concat(ST.clients.map(function(c){return{v:c.id,l:c.name};}));
   var avMat=ST.matters.filter(function(m){return m.clientId==f.clientId;});
-  var maOpts=[{v:'',l:'General work'}].concat(avMat.map(function(m){return{v:m.id,l:m.name};}));
+  var maOpts=[{v:'',l:'General work'}].concat(f.clientId?[{v:'__new__',l:'+ Add new matter\u2026'}]:[]).concat(avMat.map(function(m){return{v:m.id,l:m.name};}));
   var ctOpts=[{v:'',l:'Select team member...'}].concat(ST.contacts.map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
   var total=(f.hours&&f.rate!==''&&f.rate!=null)?$m(Number(f.hours)*Number(f.rate)):null;
   var matHint=!f.clientId?'Select a client first':(avMat.length===0?'No matters for this client':'');
@@ -2337,7 +2338,14 @@ function entryForm(){
     +statusNotice
     +byRow
     +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d})+field('Hours','ef-h',{type:'number',ph:'1.0',val:f.hours||'',req:true,err:f.errs&&f.errs.h,hint:'e.g. 1.5 or 0.25',step:'0.01',min:'0.01'})+'</div>'
-    +'<div class="frow c2">'+field('Client','ef-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl})+field('Matter','ef-ma',{type:'select',opts:maOpts,val:f.matterId||'',hint:matHint})+'</div>'
+    +'<div class="frow c2">'
+    +(f.newCl
+      ?'<div class="fl"><label>Client <span class="req">*</span></label><div class="ql-new-row"><input id="ef-ncn" data-sf="ef-ncn" value="'+H(f.newClName||'')+'" placeholder="New client name" oninput="syncForm();ST.ef.newClName=this.value" onkeydown="if(event.key===\'Enter\')A.efCreateClient();if(event.key===\'Escape\')A.efCancelNew(\'cl\')" autofocus><button class="btn-confirm" onclick="A.efCreateClient()" title="Create client">✓</button><button class="btn-cancel" onclick="A.efCancelNew(\'cl\')" title="Cancel">✕</button></div></div>'
+      :field('Client','ef-cl',{type:'select',opts:clOpts,val:f.clientId||'',req:true,err:f.errs&&f.errs.cl}))
+    +(f.newMa
+      ?'<div class="fl"><label>Matter</label><div class="ql-new-row"><input id="ef-nmn" data-sf="ef-nmn" value="'+H(f.newMaName||'')+'" placeholder="New matter name" oninput="syncForm();ST.ef.newMaName=this.value" onkeydown="if(event.key===\'Enter\')A.efCreateMatter();if(event.key===\'Escape\')A.efCancelNew(\'ma\')" autofocus><button class="btn-confirm" onclick="A.efCreateMatter()" title="Create matter">✓</button><button class="btn-cancel" onclick="A.efCancelNew(\'ma\')" title="Cancel">✕</button></div></div>'
+      :field('Matter','ef-ma',{type:'select',opts:maOpts,val:f.matterId||'',hint:matHint}))
+    +'</div>'
     +((role==='billing_staff'||role==='attorney')
       ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Auto-filled from attorney rate schedule on entry date':'Auto-filled from attorney rate schedule on entry date'})+'</div>'
       :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||''})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule':'Priority: Matter-attorney > Client-attorney > Attorney schedule'})+'</div>')
@@ -4025,8 +4033,8 @@ function buildQL(){
       +'</div></div>';
   } else {
     var clOpts='<option value="">Select client...</option>'
-      +ST.clients.map(function(c){return '<option value="'+c.id+'"'+(String(c.id)===String(f.clientId)?' selected':'')+'>'+H(c.name)+'</option>';}).join('')
-      +'<option value="__new__" style="color:var(--blue)">+ Add new client\u2026</option>';
+      +'<option value="__new__" style="color:var(--blue)">+ Add new client\u2026</option>'
+      +ST.clients.map(function(c){return '<option value="'+c.id+'"'+(String(c.id)===String(f.clientId)?' selected':'')+'>'+H(c.name)+'</option>';}).join('');
     clientField='<div class="fl"><label>Client <span class="req">*</span></label>'
       +'<select id="ql-cl" onchange="A.qlCl(this.value)">'+clOpts+'</select></div>';
   }
@@ -4042,8 +4050,8 @@ function buildQL(){
       +'</div></div>';
   } else {
     var maOpts='<option value="">General</option>'
-      +(f.clientId?avMat.map(function(m){return '<option value="'+m.id+'"'+(String(m.id)===String(f.matterId)?' selected':'')+'>'+H(m.name)+'</option>';}).join(''):'')
-      +(f.clientId?'<option value="__new__" style="color:var(--blue)">+ Add new matter\u2026</option>':'');
+      +(f.clientId?'<option value="__new__" style="color:var(--blue)">+ Add new matter\u2026</option>':'')
+      +(f.clientId?avMat.map(function(m){return '<option value="'+m.id+'"'+(String(m.id)===String(f.matterId)?' selected':'')+'>'+H(m.name)+'</option>';}).join(''):'');
     matterField='<div class="fl"><label>Matter</label>'
       +'<select id="ql-ma" onchange="A.qlMa(this.value)"'+(f.clientId?'':' disabled')+'>'+maOpts+'</select></div>';
   }
@@ -4084,6 +4092,7 @@ function buildQL(){
     +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ql-d\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'')
     +'<div class="fa" style="margin-top:0">'
     +'<button class="btn btn-gh" onclick="A.closeQL()">Cancel</button>'
+    +(!f.addToId?'<button class="btn btn-bl" onclick="A.qlSaveAndTimer()" title="Save entry and start timer"'+(!f.clientId?' disabled':'')+'>&#9201; Save &amp; Start Timer</button>':'')
     +'<button class="btn btn-dk" onclick="A.saveQL()"'+((!f.clientId||!f.hours)?' disabled':'')+'>'
     +IC.save+' '+(f.addToId?'Add Hours':'Save Entry')
     +'</button>'
@@ -6954,7 +6963,7 @@ var A={
       }
     }
     // Billing staff CAN add entries on behalf of attorneys/partners
-    ST.ef={date:today(),clientId:'',matterId:'',contactId:selfContactId,byContactId:'',hours:'',rate:selfRate,description:'',abaCode:'',errs:{},_autoRate:selfRate};
+    ST.ef={date:today(),clientId:'',matterId:'',contactId:selfContactId,byContactId:'',hours:'',rate:selfRate,description:'',abaCode:'',errs:{},_autoRate:selfRate,newCl:false,newClName:'',newMa:false,newMaName:''};
     ST.modal='ef'; render();
     var el=document.getElementById('ef'); if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
   },
@@ -7945,6 +7954,28 @@ var A={
     var r=autoRate(ST.ql.clientId,String(rec.id),ST.ql.contactId||'',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
     toast('Matter created','ok');render();
   },
+  efCancelNew:function(which){syncForm();if(which==='cl'){ST.ef.newCl=false;ST.ef.newClName='';}else{ST.ef.newMa=false;ST.ef.newMaName='';}render();},
+  efCreateClient:function(){
+    syncForm();
+    var name=(ST.ef.newClName||'').trim();
+    if(!name){toast('Client name required','err');return;}
+    var rec={id:uid(),name:name,email:'',phone:'',rate:0,contactId:''};
+    ST.clients=ST.clients.concat([rec]);saveOne('clients',rec);
+    ST.ef.clientId=String(rec.id);ST.ef.matterId='';ST.ef.newCl=false;ST.ef.newClName='';
+    var r=autoRate(String(rec.id),'',ST.ef.contactId||'',ST.ef.date||today());if(r&&!ST.ef.rate){ST.ef.rate=String(r);ST.ef._autoRate=String(r);}
+    toast('Client created','ok');render();
+  },
+  efCreateMatter:function(){
+    syncForm();
+    if(!ST.ef.clientId){toast('Select a client first','err');return;}
+    var name=(ST.ef.newMaName||'').trim();
+    if(!name){toast('Matter name required','err');return;}
+    var rec={id:uid(),name:name,clientId:ST.ef.clientId,description:'',rate:0,contactId:''};
+    ST.matters=ST.matters.concat([rec]);saveOne('matters',rec);
+    ST.ef.matterId=String(rec.id);ST.ef.newMa=false;ST.ef.newMaName='';
+    var r=autoRate(ST.ef.clientId,String(rec.id),ST.ef.contactId||'',ST.ef.date||today());if(r&&!ST.ef.rate){ST.ef.rate=String(r);ST.ef._autoRate=String(r);}
+    toast('Matter created','ok');render();
+  },
   qlPickEntry:function(id){
     syncForm();
     var id2=String(id);
@@ -7980,6 +8011,25 @@ var A={
     ST.entries=ST.entries.concat([entry]);
     _patchEntry(entry);
     saveOne('entries',entry);ST.modal=null;ST.tab='timesheet';toast(qlRole==='attorney'?'Entry submitted for approval \u26A1':'Entry logged! \u26A1');render();
+  },
+  qlSaveAndTimer:function(){
+    syncForm();
+    var f=ST.ql;
+    if(!f.clientId){toast('Select a client first','err');return;}
+    stopTmr();
+    var qlRole=myRole();
+    var qlStatus=qlRole==='partner'?'approved':'pending';
+    var newId=uid();
+    var entry={id:newId,date:today(),clientId:f.clientId,matterId:f.matterId||'',contactId:f.contactId||'',
+      hours:0,rawMs:null,rate:f.rate?Number(f.rate):0,description:f.description||'',
+      createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?',
+      status:qlStatus,finalized:false};
+    ST.entries=ST.entries.concat([entry]);
+    _patchEntry(entry);
+    saveOne('entries',entry);
+    ST.modal=null;ST.tab='timesheet';render();
+    A.rowTmrStart(newId);
+    toast('Timer started \u2014 stop it when done to log time','ok');
   },
 
   // Row-level stopwatch
@@ -9831,6 +9881,7 @@ document.addEventListener('change',function(e){
     }
   }
   else if(id==='ef-cl'){
+    if(e.target.value==='__new__'){ST.ef.newCl=true;ST.ef.newClName='';render();return;}
     ST.ef.clientId=e.target.value; ST.ef.matterId='';
     // Only auto-fill rate if: (a) rate is empty, or (b) it still matches the last
     // auto-filled value (_autoRate), meaning the user has not typed a custom rate.
@@ -9844,6 +9895,7 @@ document.addEventListener('change',function(e){
     render();
   }
   else if(id==='ef-ma'){
+    if(e.target.value==='__new__'){ST.ef.newMa=true;ST.ef.newMaName='';render();return;}
     ST.ef.matterId=e.target.value;
     var _efDate2=ST.ef.date||today();
     // Only auto-fill rate if rate is blank or was itself auto-filled (not manually typed).
