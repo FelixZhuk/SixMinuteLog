@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%232560D0%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2211%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%228%22%20x2%3D%2216%22%20y2%3D%2216%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%2F%3E%3Cline%20x1%3D%2216%22%20y1%3D%2216%22%20x2%3D%2222%22%20y2%3D%2212.5%22%20stroke%3D%22%23fff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%222%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E">
 <title>SixMinuteLog.com</title>
 <style>
@@ -137,6 +140,19 @@ body.dark .nav-btn.on{color:var(--ink);border-bottom-color:var(--gold)}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 input,select,textarea,button{font-family:inherit;font-size:14px}
 button{cursor:pointer;touch-action:manipulation}
+/* iOS: prevent auto-zoom on input focus (font-size must be >=16px on touch devices) */
+@media (pointer:coarse){
+  .fl input,.fl select,.fl textarea,
+  body.layout-compact .fl input,body.layout-compact .fl select,body.layout-compact .fl textarea,
+  body.layout-spacious .fl input,body.layout-spacious .fl select,body.layout-spacious .fl textarea{font-size:16px}
+}
+/* iOS: smooth momentum scrolling for overflow areas */
+.modal-bd,.modal,.up-box,.help-body,.help-nav{-webkit-overflow-scrolling:touch}
+/* iOS: remove tap highlight flash on buttons/links */
+a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
+/* iOS safe area — FAB and toasts clear the home indicator */
+#fab{bottom:max(24px,calc(16px + env(safe-area-inset-bottom)))}
+#toasts{top:max(16px,calc(8px + env(safe-area-inset-top)));right:max(16px,env(safe-area-inset-right))}
 
 /* Layout */
 .header{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 1px 0 var(--border-l)}
@@ -479,7 +495,7 @@ html,body{overflow-x:hidden;max-width:100vw}
   .frow.c2,.frow.c3{grid-template-columns:1fr}
   /* Action footer */
   .fa{flex-wrap:wrap}
-  .fa .btn{flex:1;min-width:0;justify-content:center}
+  .fa .btn{flex:1;min-width:0;justify-content:center;white-space:normal;text-align:center}
   /* Modals: bottom-sheet */
   .ov{padding:8px 0 0;align-items:flex-end}
   .modal{border-radius:16px 16px 0 0;max-height:92vh;width:100%}
@@ -569,7 +585,7 @@ html,body{overflow-x:hidden;max-width:100vw}
   .tscroll tbody td:nth-child(6){grid-column:2;grid-row:5;text-align:right;color:var(--ink3)}
   .tscroll tbody td:nth-child(8){grid-column:1/span 2;grid-row:6}
   .tscroll tbody td:last-child{grid-column:1/span 2;grid-row:99;padding-top:8px;border-top:1px solid var(--border);margin-top:6px;overflow:visible}
-  .tscroll tbody td:last-child .tda{justify-content:flex-end;gap:0}
+  .tscroll tbody td:last-child .tda{justify-content:flex-end;gap:6px}
   .tscroll tbody td:last-child .tda button{min-width:44px;min-height:44px;padding:10px;font-size:16px}
 }
 
@@ -1029,7 +1045,7 @@ var ST={
   mailPresets:[],
   // Custom/editable placeholders (usable in email subjects, bodies, and filenames)
   mailPlaceholders:[],
-  modal:null,editId:null,helpTab:'start',settingsTab:'firm',
+  modal:null,editId:null,helpTab:'start',settingsTab:'firm',_conf:null,_prompt:null,
   tsFilter:'all',anFilter:'month',
   // Timesheet extra filters/sort (collapsed by default on load)
   tsClientFilter:'',tsMatterFilter:'',tsContactFilter:'',tsSort:'date-desc',tsFiltersOpen:false,
@@ -2116,17 +2132,16 @@ function vTimesheet(){
       else if(role==='attorney'){canEdit=isOwnEntry&&(est==='pending'||est==='rejected');canDelete=isOwnEntry&&(est==='pending'||est==='rejected');}
 
       var actionsH='<div class="tda">';
-      if(canEdit)   actionsH+='<button onclick="A.editEnt('+e.id+')" title="Edit">'+IC.edit+'</button>';
-      if(canDelete) actionsH+='<button onclick="A.delEnt('+e.id+')" title="Delete">'+IC.trash+'</button>';
-      actionsH+='<button onclick="A.dupEnt('+e.id+')" title="Duplicate to today" style="opacity:0.6">'+IC.copy+'</button>';
-      if(role==='billing_staff') actionsH+='<button onclick="A.billingEditEntry('+e.id+')" title="Add ABA code / matter number" style="color:var(--blue)">🧾</button>';
+      if(canEdit)   actionsH+='<button type="button" data-id="'+e.id+'" onclick="A.editEnt(this.dataset.id)" title="Edit">'+IC.edit+'</button>';
+      if(canDelete) actionsH+='<button type="button" data-id="'+e.id+'" onclick="A.delEnt(this.dataset.id)" title="Delete">'+IC.trash+'</button>';
+      actionsH+='<button type="button" data-id="'+e.id+'" onclick="A.dupEnt(this.dataset.id)" title="Duplicate to today" style="opacity:0.6">'+IC.copy+'</button>';
+      if(role==='billing_staff') actionsH+='<button type="button" data-id="'+e.id+'" onclick="A.billingEditEntry(this.dataset.id)" title="Add ABA code / matter number" style="color:var(--blue)">🧾</button>';
       if(role!=='billing_staff'){
         if(isActive){
-          // Stop button only — the big banner handles the main UI
-          actionsH+='<button onclick="A.rowTmrStop()" title="Stop timer" class="btn-ic row-tmr-stop" style="font-size:14px;padding:3px 6px;color:var(--red)">■</button>';
+          actionsH+='<button type="button" onclick="A.rowTmrStop()" title="Stop timer" class="btn-ic row-tmr-stop" style="font-size:14px;padding:3px 6px;color:var(--red)">■</button>';
         } else if(e.date>=today()) {
           var tmrTitle=rt?'Switch timer to this entry':'Start timer for this entry';
-          actionsH+='<button onclick="A.rowTmrStart('+e.id+')" title="'+tmrTitle+'" class="btn-ic" style="font-size:13px;opacity:'+(rt?'0.25':'0.65')+';padding:3px 6px">⏱</button>';
+          actionsH+='<button type="button" data-id="'+e.id+'" onclick="A.rowTmrStart(this.dataset.id)" title="'+tmrTitle+'" class="btn-ic" style="font-size:13px;opacity:'+(rt?'0.25':'0.65')+';padding:3px 6px">⏱</button>';
         }
       }
       actionsH+='</div>';
@@ -2360,8 +2375,8 @@ function vClients(){
           return '<div class="card" style="border-left:3px solid var(--blue)">'
             +'<div class="card-hd"><div class="avatar" style="background:var(--blue);color:#fff">'+H(g.name.charAt(0).toUpperCase())+'</div>'
             +'<div class="card-act">'
-            +'<button onclick="A.editGrp('+g.id+')" title="Edit group">'+IC.edit+'</button>'
-            +'<button onclick="A.delGrp('+g.id+')" title="Delete group">'+IC.trash+'</button>'
+            +'<button type="button" data-id="'+g.id+'" onclick="A.editGrp(this.dataset.id)" title="Edit group">'+IC.edit+'</button>'
+            +'<button type="button" data-id="'+g.id+'" onclick="A.delGrp(this.dataset.id)" title="Delete group">'+IC.trash+'</button>'
             +'</div></div>'
             +'<h3>'+H(g.name)+'</h3>'
             +(g.description?'<p style="font-size:12px;color:var(--ink3);margin:2px 0 6px">'+H(g.description)+'</p>':'')
@@ -2443,8 +2458,8 @@ function vClients(){
       return '<div class="card">'
         +'<div class="card-hd"><div class="avatar">'+H(c.name.charAt(0).toUpperCase())+'</div>'
         +'<div class="card-act">'
-        +(latestApproved?'<button onclick="A.emailInvoice('+latestApproved.id+')" title="Email latest invoice to client" style="color:var(--blue)">'+IC.mail+'</button>':'')
-        +'<button onclick="A.editCl('+c.id+')" title="Edit">'+IC.edit+'</button><button onclick="A.delCl('+c.id+')" title="Delete">'+IC.trash+'</button></div></div>'
+        +(latestApproved?'<button type="button" data-id="'+latestApproved.id+'" onclick="A.emailInvoice(this.dataset.id)" title="Email latest invoice to client" style="color:var(--blue)">'+IC.mail+'</button>':'')
+        +'<button type="button" data-id="'+c.id+'" onclick="A.editCl(this.dataset.id)" title="Edit">'+IC.edit+'</button><button type="button" data-id="'+c.id+'" onclick="A.delCl(this.dataset.id)" title="Delete">'+IC.trash+'</button></div></div>'
         +(grp?grpBadge:'')
         +'<h3>'+H(c.name)+'</h3>'
         +(c.email?'<p style="font-size:12px">'+mailLink(c.email)+'</p>':'')
@@ -2789,7 +2804,7 @@ function matterCard(m){
   var linkedCts=ctIds.map(function(id){return _lu.ct[id];}).filter(Boolean);
   return '<div class="card">'
     +'<div class="card-hd"><span class="chip">'+H(cl?cl.name:'Unknown')+'</span>'
-    +'<div class="card-act"><button onclick="A.editMa('+m.id+')" title="Edit">'+IC.edit+'</button><button onclick="A.delMa('+m.id+')" title="Delete">'+IC.trash+'</button></div></div>'
+    +'<div class="card-act"><button type="button" data-id="'+m.id+'" onclick="A.editMa(this.dataset.id)" title="Edit">'+IC.edit+'</button><button type="button" data-id="'+m.id+'" onclick="A.delMa(this.dataset.id)" title="Delete">'+IC.trash+'</button></div></div>'
     +'<h3>'+H(m.name)+(m.matterNumber?' <span style="font-size:11px;font-weight:400;color:var(--blue);background:var(--blue-pale);padding:2px 7px;border-radius:10px;font-family:monospace">#'+H(m.matterNumber)+'</span>':'')+'</h3>'
     +(m.description?'<p style="color:var(--ink3);font-size:12px;margin-bottom:4px">'+H(m.description)+'</p>':'')
     +(linkedPeople.length?'<div style="margin:6px 0 4px;border-top:1px solid var(--border-l);padding-top:7px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-bottom:5px">Client Contacts</div>'
@@ -2827,7 +2842,7 @@ function matterForm(){
       +(linkedIds.length?'<p style="font-size:11px;color:var(--ink3);margin-top:6px">'+linkedIds.length+' contact'+(linkedIds.length!==1?'s':'')+' linked</p>':'<p style="font-size:11px;color:var(--ink3);margin-top:6px">Click to link contacts from this client</p>')
       +'</div></div>';
   } else if(f.clientId&&!cppl.length){
-    cpSection='<div class="frow"><p class="note" style="font-size:12px;width:100%;margin:0">No client-side contacts on this client yet. <a onclick="A.editCl('+f.clientId+');return false;" href="#" style="color:var(--blue)">Edit the client</a> to add contacts first.</p></div>';
+    cpSection='<div class="frow"><p class="note" style="font-size:12px;width:100%;margin:0">No client-side contacts on this client yet. <a data-id="'+f.clientId+'" onclick="A.editCl(this.dataset.id);return false;" href="#" style="color:var(--blue)">Edit the client</a> to add contacts first.</p></div>';
   }
   return '<div class="fbox" id="mf">'
     +'<h3>'+(ST.editId?'Edit':'New')+' Matter</h3>'
@@ -2912,7 +2927,7 @@ function vContacts(){
         var isMe=!!c.isUser;
         return '<div class="card">'
           +'<div class="card-hd"><div class="avatar avatar-dark">'+H(c.name.charAt(0).toUpperCase())+'</div>'
-          +'<div class="card-act">'+(isMe?'<span style="font-size:11px;font-weight:600;color:var(--blue);background:rgba(37,99,235,.1);padding:2px 8px;border-radius:10px;margin-right:4px">You</span>':'')+'<button onclick="A.editCt('+c.id+')" title="Edit">'+IC.edit+'</button>'+(isMe?'':'<button onclick="A.delCt('+c.id+')" title="Delete">'+IC.trash+'</button>')+'</div></div>'
+          +'<div class="card-act">'+(isMe?'<span style="font-size:11px;font-weight:600;color:var(--blue);background:rgba(37,99,235,.1);padding:2px 8px;border-radius:10px;margin-right:4px">You</span>':'')+'<button type="button" data-id="'+c.id+'" onclick="A.editCt(this.dataset.id)" title="Edit">'+IC.edit+'</button>'+(isMe?'':'<button type="button" data-id="'+c.id+'" onclick="A.delCt(this.dataset.id)" title="Delete">'+IC.trash+'</button>')+'</div></div>'
           +'<h3>'+H(c.name)+'</h3>'
           +(c.role?'<p style="color:var(--ink2)">'+H(c.role)+'</p>':'')
           +(c.email?'<p>'+mailLink(c.email,'font-size:13px;')+'</p>':'')
@@ -3331,9 +3346,9 @@ function vApprovals(){
       +'<td>'+abaDisplay+'</td>'
       +'<td><span class="badge" title="'+H(e.createdBy||'')+'">'+H(e.createdByIni||'?')+'</span></td>'
       +'<td><div class="tda">'
-        +'<button class="btn btn-gr" onclick="A.approveEnt('+e.id+')" style="padding:5px 10px;font-size:12px;gap:4px">'+IC.check+' Approve</button>'
-        +'<button class="btn btn-gh" onclick="A.openPartnerReview('+e.id+')" style="padding:5px 10px;font-size:12px;gap:4px">'+IC.edit+' Review</button>'
-        +'<button class="btn btn-rd" onclick="A.rejectEnt('+e.id+')" style="padding:5px 10px;font-size:12px">Reject</button>'
+        +'<button type="button" class="btn btn-gr" data-id="'+e.id+'" onclick="A.approveEnt(this.dataset.id)" style="padding:5px 10px;font-size:12px;gap:4px">'+IC.check+' Approve</button>'
+        +'<button type="button" class="btn btn-gh" data-id="'+e.id+'" onclick="A.openPartnerReview(this.dataset.id)" style="padding:5px 10px;font-size:12px;gap:4px">'+IC.edit+' Review</button>'
+        +'<button type="button" class="btn btn-rd" data-id="'+e.id+'" onclick="A.rejectEnt(this.dataset.id)" style="padding:5px 10px;font-size:12px">Reject</button>'
       +'</div></td>'
       +'</tr>';
   }).join('');
@@ -3770,6 +3785,34 @@ function groupForm(){
 }
 
 // === MODALS
+function buildConfirmModal(){
+  var c=ST._conf||{};
+  var isDanger=c.danger!==false;
+  return '<div class="ov" onclick="A.cancelConf()">'
+    +'<div class="modal modal-sm" onclick="event.stopPropagation()" style="max-width:360px">'
+    +'<div class="modal-hd"><h2 style="font-size:15px">'+(c.title||'Confirm')+'</h2>'
+    +'<button class="btn-ic" onclick="A.cancelConf()">'+IC.x+'</button></div>'
+    +'<div class="modal-bd" style="padding:18px 22px"><p style="margin:0;font-size:14px;color:var(--ink2);line-height:1.55">'+H(c.msg||'Are you sure?')+'</p></div>'
+    +'<div class="modal-ft">'
+    +'<button class="btn btn-gh" onclick="A.cancelConf()">Cancel</button>'
+    +'<button class="btn '+(isDanger?'btn-rd':'btn-dk')+'" onclick="A.okConf()">'+(c.okLabel||'Delete')+'</button>'
+    +'</div></div></div>';
+}
+function buildPromptModal(){
+  var p=ST._prompt||{};
+  return '<div class="ov" onclick="A.cancelPrompt()">'
+    +'<div class="modal modal-sm" onclick="event.stopPropagation()" style="max-width:380px">'
+    +'<div class="modal-hd"><h2 style="font-size:15px">'+H(p.title||'Edit')+'</h2>'
+    +'<button class="btn-ic" onclick="A.cancelPrompt()">'+IC.x+'</button></div>'
+    +'<div class="modal-bd" style="padding:18px 22px">'
+    +'<div class="fl"><label>'+H(p.label||'Value')+'</label>'
+    +'<input id="_prompt-val" type="text" value="'+H(p.val||'')+'" style="width:100%">'
+    +'</div></div>'
+    +'<div class="modal-ft">'
+    +'<button class="btn btn-gh" onclick="A.cancelPrompt()">Cancel</button>'
+    +'<button class="btn btn-dk" onclick="A.okPrompt()">'+H(p.okLabel||'Save')+'</button>'
+    +'</div></div></div>';
+}
 // == Partner Review Entry Modal ==
 function buildPartnerReview(){
   var f=ST.pref||{};
@@ -6286,11 +6329,13 @@ function render(){
   // their CONTENT changes — so we do NOT cache overlays. The overlay zone is
   // always rebuilt when the modal is open. When modal is null (and was null),
   // the morph is skipped via the empty-string fast path.
-  var ovKey=ST.modal||'';
+  var ovKey=(ST.modal||'')+(ST._conf?'_conf':'')+(ST._prompt?'_prompt':'');
   var prevOv=_rKeys.ov||'';
   if(ovKey||prevOv){  // skip morph only if both are empty
     var overlays='';
-    if(ST.modal==='up') overlays=buildUP();
+    if(ST._conf) overlays=buildConfirmModal();
+    else if(ST._prompt) overlays=buildPromptModal();
+    else if(ST.modal==='up') overlays=buildUP();
     else if(ST.modal==='ql') overlays=buildQL();
     else if(ST.modal==='help') overlays=buildHelp();
     else if(ST.modal==='settings') overlays=buildSettings();
@@ -6317,12 +6362,27 @@ function render(){
 
   document.getElementById('fab').style.display=((isBilling()&&ST.tab!=='timesheet')||(ST.modal&&ST.modal!=='help'&&ST.modal!=='settings'))?'none':'flex';
   if(ST.modal==='up') setTimeout(function(){var el=document.getElementById('up-n');if(el)el.focus();},50);
+  if(ST._prompt) setTimeout(function(){var el=document.getElementById('_prompt-val');if(el){el.focus();el.select();}},50);
   if(ST.modal==='mailpreset') setTimeout(_mpPreview,30);
 }
 
 
 // === ACTIONS
 var A={
+  // Custom confirm dialog — iOS-safe replacement for window.confirm()
+  confirm_:function(msg,cb,opts){ST._conf=Object.assign({msg:msg,_cb:cb},opts||{});render();},
+  cancelConf:function(){ST._conf=null;render();},
+  okConf:function(){var cb=ST._conf&&ST._conf._cb;ST._conf=null;if(cb)cb();},
+  // Custom prompt dialog — iOS-safe replacement for window.prompt()
+  prompt_:function(opts,cb){ST._prompt=Object.assign({_cb:cb},opts||{});render();},
+  cancelPrompt:function(){ST._prompt=null;render();},
+  okPrompt:function(){
+    var el=document.getElementById('_prompt-val');
+    var val=el?el.value:'';
+    var cb=ST._prompt&&ST._prompt._cb;
+    ST._prompt=null;
+    if(cb)cb(val);
+  },
   setTab:function(t){
     ST.tab=t; ST.modal=null; ST.editId=null;
     // Analytics uses IDB range queries scoped to the current filter — no full load needed.
@@ -6481,12 +6541,13 @@ var A={
   },
   editDescPreset:function(i){
     var cur=ST.descPresets[i];
-    var nv=prompt('Edit description suggestion:', cur);
-    if(nv===null) return;
-    nv=nv.trim();
-    if(!nv){ toast('Cannot be empty','warn'); return; }
-    ST.descPresets[i]=nv;
-    save(); toast('Updated','ok'); render();
+    A.prompt_({title:'Edit Description Suggestion',label:'Description',val:cur,okLabel:'Save'},function(nv){
+      if(nv===null||nv===undefined) return;
+      nv=nv.trim();
+      if(!nv){ toast('Cannot be empty','warn'); return; }
+      ST.descPresets[i]=nv;
+      save(); toast('Updated','ok'); render();
+    });
   },
 
   // == Mail Presets ==
@@ -6564,9 +6625,10 @@ var A={
     ST.mphf={}; ST.modal='settings'; ST.settingsTab='placeholders'; render();
   },
   delMailPH:function(idx){
-    if(!confirm('Delete this placeholder?')) return;
-    ST.mailPlaceholders.splice(idx,1);
-    save(); toast('Placeholder deleted','warn'); render();
+    A.confirm_('Delete this placeholder?',function(){
+      ST.mailPlaceholders.splice(idx,1);
+      save(); toast('Placeholder deleted','warn'); render();
+    },{title:'Delete Placeholder'});
   },
   saveMailPreset:function(){
     var name=(document.getElementById('mp-name')||{}).value||'';
@@ -6597,9 +6659,10 @@ var A={
     ST.modal='settings'; ST.settingsTab='email'; render();
   },
   delMailPreset:function(i){
-    if(!confirm('Delete this email preset?')) return;
-    ST.mailPresets.splice(i,1);
-    save(); toast('Preset deleted','warn'); render();
+    A.confirm_('Delete this email preset?',function(){
+      ST.mailPresets.splice(i,1);
+      save(); toast('Preset deleted','warn'); render();
+    },{title:'Delete Email Preset'});
   },
   dupMailPreset:function(i){
     var mp=ST.mailPresets[i];
@@ -6970,7 +7033,7 @@ var A={
     _patchEntry(entry);
     saveOne('entries',entry); A.closeF();
   },
-  delEnt:function(id){if(!confirm('Delete this time entry?'))return;ST.entries=ST.entries.filter(function(e){return e.id!=id;});_removeEntry(id);delOne('entries',id);toast('Deleted','warn');render();},
+  delEnt:function(id){A.confirm_('Delete this time entry? This cannot be undone.',function(){ST.entries=ST.entries.filter(function(e){return e.id!=id;});_removeEntry(id);delOne('entries',id);toast('Deleted','warn');render();},{title:'Delete Entry'});},
 
   // Approval actions (partner only)
   approveEnt:function(id){
@@ -6990,18 +7053,19 @@ var A={
   },
   rejectEnt:function(id){
     if(!isPartner()){toast('Only partners can reject entries','warn');return;}
-    if(!confirm('Reject this entry?')) return;
-    var updated;
-    ST.entries=ST.entries.map(function(e){
-      if(e.id==id){updated=Object.assign({},e,{status:'rejected',approvedBy:ST.user?ST.user.name:'',approvedAt:today()});return updated;}
-      return e;
-    });
-    if(!updated&&ST._approvalEntries){
-      var src2=ST._approvalEntries.find(function(e){return e.id==id;});
-      if(src2) updated=Object.assign({},src2,{status:'rejected',approvedBy:ST.user?ST.user.name:'',approvedAt:today()});
-    }
-    if(updated){_patchEntry(updated);saveOne('entries',updated);}
-    toast('Entry rejected','warn'); render();
+    A.confirm_('Reject this entry?',function(){
+      var updated;
+      ST.entries=ST.entries.map(function(e){
+        if(e.id==id){updated=Object.assign({},e,{status:'rejected',approvedBy:ST.user?ST.user.name:'',approvedAt:today()});return updated;}
+        return e;
+      });
+      if(!updated&&ST._approvalEntries){
+        var src2=ST._approvalEntries.find(function(e){return e.id==id;});
+        if(src2) updated=Object.assign({},src2,{status:'rejected',approvedBy:ST.user?ST.user.name:'',approvedAt:today()});
+      }
+      if(updated){_patchEntry(updated);saveOne('entries',updated);}
+      toast('Entry rejected','warn'); render();
+    },{title:'Reject Entry',okLabel:'Reject'});
   },
 
   // Partner Review Entry: open modal with edit + comment fields
@@ -7089,52 +7153,52 @@ var A={
   partnerReviewReject:function(){
     if(!isPartner()){toast('Only partners can reject entries','warn');return;}
     A.syncPartnerReview();    var f=ST.pref;
-    if(!confirm('Reject this entry? The attorney will see the rejection and any comments you left.')) return;
-    var updates={
-      status:'rejected',
-      approvedBy:ST.user?ST.user.name:'',
-      approvedAt:today(),
-      partnerComment:f.comment||'',
-      showCommentOnInvoice:!!f.showOnInvoice,
-      partnerEdited:false
-    };
-    // Also apply any hour/rate/desc edits even on reject (for tracking)
-    var newH=Math.round(parseFloat(f.hours)*10)/10;
-    var newR=parseFloat(f.rate);
-    if(!isNaN(newH)&&newH>0) updates.hours=String(newH);
-    if(!isNaN(newR)&&newR>=0) updates.rate=String(newR);
-    if(f.description) updates.description=f.description;
-    ST.entries=ST.entries.map(function(x){return x.id==f.entryId?Object.assign({},x,updates):x;});
-    var src3=(ST._approvalEntries||[]).find(function(x){return x.id==f.entryId;});
-    var patchRec2=Object.assign({},(src3||{}),updates,{id:f.entryId});
-    _patchEntry(patchRec2);
-    var savedEntry2=ST.entries.find(function(x){return x.id==f.entryId;})||patchRec2;
-    if(savedEntry2) saveOne('entries',savedEntry2);
-    toast('Entry rejected','warn'); A.closeM(); render();
+    A.confirm_('Reject this entry? The attorney will see the rejection and any comments you left.',function(){
+      var updates={
+        status:'rejected',
+        approvedBy:ST.user?ST.user.name:'',
+        approvedAt:today(),
+        partnerComment:f.comment||'',
+        showCommentOnInvoice:!!f.showOnInvoice,
+        partnerEdited:false
+      };
+      var newH=Math.round(parseFloat(f.hours)*10)/10;
+      var newR=parseFloat(f.rate);
+      if(!isNaN(newH)&&newH>0) updates.hours=String(newH);
+      if(!isNaN(newR)&&newR>=0) updates.rate=String(newR);
+      if(f.description) updates.description=f.description;
+      ST.entries=ST.entries.map(function(x){return x.id==f.entryId?Object.assign({},x,updates):x;});
+      var src3=(ST._approvalEntries||[]).find(function(x){return x.id==f.entryId;});
+      var patchRec2=Object.assign({},(src3||{}),updates,{id:f.entryId});
+      _patchEntry(patchRec2);
+      var savedEntry2=ST.entries.find(function(x){return x.id==f.entryId;})||patchRec2;
+      if(savedEntry2) saveOne('entries',savedEntry2);
+      toast('Entry rejected','warn'); A.closeM(); render();
+    },{title:'Reject Entry',okLabel:'Reject'});
   },
   approveAll:function(){
     if(!isPartner()){toast('Only partners can approve entries','warn');return;}
     var pool=ST._approvalEntries!==null?ST._approvalEntries:ST.entries;
     var pending=pool.filter(function(e){return (e.status||'approved')==='pending';});
     if(!pending.length){toast('No pending entries to approve','warn');return;}
-    if(!confirm('Approve all '+pending.length+' pending entries?')) return;
-    var now=today();
-    var approver=ST.user?ST.user.name:'';
-    ST.entries=ST.entries.map(function(e){
-      if((e.status||'approved')!=='pending') return e;
-      return Object.assign({},e,{status:'approved',approvedBy:approver,approvedAt:now});
-    });
-    pending.forEach(function(e){
-      var updated=Object.assign({},e,{status:'approved',approvedBy:approver,approvedAt:now});
-      _dirtyEntries[updated.id]=updated;
-      _patchEntry(updated);
-      // If outside partial window, write directly to IDB
-      if(!ST.entries.find(function(x){return x.id===e.id;})){
-        Store.putRecord('entries',updated).catch(function(err){console.warn('approveAll putRecord',err);});
-      }
-    });
-    _dirty.entries=true;
-    save(); toast('Approved '+pending.length+' entr'+(pending.length===1?'y':'ies')); render();
+    A.confirm_('Approve all '+pending.length+' pending entr'+(pending.length===1?'y':'ies')+'?',function(){
+      var now=today();
+      var approver=ST.user?ST.user.name:'';
+      ST.entries=ST.entries.map(function(e){
+        if((e.status||'approved')!=='pending') return e;
+        return Object.assign({},e,{status:'approved',approvedBy:approver,approvedAt:now});
+      });
+      pending.forEach(function(e){
+        var updated=Object.assign({},e,{status:'approved',approvedBy:approver,approvedAt:now});
+        _dirtyEntries[updated.id]=updated;
+        _patchEntry(updated);
+        if(!ST.entries.find(function(x){return x.id===e.id;})){
+          Store.putRecord('entries',updated).catch(function(err){console.warn('approveAll putRecord',err);});
+        }
+      });
+      _dirty.entries=true;
+      save(); toast('Approved '+pending.length+' entr'+(pending.length===1?'y':'ies')); render();
+    },{title:'Approve All',okLabel:'Approve All',danger:false});
   },
 
   // ── Workflow Transfer Package Export ────────────────────────────────────────
@@ -7373,19 +7437,21 @@ var A={
 
   // Delete a single saved linkage rule from Settings → Advanced
   deleteLinkageRule:function(key){
-    if(!confirm('Remove this saved linkage rule?\n\n"'+key+'"\n\nFuture imports will ask you to re-link this name.')) return;
-    delete ST.linkageRules[key];
-    _flushSave();
-    render();
+    A.confirm_('Remove this saved linkage rule? Future imports will ask you to re-link: '+key,function(){
+      delete ST.linkageRules[key];
+      _flushSave();
+      render();
+    },{title:'Remove Linkage Rule',okLabel:'Remove'});
   },
 
   // Clear ALL saved linkage rules
   clearAllLinkageRules:function(){
-    if(!confirm('Delete all saved linkage rules? Future imports with mismatched names will require manual linking.')) return;
-    ST.linkageRules={};
-    _flushSave();
-    toast('All linkage rules cleared','warn');
-    render();
+    A.confirm_('Delete all saved linkage rules? Future imports with mismatched names will require manual linking.',function(){
+      ST.linkageRules={};
+      _flushSave();
+      toast('All linkage rules cleared','warn');
+      render();
+    },{title:'Clear Linkage Rules',okLabel:'Clear All'});
   },
   openWorkflowExport:function(){ ST.modal='submitTimesheet'; render(); },
 
@@ -7518,7 +7584,7 @@ var A={
     else{ST.clients=ST.clients.concat([c]);toast('Client added');}
     saveOne('clients',c); A.closeF();
   },
-  delCl:function(id){if(!confirm('Delete this client?'))return;ST.clients=ST.clients.filter(function(c){return c.id!=id;});delOne('clients',id);toast('Deleted','warn');render();},
+  delCl:function(id){A.confirm_('Delete this client? This cannot be undone.',function(){ST.clients=ST.clients.filter(function(c){return c.id!=id;});delOne('clients',id);toast('Deleted','warn');render();},{title:'Delete Client'});},
 
   // Group form actions
   openGF:function(){ST.editId=null;ST.gf={name:'',description:'',rate:'',notes:'',contactIds:[],clientPeople:[],attorneyRates:[],newPerson:{},editPersonIdx:-1,errs:{}};ST.modal='gf';ST.clGrpsOpen=true;render();},
@@ -7537,18 +7603,18 @@ var A={
     saveOne('groups',rec); A.closeF();
   },
   delGrp:function(id){
-    if(!confirm('Delete this group? Clients in this group will become ungrouped.')) return;
-    // Unlink clients from deleted group — single O(N) pass, one batch write
-    var unlinkedIds={};
-    var unlinkedRecs=[];
-    ST.clients.forEach(function(c){if(c.groupId==id){var u=Object.assign({},c,{groupId:''});unlinkedIds[c.id]=u;unlinkedRecs.push(u);}});
-    if(unlinkedRecs.length){
-      ST.clients=ST.clients.map(function(c){return unlinkedIds[c.id]||c;});
-      _markDirty('clients');
-      unlinkedRecs.forEach(function(u){Store.putRecord('clients',u).catch(function(e){console.warn('delGrp client unlink failed',e);});});
-    }
-    ST.groups=ST.groups.filter(function(g){return g.id!=id;});
-    delOne('groups',id); toast('Group deleted','warn'); render();
+    A.confirm_('Delete this group? Clients in this group will become ungrouped.',function(){
+      var unlinkedIds={};
+      var unlinkedRecs=[];
+      ST.clients.forEach(function(c){if(c.groupId==id){var u=Object.assign({},c,{groupId:''});unlinkedIds[c.id]=u;unlinkedRecs.push(u);}});
+      if(unlinkedRecs.length){
+        ST.clients=ST.clients.map(function(c){return unlinkedIds[c.id]||c;});
+        _markDirty('clients');
+        unlinkedRecs.forEach(function(u){Store.putRecord('clients',u).catch(function(e){console.warn('delGrp client unlink failed',e);});});
+      }
+      ST.groups=ST.groups.filter(function(g){return g.id!=id;});
+      delOne('groups',id); toast('Group deleted','warn'); render();
+    },{title:'Delete Group'});
   },
   togGrpsOpen:function(){ST.clGrpsOpen=!ST.clGrpsOpen;render();},
   // Group contact chips
@@ -7607,7 +7673,7 @@ var A={
     else{ST.matters=ST.matters.concat([m]);toast('Matter added');}
     saveOne('matters',m); A.closeF();
   },
-  delMa:function(id){if(!confirm('Delete this matter?'))return;ST.matters=ST.matters.filter(function(m){return m.id!=id;});delOne('matters',id);toast('Deleted','warn');render();},
+  delMa:function(id){A.confirm_('Delete this matter? This cannot be undone.',function(){ST.matters=ST.matters.filter(function(m){return m.id!=id;});delOne('matters',id);toast('Deleted','warn');render();},{title:'Delete Matter'});},
   mfToggleClientPerson:function(personId){
     syncForm();
     var ids=ST.mf.linkedClientPeopleIds||[];
@@ -7763,7 +7829,7 @@ var A={
     }
     saveOne('contacts',c); A.closeF();
   },
-  delCt:function(id){if(!confirm('Delete this contact?'))return;ST.contacts=ST.contacts.filter(function(c){return c.id!=id;});delOne('contacts',id);toast('Deleted','warn');render();},
+  delCt:function(id){A.confirm_('Delete this contact? This cannot be undone.',function(){ST.contacts=ST.contacts.filter(function(c){return c.id!=id;});delOne('contacts',id);toast('Deleted','warn');render();},{title:'Delete Contact'});},
 
   // Quick Log
   openQL:function(){if(isBilling()){toast('Use New Entry to add entries on behalf of an attorney','warn');return;}ST.modal='ql';ST.ql={clientId:'',matterId:'',hours:'',rate:'',description:'',addToId:'',rawMs:null,newCl:false,newClName:'',newMa:false,newMaName:''};render();},
@@ -7894,9 +7960,15 @@ var A={
     }
     var rt=ST.rowTmr;
     if(rt&&String(rt.entId)!==String(entId)){
-      if(!confirm('Timer is running on another entry. Switch to this one?\n(Time on the other entry will be discarded.)'))return;
-      clearInterval(rt.iv);
+      A.confirm_('Timer is running on another entry. Switch to this one? Time on the other entry will be discarded.',function(){
+        clearInterval(rt.iv);
+        A._startRowTmr(entId);
+      },{title:'Switch Timer',okLabel:'Switch',danger:false});
+      return;
     }
+    A._startRowTmr(entId);
+  },
+  _startRowTmr:function(entId){
     ST.rowTmr={entId:entId,startMs:Date.now(),accMs:0,iv:null,startDate:today()};
     ST.rowTmr.iv=setInterval(function(){
       // Midnight rollover: if date has changed, close out current entry and start a new one
@@ -7993,13 +8065,12 @@ var A={
 
   // Reset
   resetAll:function(){
-    if(!confirm('Delete ALL data? This cannot be undone!\nExport a backup first.')) return;
-    if(!confirm('Are you absolutely sure?')) return;
-    // Reset all in-memory collections
-    ST.clients=[]; ST.matters=[]; ST.entries=[]; ST.contacts=[]; ST.invoices=[]; ST.groups=[];
-    ST.descPresets=[]; ST.mailPresets=[]; ST.mailPlaceholders=[];
-    ST.linkageRules={};  // clear saved name-linkage rules so stale rules don't survive reset
-    ST._entriesMode='full'; ST._totalEntryCount=0; _invalidateEntryCaches(); markLuDirty();
+    A.confirm_('Delete ALL data? This cannot be undone. Export a backup first.',function(){
+      A.confirm_('Are you absolutely sure? Every entry, client, matter and contact will be permanently erased.',function(){
+        ST.clients=[]; ST.matters=[]; ST.entries=[]; ST.contacts=[]; ST.invoices=[]; ST.groups=[];
+        ST.descPresets=[]; ST.mailPresets=[]; ST.mailPlaceholders=[];
+        ST.linkageRules={};
+        ST._entriesMode='full'; ST._totalEntryCount=0; _invalidateEntryCaches(); markLuDirty();
     // Reset settings to defaults
     ST.settings={te:true,cl:true,ma:true,co:true,su:true,split:false,
       tc_date:true,tc_client:true,tc_matter:true,tc_team:true,
@@ -8020,6 +8091,8 @@ var A={
     Store.clearData().then(function(){
       ST._splashMode=true; ST.modal='profileImport'; toast('All data reset','warn'); render();
     });
+      },{title:'Final Warning \u2014 Cannot Undo',okLabel:'Yes, Delete Everything'});
+    },{title:'Reset All Data',okLabel:'Delete All Data'});
   },
 
 
@@ -8527,35 +8600,36 @@ var A={
   // ─ Full JSON backup import ─
   importJSON:function(inp){
     var file=inp.files[0]; if(!file) return;
-    if(!confirm('Restore from backup? This will REPLACE all current data with the backup.\n\nExport a backup first if you want to keep your current data.')) { inp.value=''; return; }
+    inp.value='';
     var reader=new FileReader();
     reader.onload=function(ev){
-      try{
-        var b=JSON.parse(ev.target.result);
-        if(!b||!b._version){ toast('Invalid backup file','err'); return; }
-        if(b.groups)   replaceCollection('groups',    'groups',    b.groups);
-        if(b.clients)  replaceCollection('clients',  'clients',  b.clients);
-        if(b.matters)  replaceCollection('matters',  'matters',  b.matters);
-        if(b.entries)  replaceCollection('entries',  'entries',  b.entries);
-        if(b.contacts) replaceCollection('contacts', 'contacts', b.contacts);
-        if(b.user)     ST.user=b.user;
-        if(b.prefs)    ST.prefs=Object.assign({appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false,contactsEnabled:false},b.prefs);
-        if(b.settings) ST.settings=Object.assign({},ST.settings,b.settings);
-        if(b.descPresets) ST.descPresets=b.descPresets;
-        if(b.mailPresets) ST.mailPresets=b.mailPresets;
-        if(b.mailPlaceholders) ST.mailPlaceholders=b.mailPlaceholders;
-        if(b.linkageRules&&typeof b.linkageRules==='object') ST.linkageRules=b.linkageRules;
-        // After a full restore the in-memory cache is complete
-        ST._entriesMode='full'; ST._totalEntryCount=ST.entries.length;
-        _invalidateEntryCaches();
-        markLuDirty();
-        save(); Store.setMeta('user',ST.user);
-        applyPrefs();
-        toast('Backup restored: '+ST.clients.length+' clients, '+ST.matters.length+' matters, '+ST.entries.length+' entries');
-        ST.modal=null; render();
-      }catch(e){ toast('Failed to read backup file','err'); console.error(e); }
+      A.confirm_('Restore from backup? This will REPLACE all current data. Export a backup first if you want to keep your current data.',function(){
+        try{
+          var b=JSON.parse(ev.target.result);
+          if(!b||!b._version){ toast('Invalid backup file','err'); return; }
+          if(b.groups)   replaceCollection('groups',    'groups',    b.groups);
+          if(b.clients)  replaceCollection('clients',  'clients',  b.clients);
+          if(b.matters)  replaceCollection('matters',  'matters',  b.matters);
+          if(b.entries)  replaceCollection('entries',  'entries',  b.entries);
+          if(b.contacts) replaceCollection('contacts', 'contacts', b.contacts);
+          if(b.user)     ST.user=b.user;
+          if(b.prefs)    ST.prefs=Object.assign({appName:'SixMinuteLog.com',darkMode:null,layout:'comfortable',revenueSplit:false,analyticsEnabled:false,contactsEnabled:false},b.prefs);
+          if(b.settings) ST.settings=Object.assign({},ST.settings,b.settings);
+          if(b.descPresets) ST.descPresets=b.descPresets;
+          if(b.mailPresets) ST.mailPresets=b.mailPresets;
+          if(b.mailPlaceholders) ST.mailPlaceholders=b.mailPlaceholders;
+          if(b.linkageRules&&typeof b.linkageRules==='object') ST.linkageRules=b.linkageRules;
+          ST._entriesMode='full'; ST._totalEntryCount=ST.entries.length;
+          _invalidateEntryCaches();
+          markLuDirty();
+          save(); Store.setMeta('user',ST.user);
+          applyPrefs();
+          toast('Backup restored: '+ST.clients.length+' clients, '+ST.matters.length+' matters, '+ST.entries.length+' entries');
+          ST.modal=null; render();
+        }catch(e){ toast('Failed to read backup file','err'); console.error(e); }
+      },{title:'Restore Backup',okLabel:'Restore'});
     };
-    reader.readAsText(file,'UTF-8'); inp.value='';
+    reader.readAsText(file,'UTF-8');
   },
 
   // Download a freshly-generated CLAUDE.md with current line numbers
@@ -8852,9 +8926,10 @@ tableRows,
   },
   editITUser: function(idx){ A.openITUser(idx); },
   delITUser: function(idx){
-    if(!confirm('Remove this user from the profile?')) return;
-    ST.firmProfile.users.splice(idx,1);
-    save(); toast('User removed','warn'); render();
+    A.confirm_('Remove this user from the profile?',function(){
+      ST.firmProfile.users.splice(idx,1);
+      save(); toast('User removed','warn'); render();
+    },{title:'Remove User',okLabel:'Remove'});
   },
   saveITUser: function(){
     var f=ST.itf||{};
@@ -9033,9 +9108,10 @@ tableRows,
   },
 
   invDel:function(id){
-    if(!confirm('Delete this invoice?')) return;
-    ST.invoices=ST.invoices.filter(function(i){return i.id!=id;});
-    delOne('invoices',id); toast('Invoice deleted','warn'); render();
+    A.confirm_('Delete this invoice? This cannot be undone.',function(){
+      ST.invoices=ST.invoices.filter(function(i){return i.id!=id;});
+      delOne('invoices',id); toast('Invoice deleted','warn'); render();
+    },{title:'Delete Invoice'});
   },
 
   invPrint:function(id){
