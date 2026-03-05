@@ -646,6 +646,8 @@ html,body{overflow-x:hidden;max-width:100vw}
 //   Store.deleteRecord(name, id)    → Promise          delete one record by id
 //   Store.putBatch(name, arr)       → Promise          upsert many records (NO clear — safe)
 //   Store.syncCollection(name,arr)  → Promise          upsert batch + delete IDs not in arr
+//   Store.putBulkAll(colsMap,       → Promise          ATOMIC multi-store upsert+delete+meta
+//     delsMap, metaMap)                                 all stores in ONE transaction
 //   Store.getMeta(key)              → Promise<any|null>
 //   Store.setMeta(key, val)         → Promise
 //   Store.clearData()               → Promise          wipe all stores (reset only)
@@ -787,35 +789,96 @@ const Store=(function(){
       });
     },
 
+    // ── ATOMIC multi-store bulk write — single IDB transaction spanning all stores ──
+    // colsMap:  { clients:[{...},...], matters:[{...},...], ... }  (only dirty collections)
+    // delsMap:  { clients:{ id1:true, id2:true }, groups:{ id3:true } }  (pending deletes)
+    // metaMap:  { prefs:{...}, descpresets:[...], ... }  (all meta keys to write)
+    // All stores are enlisted up front so IDB either commits EVERYTHING or rolls back
+    // EVERYTHING — no partial state is ever written to disk.
+    putBulkAll:function(colsMap, delsMap, metaMap){
+      var storeNames=[];
+      function _push(n){if(storeNames.indexOf(n)<0)storeNames.push(n);}
+      Object.keys(colsMap||{}).forEach(_push);
+      Object.keys(delsMap||{}).forEach(_push);
+      if(metaMap&&Object.keys(metaMap).length)_push('meta');
+      if(!storeNames.length)return Promise.resolve();
+      return _open().then(function(db){
+        return new Promise(function(resolve,reject){
+          var tx=db.transaction(storeNames,'readwrite');
+          tx.oncomplete=function(){resolve();};
+          tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+          tx.onabort=function(e){reject(tx.error||e.target&&e.target.error||e);};
+          try{
+            // Upsert all dirty collection records
+            Object.keys(colsMap||{}).forEach(function(name){
+              var arr=colsMap[name]; if(!arr||!arr.length)return;
+              var os=tx.objectStore(name);
+              arr.forEach(function(rec){if(rec&&rec.id!=null)os.put(rec);});
+            });
+            // Drain pending deletes
+            Object.keys(delsMap||{}).forEach(function(name){
+              var ids=delsMap[name]; if(!ids)return;
+              var os=tx.objectStore(name);
+              Object.keys(ids).forEach(function(id){os.delete(id);});
+            });
+            // Write all meta keys
+            if(metaMap&&Object.keys(metaMap).length){
+              var metaOS=tx.objectStore('meta');
+              Object.keys(metaMap).forEach(function(k){metaOS.put({k:k,v:metaMap[k]});});
+            }
+          }catch(err){reject(err);}
+        });
+      });
+    },
+
     // ── Full sync: upsert all records, delete IDs no longer in arr ──
     // Use this for imports or bulk replace — never in normal edit flows.
     syncCollection:function(name,arr){
+      // Two-phase strategy to avoid Safari's strict per-transaction time limit:
+      //   Phase 1 — one transaction: cursor-prune keys not present in arr.
+      //   Phase 2 — N transactions: upsert arr in SYNC_CHUNK_SIZE slices.
+      // Each transaction is short-lived, giving the browser time to commit
+      // between chunks and preventing abort on 50k+ record restores.
+      var SYNC_CHUNK_SIZE=5000;
+      var records=arr||[];
       return _open().then(function(db){
-        return new Promise(function(resolve, reject){
+        // ── Phase 1: prune orphaned keys ──────────────────────────────────
+        return new Promise(function(resolve,reject){
           var tx=db.transaction(name,'readwrite');
           var os=tx.objectStore(name);
-          // Build ID-existence set only (values=true, not full objects).
-          // This keeps the map O(n) in key strings only — no duplicate object references.
+          // Build ID-existence set (key strings only — no extra object refs).
           var incoming={};
-          (arr||[]).forEach(function(r){if(r&&r.id!=null)incoming[r.id]=true;});
-          // Use openKeyCursor() — iterates only record keys, never loads full objects.
-          // This keeps memory O(incoming) instead of O(store size), safe for 10k+ entries.
+          records.forEach(function(r){if(r&&r.id!=null)incoming[r.id]=true;});
           var curReq=os.openKeyCursor();
           curReq.onsuccess=function(e){
             var cursor=e.target.result;
             if(cursor){
-              if(!incoming[cursor.key]) os.delete(cursor.key);
+              if(!incoming[cursor.key])os.delete(cursor.key);
               cursor.continue();
-            } else {
-              // Cursor exhausted — iterate original arr directly so objects are never
-              // held twice (once in arr, once in the incoming map).
-              (arr||[]).forEach(function(r){if(r&&r.id!=null)os.put(r);});
             }
           };
-          tx.oncomplete=function(){resolve();};
+          tx.oncomplete=function(){resolve(db);};
           tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
         });
-      }).catch(function(err){ throw err; });
+      }).then(function(db){
+        // ── Phase 2: upsert in chunks ─────────────────────────────────────
+        // Executes each chunk sequentially so no two readwrite transactions
+        // on the same store overlap (avoids contention / lock starvation).
+        var i=0;
+        function nextChunk(){
+          if(i>=records.length)return Promise.resolve();
+          var chunk=records.slice(i,i+SYNC_CHUNK_SIZE);
+          i+=SYNC_CHUNK_SIZE;
+          return new Promise(function(resolve,reject){
+            var tx=db.transaction(name,'readwrite');
+            var os=tx.objectStore(name);
+            chunk.forEach(function(r){if(r&&r.id!=null)os.put(r);});
+            tx.oncomplete=function(){resolve();};
+            tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+          }).then(nextChunk);
+        }
+        return nextChunk();
+      }).catch(function(err){throw err;});
     },
 
     // ── Legacy alias (now uses syncCollection — safe upsert+prune) ──
@@ -994,6 +1057,7 @@ var ST={
   _entriesMode:'partial',
   _totalEntryCount:0,  // from IDB count() — used to show "X of Y entries"
   _anEntries:null,     // IDB-fetched entries scoped to current analytics filter
+  _exportEntries:null, // temporary all-entries cache for export/submit/backup — never replaces ST.entries or changes _entriesMode
   _approvalEntries:null, // null=not loaded; array=loaded (patched, never replaced by markLuDirty)
   _tsAllEntries:null,    // null=not loaded; array=loaded (patched, never replaced by markLuDirty)
   // Invoice form and review state
@@ -1014,6 +1078,11 @@ var ST={
   itf:{},  // IT admin form state
   firstRun:false,  // true if no user set on init
   pref:{},   // partner review entry form state
+  // Saved name-linkage rules for cross-instance data transfer (persisted via IDB meta).
+  // Key: "type:lowercaseName" → {localId,localName} or {isNew:true,confirmedAt}
+  // Applied automatically on every subsequent import before the name-match fallback.
+  linkageRules:{},
+  _pendingLinkage:null, // transient during linkage-review modal: {pkg, conflicts:[…], resolved:{clients,matters,contacts}}
   // === CSV EXPORT WIZARD STATE (transient, not persisted) ===
   csvX:{
     dataset:'entries',        // entries | clients | matters | contacts
@@ -1474,73 +1543,66 @@ function replaceCollection(coll, stProp, newArr){
 function _flushSave(skipFullSync){
   clearTimeout(_saveTimer);
   _saveTimer=null;
-  var ops=[];
-  // Collections — putBatch: upsert what we have. Orphan deletes are handled
-  // either immediately (delOne → Store.deleteRecord) or via _pendingDeletes
-  // (replaceCollection bulk import). Never reads all records from IDB.
-  if(_dirty.clients||_dirty._all)   ops.push(Store.putBatch('clients',  ST.clients));
-  if(_dirty.matters||_dirty._all)   ops.push(Store.putBatch('matters',  ST.matters));
-  // Entries: never written on _dirty._all alone — settings changes must not trigger
-  // a 20 000-record write.  Two paths:
-  //   • saveOne('entries',rec)  → _dirtyEntries has the specific records; write only those.
-  //   • replaceCollection(...)  → _dirty.entries=true but _dirtyEntries is empty; write full array.
-  if(_dirty.entries){
-    if(_fullEntriesSync && _needsOrphanPrune && !skipFullSync){
-      // Full restore path: syncCollection uses openKeyCursor (key-only iteration, no OOM risk) so it
-      // finds and deletes ghost records from ALL years, not just those in the
-      // partial in-memory ST.entries view.  putBatch would silently leave any
-      // previous-year entries that were never loaded into memory.
-      // NOTE: this path is ONLY reached when _needsOrphanPrune=true (set exclusively by
-      // replaceCollection). _capDirtyEntries() sets _fullEntriesSync but NOT _needsOrphanPrune,
-      // so its path always falls through to putBatch — preventing deletion of prior-year
-      // records that are absent from a partial ST.entries view (the data-loss bug fix).
-      ops.push(Store.syncCollection('entries', ST.entries));
-    } else {
-      // skipFullSync=true (close/hide) OR normal incremental path:
-      // write only the specific dirty records (or the full array for replaceCollection).
-      // When skipFullSync=true we leave _fullEntriesSync set so the orphan-prune
-      // runs on the next non-close flush.
-      var _entriesToWrite=Object.keys(_dirtyEntries).length
-        ? Object.keys(_dirtyEntries).map(function(id){return _dirtyEntries[id];})
-        : ST.entries;
-      ops.push(Store.putBatch('entries', _entriesToWrite));
-    }
+
+  // ── Build the collections map (only dirty stores) ──
+  var colsMap={};
+  if(_dirty.clients||_dirty._all)  colsMap.clients  = ST.clients;
+  if(_dirty.matters||_dirty._all)  colsMap.matters  = ST.matters;
+  if(_dirty.contacts||_dirty._all) colsMap.contacts = ST.contacts;
+  if(_dirty.invoices||_dirty._all) colsMap.invoices = ST.invoices;
+  if(_dirty.groups||_dirty._all)   colsMap.groups   = ST.groups;
+
+  // Entries: never written on _dirty._all alone (avoid 20 000-record write on settings save).
+  // Two sub-paths:
+  //   • replaceCollection + _needsOrphanPrune + !skipFullSync → syncCollection (cursor prune, separate)
+  //   • everything else → putBulkAll with only changed records (or full array for bulk replace)
+  var needsSyncCollection = _dirty.entries && _fullEntriesSync && _needsOrphanPrune && !skipFullSync;
+  if(_dirty.entries && !needsSyncCollection){
+    var _entriesToWrite=Object.keys(_dirtyEntries).length
+      ? Object.keys(_dirtyEntries).map(function(id){return _dirtyEntries[id];})
+      : ST.entries;
+    if(_entriesToWrite&&_entriesToWrite.length) colsMap.entries=_entriesToWrite;
   }
-  if(_dirty.contacts||_dirty._all)  ops.push(Store.putBatch('contacts', ST.contacts));
-  if(_dirty.invoices||_dirty._all)  ops.push(Store.putBatch('invoices', ST.invoices));
-  if(_dirty.groups||_dirty._all)    ops.push(Store.putBatch('groups',   ST.groups));
-  // Drain pending delete queue — each is a cheap single-key IDB delete
-  Object.keys(_pendingDeletes).forEach(function(coll){
-    Object.keys(_pendingDeletes[coll]).forEach(function(id){
-      ops.push(Store.deleteRecord(coll, id));
-    });
-  });
-  // Meta — always write (cheap single-record puts)
-  ops.push(Store.setMeta('prefs',ST.prefs));
-  ops.push(Store.setMeta('descpresets',ST.descPresets));
-  ops.push(Store.setMeta('mailpresets',ST.mailPresets));
-  ops.push(Store.setMeta('mailplaceholders',ST.mailPlaceholders));
-  ops.push(Store.setMeta('itmode',{itMode:ST.itMode,firmProfile:ST.firmProfile}));
-  // Snapshot dirty state BEFORE the async ops so we can restore it if IDB fails.
-  // Clearing eagerly (before Promise resolution) was the race: a mid-flight abort
-  // would leave the DB behind memory with no record of what still needs writing.
+
+  // ── Meta map — always written (cheap single-record puts) ──
+  var metaMap={
+    prefs:            ST.prefs,
+    descpresets:      ST.descPresets,
+    mailpresets:      ST.mailPresets,
+    mailplaceholders: ST.mailPlaceholders,
+    itmode:           {itMode:ST.itMode, firmProfile:ST.firmProfile},
+    linkageRules:     ST.linkageRules
+  };
+
+  // ── Snapshot dirty state BEFORE async ops so we can restore on failure ──
+  // (Clearing eagerly before Promise resolution was the race: a mid-flight abort
+  //  would leave the DB behind memory with no record of what still needs writing.)
   var _snapDirty=_dirty, _snapDeletes=_pendingDeletes,
       _snapEntries=_dirtyEntries, _snapFullSync=_fullEntriesSync, _snapNeedsPrune=_needsOrphanPrune;
   _dirty={}; _pendingDeletes={}; _dirtyEntries={}; _needsOrphanPrune=false;
   // Only clear _fullEntriesSync when syncCollection actually ran (skipFullSync=false).
-  // On close/hide flushes (skipFullSync=true) we used putBatch; keep the flag so
-  // the next normal flush still runs the full orphan-prune cursor pass.
-  // Only clear _fullEntriesSync when syncCollection actually ran (skipFullSync=false).
-  // On close/hide flushes (skipFullSync=true) we used putBatch; keep the flag so
+  // On close/hide flushes (skipFullSync=true) we used putBulkAll; keep the flag so
   // the next normal flush still runs the full orphan-prune cursor pass.
   if(!skipFullSync) _fullEntriesSync=false;
-  return Promise.all(ops).then(function(){
+
+  // ── Single atomic transaction for all collections + deletes + meta ──
+  // putBulkAll enlists EVERY dirty store in one db.transaction() so IDB either
+  // commits all stores or rolls back all stores — no partial writes possible.
+  var mainOp = Store.putBulkAll(colsMap, _snapDeletes, metaMap);
+
+  // syncCollection runs separately: it uses openKeyCursor (multi-step cursor iteration)
+  // which cannot be merged into a batch transaction — but it is only triggered by an
+  // explicit full-restore (replaceCollection), never by normal edit flows.
+  var syncOp = needsSyncCollection
+    ? Store.syncCollection('entries', ST.entries)
+    : Promise.resolve();
+
+  return Promise.all([mainOp, syncOp]).then(function(){
     // Confirmed committed — snapshots are discarded (already cleared above).
   }).catch(function(e){
     console.warn('_flushSave error',e);
     toast('Save failed \u2014 check disk space.','err');
-    // Restore dirty flags so the next flush (e.g. visibilitychange, next save())
-    // retries every collection that failed to write.
+    // Restore dirty flags so the next flush retries every collection that failed.
     Object.keys(_snapDirty).forEach(function(k){ _dirty[k]=true; });
     Object.keys(_snapDeletes).forEach(function(coll){
       _pendingDeletes[coll]=Object.assign(_pendingDeletes[coll]||{}, _snapDeletes[coll]);
@@ -1565,6 +1627,26 @@ function _loadAllEntries(){
     return _flushSave().then(function(){ return Store.getAll('entries'); });
   }
   return Store.getAll('entries');
+}
+
+// Returns the entries array for export/submit/backup operations.
+// Uses the temporary _exportEntries cache when loaded; falls back to the
+// partial-year ST.entries so callers never need to branch on _entriesMode.
+function _getExportPool(){
+  return ST._exportEntries!==null ? ST._exportEntries : ST.entries;
+}
+
+// Loads ALL entries from IDB into ST._exportEntries — a temporary export-only cache.
+// Does NOT touch ST.entries or ST._entriesMode so the lean partial-year DOM
+// cache is never inflated by an export or submit action.
+// Returns a Promise that resolves with the full entries array.
+function _loadExportEntries(){
+  if(ST._exportEntries!==null) return Promise.resolve(ST._exportEntries);
+  var base=_saveTimer?_flushSave():Promise.resolve();
+  return base.then(function(){ return Store.getAll('entries'); }).then(function(all){
+    ST._exportEntries=all;
+    return all;
+  });
 }
 
 // Analytics-scoped entry loader — queries ONLY the date range needed for the
@@ -4635,6 +4717,71 @@ function buildSettings(){
       +'<label class="crow"><input type="checkbox" '+(ST.prefs.analyticsEnabled?'checked':'')+' onchange="A.togAnalytics(this.checked)"><div><strong>Enable Analytics Tab</strong><span>Show the Analytics tab in the navigation. Includes billing summaries, client breakdowns, revenue split, and per-person earnings.</span></div></label>'
       +'<label class="crow"><input type="checkbox" '+(ST.prefs.contactsEnabled?'checked':'')+' onchange="A.togContacts(this.checked)"><div><strong>Enable Contacts Tab</strong><span>Show the Team Contacts tab in the navigation. Allows managing firm team members and their billing rates. When hidden, contacts are still managed automatically via imported transfer packages and are accessible in Settings.</span></div></label>'
       +'</div>'
+      // ── Linkage Rules Manager ──────────────────────────────────────────────
+      +(function(){
+        var rules=ST.linkageRules||{};
+        var keys=Object.keys(rules);
+        var html='<div class="set-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+          +'<h3 style="margin:0">🔗 Name Linkage Rules</h3>'
+          +(keys.length?'<button class="btn btn-gh" style="font-size:12px;color:var(--red);border-color:var(--red)" onclick="A.clearAllLinkageRules()">Clear All</button>':'')
+          +'</div>'
+          +'<p style="font-size:12px;color:var(--ink2);margin-bottom:12px;line-height:1.6">'
+          +'Saved during package imports when you manually linked an incoming name to an existing record. '
+          +'These rules auto-resolve on future imports so you are never prompted again for the same name.</p>';
+        if(!keys.length){
+          html+='<div style="background:var(--bg);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--ink3);text-align:center">'
+            +'No rules saved yet. When you import a package and manually link a mismatched name, it appears here.'
+            +'</div>';
+        } else {
+          // Group rules by type
+          var groups={client:[],matter:[],contact:[]};
+          keys.forEach(function(k){
+            var parts=k.split(':');
+            var type=parts[0];
+            if(groups[type]) groups[type].push(k);
+          });
+          ['client','matter','contact'].forEach(function(type){
+            if(!groups[type].length) return;
+            var typeLabel={client:'Clients',matter:'Matters',contact:'Contacts'}[type];
+            html+='<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:6px">'+typeLabel+'</div>';
+            groups[type].forEach(function(k){
+              var rule=rules[k];
+              var incomingName=k.replace(new RegExp('^'+type+':'),'');
+              var localArr=type==='client'?ST.clients:type==='matter'?ST.matters:ST.contacts;
+              var isStale=false;
+              var target;
+              if(rule.isNew){
+                target='<span style="color:var(--ink3);font-style:italic">Always add as new record</span>';
+              } else {
+                // Live lookup — localName in the rule may be stale if record was renamed
+                var liveRec=localArr.find(function(x){return x.id===rule.localId;});
+                if(liveRec){
+                  target='<span style="color:var(--green);font-weight:500">→ '+H(liveRec.name)+'</span>';
+                  if(rule.localName&&liveRec.name!==rule.localName){
+                    target+=' <span style="font-size:10px;color:var(--ink3)">(was: '+H(rule.localName)+')</span>';
+                  }
+                } else {
+                  isStale=true;
+                  target='<span style="color:var(--red);font-weight:500">⚠ Record deleted</span>'
+                    +(rule.localName?' <span style="font-size:10px;color:var(--ink3)">(was: '+H(rule.localName)+')</span>':'');
+                }
+              }
+              html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:'+(isStale?'var(--red-bg,#fff5f5)':'var(--bg)')+';border:1px solid '+(isStale?'var(--red)':'var(--brd)')+';border-radius:8px;padding:9px 12px;margin-bottom:6px">'
+                +'<div style="flex:1;min-width:0;font-size:13px">'
+                +'<span style="color:var(--ink2)">'+H(incomingName)+'</span> '+target
+                +(rule.savedAt?'<div style="font-size:10px;color:var(--ink4)">Saved '+(new Date(rule.savedAt)).toLocaleDateString()+'</div>':'')
+                +'</div>'
+                +(isStale?'<button class="btn btn-gh" style="font-size:11px;color:var(--red);border-color:var(--red);white-space:nowrap" onclick="A.deleteLinkageRule('+JSON.stringify(k)+')">Remove stale</button>':'')
+                +'<button class="btn-ic" title="Delete rule" onclick="A.deleteLinkageRule('+JSON.stringify(k)+')">'+IC.x+'</button>'
+                +'</div>';
+            });
+            html+='</div>';
+          });
+        }
+        html+='</div>';
+        return html;
+      })()
+      // ── Danger Zone ────────────────────────────────────────────────────────
       +'<div class="set-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0">'
       +'<div class="danger"><h3>Danger Zone</h3><p>Permanently delete all data. Export a backup first!</p>'
       +'<button class="btn btn-rd" onclick="A.resetAll()">'+IC.rst+' Reset All Data</button></div>'
@@ -5550,7 +5697,7 @@ function _groupEntriesByPartner(entries){
 function buildSubmitTimesheetModal(){
   var role=myRole();
   var me=ST.user?ST.user.name:'';
-  var fe=filterEnt(ST.entries,ST.tsFilter);
+  var fe=filterEnt(_getExportPool(),ST.tsFilter);
   if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
   if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
 
@@ -5754,7 +5901,7 @@ var TABS=[
 var _lu={cl:{},ma:{},ct:{},gr:{},en:{}};
 var _luDirty=true;
 var _luEnVer=-1; // _dataVer when _lu.en was last built; -1 = never built
-function markLuDirty(){_luDirty=true;_dataVer++;ST._anEntries=null;_anLoading=false;}
+function markLuDirty(){_luDirty=true;_dataVer++;ST._anEntries=null;_anLoading=false;ST._exportEntries=null;}
 function buildLookups(){
   if(!_luDirty) return;
   var cl={},ma={},ct={},gr={};
@@ -6026,6 +6173,7 @@ function render(){
     else if(ST.modal==='invPrint') overlays=buildInvoicePrint();
     else if(ST.modal==='pref') overlays=buildPartnerReview();
     else if(ST.modal==='workflowImport') overlays=buildWorkflowImportPreview();
+    else if(ST.modal==='linkageReview') overlays=buildLinkageReviewModal();
     else if(ST.modal==='billingEdit') overlays=buildBillingEditModal();
     morph(document.getElementById('z-ov'),overlays);
     _rKeys.ov=ovKey;
@@ -6089,8 +6237,8 @@ var A={
   setCtSort:function(v){ST.ctSort=v;render();},
   setCtSearch:function(v){ST.ctSearch=v;dRender();},
   setHT:function(t){ST.helpTab=t;render();},
-  closeF:function(){ST.modal=null;ST.editId=null;render();},
-  closeM:function(){ST.modal=null;render();},
+  closeF:function(){ST.modal=null;ST.editId=null;ST._exportEntries=null;render();},
+  closeM:function(){ST.modal=null;ST._exportEntries=null;render();},
 
   // == Dark Mode ==
   setDarkMode:function(v){
@@ -6845,9 +6993,8 @@ var A={
   // Attorney: export their own pending/visible entries as a submission package
   // ── Submit Timesheet / Send to Partner / Return to Billing ─────────────────
   openSubmitTimesheet:function(){
-    if(ST._entriesMode==='partial'){
-      _loadAllEntries().then(function(entries){
-        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+    if(ST._exportEntries===null&&ST._entriesMode==='partial'){
+      _loadExportEntries().then(function(){
         ST.modal='submitTimesheet'; render();
       });
       return;
@@ -6860,7 +7007,7 @@ var A={
   doSubmitSaveFile:function(pkgType){
     var role=myRole();
     var me=ST.user?ST.user.name:'';
-    var fe=filterEnt(ST.entries,ST.tsFilter);
+    var fe=filterEnt(_getExportPool(),ST.tsFilter);
     if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
     if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
     var entries;
@@ -6874,7 +7021,7 @@ var A={
 
   // Billing staff: export package scoped to entries for clients assigned to a specific partner
   doSubmitSaveFileByPartner:function(partnerId){
-    var fe=filterEnt(ST.entries,ST.tsFilter);
+    var fe=filterEnt(_getExportPool(),ST.tsFilter);
     if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
     if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
     var entries;
@@ -6968,8 +7115,18 @@ var A={
           if(pkg&&pkg._version===1){A.importJSON({files:[file]});return;}
           toast('Not a valid workflow package or backup file','err'); return;
         }
-        ST._pendingWorkflowPkg=pkg;
-        ST.modal='workflowImport';
+        // Detect name conflicts before showing the import preview
+        var detection=_detectImportConflicts(pkg);
+        if(detection.conflicts.length){
+          // Route to Linkage Review first — user must resolve mismatches
+          ST._pendingLinkage={pkg:pkg,conflicts:detection.conflicts,resolved:detection.resolved};
+          ST.modal='linkageReview';
+        } else {
+          // No conflicts — proceed directly to import preview with auto-resolved map
+          ST._pendingWorkflowPkg=pkg;
+          ST._pendingWorkflowLinkage=detection.resolved;
+          ST.modal='workflowImport';
+        }
         render();
       }catch(e){toast('Failed to read file','err');console.error(e);}
     };
@@ -6978,16 +7135,16 @@ var A={
   confirmWorkflowImport:function(){
     var pkg=ST._pendingWorkflowPkg;
     if(!pkg){toast('No package to import','err');return;}
+    var linkageMap=ST._pendingWorkflowLinkage||{clients:{},matters:{},contacts:{}};
     function _doImport(){
-      var msg=_importWorkflowPackage(pkg);
+      var msg=_importWorkflowPackage(pkg,linkageMap);
       ST._pendingWorkflowPkg=null;
+      ST._pendingWorkflowLinkage=null;
       ST.modal=null;
       render();
       toast(msg);
     }
     // Must operate on the full dataset — if in partial mode, load all entries first
-    // so the smart merge sees every existing record and the post-merge count/mode is accurate.
-    // Without this, older records hidden by partial-load would be permanently lost on next export.
     if(ST._entriesMode==='partial'){
       toast('Loading full history before import\u2026','warn');
       _loadAllEntries().then(function(entries){
@@ -7006,7 +7163,80 @@ var A={
   },
   cancelWorkflowImport:function(){
     ST._pendingWorkflowPkg=null;
+    ST._pendingWorkflowLinkage=null;
     ST.modal=null;
+    render();
+  },
+
+  // ── Linkage Review actions ───────────────────────────────────────────────────
+  confirmLinkageReview:function(){
+    var d=ST._pendingLinkage;
+    if(!d){toast('No linkage session active','err');return;}
+
+    // Read user's selections from the DOM
+    var linkageMap={clients:{},matters:{},contacts:{}};
+    // Merge the already-auto-resolved entities
+    Object.keys(d.resolved.clients).forEach(function(k){linkageMap.clients[k]=d.resolved.clients[k];});
+    Object.keys(d.resolved.matters).forEach(function(k){linkageMap.matters[k]=d.resolved.matters[k];});
+    Object.keys(d.resolved.contacts).forEach(function(k){linkageMap.contacts[k]=d.resolved.contacts[k];});
+
+    // Read DOM selections for the conflict items
+    var selects=document.querySelectorAll('[data-lnk-type]');
+    selects.forEach(function(sel){
+      var type=sel.getAttribute('data-lnk-type');
+      var pkgId=sel.getAttribute('data-lnk-pkgid');
+      var incomingName=sel.getAttribute('data-lnk-name');
+      var val=sel.value; // localId or '__new__'
+      var collKey=type+'s';
+      linkageMap[collKey][pkgId]=(val==='__new__')?null:val;
+
+      // Check "remember" checkbox for this row
+      var idx=sel.id.replace('lnk-sel-'+type+'-','');
+      var chk=document.getElementById('lnk-rem-'+type+'-'+idx);
+      if(chk&&chk.checked){
+        var ruleKey=type+':'+incomingName.trim().toLowerCase();
+        if(val==='__new__'){
+          ST.linkageRules[ruleKey]={isNew:true,confirmedAt:new Date().toISOString()};
+        } else {
+          var localArr=type==='client'?ST.clients:type==='matter'?ST.matters:ST.contacts;
+          var localRec=localArr.find(function(x){return x.id===val;});
+          if(localRec) ST.linkageRules[ruleKey]={localId:val,localName:localRec.name,savedAt:new Date().toISOString()};
+        }
+      }
+    });
+
+    // Proceed to import preview with the fully-resolved linkage map
+    ST._pendingWorkflowPkg=d.pkg;
+    ST._pendingWorkflowLinkage=linkageMap;
+    ST._pendingLinkage=null;
+    ST.modal='workflowImport';
+    // Persist any newly-saved rules immediately (fire-and-forget; pagehide also flushes)
+    _flushSave();
+    render();
+  },
+
+  cancelLinkageReview:function(){
+    ST._pendingLinkage=null;
+    ST._pendingWorkflowPkg=null;
+    ST._pendingWorkflowLinkage=null;
+    ST.modal=null;
+    render();
+  },
+
+  // Delete a single saved linkage rule from Settings → Advanced
+  deleteLinkageRule:function(key){
+    if(!confirm('Remove this saved linkage rule?\n\n"'+key+'"\n\nFuture imports will ask you to re-link this name.')) return;
+    delete ST.linkageRules[key];
+    _flushSave();
+    render();
+  },
+
+  // Clear ALL saved linkage rules
+  clearAllLinkageRules:function(){
+    if(!confirm('Delete all saved linkage rules? Future imports with mismatched names will require manual linking.')) return;
+    ST.linkageRules={};
+    _flushSave();
+    toast('All linkage rules cleared','warn');
     render();
   },
   openWorkflowExport:function(){ ST.modal='submitTimesheet'; render(); },
@@ -7607,6 +7837,7 @@ var A={
     // Reset all in-memory collections
     ST.clients=[]; ST.matters=[]; ST.entries=[]; ST.contacts=[]; ST.invoices=[]; ST.groups=[];
     ST.descPresets=[]; ST.mailPresets=[]; ST.mailPlaceholders=[];
+    ST.linkageRules={};  // clear saved name-linkage rules so stale rules don't survive reset
     ST._entriesMode='full'; ST._totalEntryCount=0; _invalidateEntryCaches(); markLuDirty();
     // Reset settings to defaults
     ST.settings={te:true,cl:true,ma:true,co:true,su:true,split:false,
@@ -7648,9 +7879,8 @@ var A={
   // ═══════════════════════════════════════════════════════
 
   openExportModal:function(){
-    if(ST._entriesMode==='partial'){
-      _loadAllEntries().then(function(entries){
-        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+    if(ST._exportEntries===null&&ST._entriesMode==='partial'){
+      _loadExportEntries().then(function(){
         A.openExportModal();
       });
       return;
@@ -7743,7 +7973,7 @@ var A={
 
   _csvXFilterEntries:function(){
     var x=ST.csvX;
-    var rows=ST.entries;
+    var rows=_getExportPool();
     if(x.dateFrom) rows=rows.filter(function(e){return e.date>=x.dateFrom;});
     if(x.dateTo)   rows=rows.filter(function(e){return e.date<=x.dateTo;});
     if(!x.allClients){
@@ -7815,7 +8045,7 @@ var A={
 
     if(ds==='entries'){
       // Filter entries using cfg
-      var rows=ST.entries;
+      var rows=_getExportPool();
       if(x.dateFrom) rows=rows.filter(function(e){return e.date>=x.dateFrom;});
       if(x.dateTo)   rows=rows.filter(function(e){return e.date<=x.dateTo;});
       if(!x.allClients && x.clientIds){
@@ -8001,9 +8231,8 @@ var A={
   csvQuickExport:function(){
     var q=ST.prefs.csvQuick;
     if(!q){ toast('No quick export preset configured','warn'); return; }
-    if(ST._entriesMode==='partial'){
-      _loadAllEntries().then(function(entries){
-        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+    if(ST._exportEntries===null&&ST._entriesMode==='partial'){
+      _loadExportEntries().then(function(){
         A.csvQuickExport();
       });
       return;
@@ -8096,9 +8325,8 @@ var A={
 
   // ─ Full JSON backup export ─
   exportJSON:function(){
-    if(ST._entriesMode==='partial'){
-      _loadAllEntries().then(function(entries){
-        ST.entries=entries; ST._entriesMode='full'; markLuDirty();
+    if(ST._exportEntries===null&&ST._entriesMode==='partial'){
+      _loadExportEntries().then(function(){
         A.exportJSON();
       });
       return;
@@ -8110,12 +8338,14 @@ var A={
       groups:ST.groups,
       clients:ST.clients,
       matters:ST.matters,
-      entries:ST.entries,
+      entries:_getExportPool(),
       contacts:ST.contacts,
       prefs:ST.prefs,
       settings:ST.settings,
       descPresets:ST.descPresets,
-      mailPresets:ST.mailPresets
+      mailPresets:ST.mailPresets,
+      mailPlaceholders:ST.mailPlaceholders,
+      linkageRules:ST.linkageRules
     };
     var json=JSON.stringify(backup,null,2);
     var now=new Date();
@@ -8145,6 +8375,8 @@ var A={
         if(b.settings) ST.settings=Object.assign({},ST.settings,b.settings);
         if(b.descPresets) ST.descPresets=b.descPresets;
         if(b.mailPresets) ST.mailPresets=b.mailPresets;
+        if(b.mailPlaceholders) ST.mailPlaceholders=b.mailPlaceholders;
+        if(b.linkageRules&&typeof b.linkageRules==='object') ST.linkageRules=b.linkageRules;
         // After a full restore the in-memory cache is complete
         ST._entriesMode='full'; ST._totalEntryCount=ST.entries.length;
         _invalidateEntryCaches();
@@ -8155,7 +8387,7 @@ var A={
         ST.modal=null; render();
       }catch(e){ toast('Failed to read backup file','err'); console.error(e); }
     };
-    reader.readAsText(file); inp.value='';
+    reader.readAsText(file,'UTF-8'); inp.value='';
   },
 
   // Download a freshly-generated CLAUDE.md with current line numbers
@@ -8296,7 +8528,7 @@ tableRows,
 '',
 'FOR A COLLECTION (array of objects each with .id):',
 '1. Add to ST: myData: []',
-'2. Add to _flushSave(): if(_dirty.mydata||_dirty._all) ops.push(Store.putBatch(\'mydata\', ST.mydata));',
+'2. Add to _flushSave(): add colsMap.mydata = ST.mydata; inside the dirty-collections block.',
 '3. In actions: use saveOne(\'mydata\',rec) for single upserts, delOne(\'mydata\',id) for deletes.',
 '   Use replaceCollection(\'mydata\',\'mydata\',newArr) for bulk replace (import/restore).',
 '4. Add to INIT Promise.all: Store.getAll(\'mydata\')',
@@ -8305,7 +8537,7 @@ tableRows,
 '   Also add \'mydata\' to Store COLLECTIONS list and Store.clearData() call.',
 '',
 'FOR A SINGLETON (a single object/value):',
-'1. Add to _flushSave(): ops.push(Store.setMeta(\'mykey\', ST.myVal));',
+'1. Add to _flushSave(): add metaMap.mykey = ST.myVal; inside the metaMap definition block.',
 '2. Add to INIT Promise.all: Store.getMeta(\'mykey\')',
 '3. Load in .then(res): try{if(res[N])ST.myVal=res[N];}catch(e){}',
 '',
@@ -8842,89 +9074,283 @@ function _exportWorkflowPackage(type, entries, opts){
   return fname;
 }
 
-// Smart merge import — merges package data with existing local data
-// Returns a summary string for the toast
-function _importWorkflowPackage(pkg){
-  var added={clients:0,matters:0,contacts:0,entries:0,updated:0};
+// ── Conflict Detection ──────────────────────────────────────────────────────
+// Analyse a workflow package and determine which incoming entities can be
+// auto-resolved (exact name match or saved linkage rule) vs. which need the
+// user to manually link or confirm.
+//
+// Returns:
+//   resolved  — {clients:{pkgId→localId}, matters:{pkgId→localId}, contacts:{pkgId→localId}}
+//               A null value means "add as new" (confirmed via saved rule).
+//   conflicts — [{type:'client'|'matter'|'contact', pkgId, incomingName,
+//                 suggestions:[{id,name}]}]
+//               Only entries where no auto-resolution was found.
+//
+// The resolved map is passed directly into _importWorkflowPackage as the
+// linkageMap so that entry IDs always resolve correctly even when names differ.
+function _detectImportConflicts(pkg){
+  buildLookups();
+  var resolved={clients:{},matters:{},contacts:{}};
+  var conflicts=[];
 
-  // === Merge Clients (by name, case-insensitive) ===
+  // Returns up to 6 name-similarity suggestions from localArr for incomingName
+  function _suggest(localArr, incomingName){
+    var il=incomingName.toLowerCase();
+    return localArr.filter(function(x){
+      var nl=(x.name||'').toLowerCase();
+      return nl.indexOf(il)!==-1||il.indexOf(nl)!==-1;
+    }).slice(0,6).map(function(x){return {id:x.id,name:x.name};});
+  }
+
+  function _process(type, localArr, pkgId, incomingName){
+    if(!incomingName||!incomingName.trim()) return; // blank — handled as new silently
+    var key=type+':'+incomingName.trim().toLowerCase();
+    // 1. Saved linkage rule wins — but validate localId still exists (record may have been deleted)
+    var rule=ST.linkageRules[key];
+    if(rule){
+      if(rule.isNew){
+        resolved[type+'s'][pkgId]=null;
+        return;
+      }
+      var stillExists=localArr.some(function(x){return x.id===rule.localId;});
+      if(stillExists){
+        resolved[type+'s'][pkgId]=rule.localId;
+        return;
+      }
+      // Rule is stale (local record deleted) — fall through to name-match / conflict
+    }
+    // 2. Exact case-insensitive name match
+    var match=localArr.find(function(x){return (x.name||'').toLowerCase()===incomingName.trim().toLowerCase();});
+    if(match){
+      resolved[type+'s'][pkgId]=match.id;
+      return;
+    }
+    // 3. No match — collect conflict
+    conflicts.push({type:type,pkgId:pkgId,incomingName:incomingName.trim(),
+      staleRule:rule&&!rule.isNew?rule:null, // flag so modal can warn the user
+      suggestions:_suggest(localArr,incomingName)});
+  }
+
+  (pkg.clients||[]).forEach(function(c){ _process('client',ST.clients,c.id,c.name||''); });
+
+  // Build a provisional client-ID map from the just-resolved clients so matter
+  // matching can be scoped to the correct client (prevents "General" under Client A
+  // from matching "General" under Client B).
+  var _provClMap={};
   (pkg.clients||[]).forEach(function(pc){
-    var existing=ST.clients.find(function(c){return c.name.toLowerCase()===pc.name.toLowerCase();});
-    if(!existing){
-      var nc=Object.assign({},pc,{id:uid()});
-      ST.clients=ST.clients.concat([nc]);
-      added.clients++;
+    var resolvedId=resolved.clients[pc.id]; // may be localId or undefined (conflict)
+    if(resolvedId!=null){
+      // Already resolved (exact match or saved rule)
+      _provClMap[pc.id]=resolvedId;
+    } else if(resolved.clients.hasOwnProperty(pc.id)&&resolvedId===null){
+      // Forced-new — no existing local client to scope against yet
+    } else {
+      // Still conflicted — best effort: try exact match fallback for scoping only
+      var m=ST.clients.find(function(c){return (c.name||'').toLowerCase()===(pc.name||'').toLowerCase();});
+      if(m) _provClMap[pc.id]=m.id;
     }
   });
 
-  // === Merge Matters (by name + client name) ===
-  (pkg.matters||[]).forEach(function(pm){
-    var cl=ST.clients.find(function(c){return c.name.toLowerCase()===((pm._clientName||pm.clientName||'').toLowerCase());});
-    var existing=ST.matters.find(function(m){
-      return m.name.toLowerCase()===pm.name.toLowerCase()&&(!cl||m.clientId===(cl?cl.id:m.clientId));
-    });
-    if(!existing){
-      var nm=Object.assign({},pm,{id:uid(),clientId:cl?cl.id:'',matterNumber:pm.matterNumber||pm._matterNumber||''});
-      delete nm._clientName;
-      ST.matters=ST.matters.concat([nm]);
-      added.matters++;
-    } else if(pm.matterNumber&&!existing.matterNumber){
-      // Backfill matter number if we learned it from this package
-      var updated=Object.assign({},existing,{matterNumber:pm.matterNumber||pm._matterNumber||''});
-      ST.matters=ST.matters.map(function(m){return m.id===existing.id?updated:m;});
-    }
+  // Matter matching: scope by resolved client where possible
+  (pkg.matters||[]).forEach(function(m){
+    var resolvedClientId=_provClMap[m.clientId]||'';
+    // Use a client-scoped local array when we know the client; otherwise all matters
+    var scopedArr=resolvedClientId
+      ? ST.matters.filter(function(lm){return lm.clientId===resolvedClientId;})
+      : ST.matters;
+    _process('matter', scopedArr, m.id, m.name||'');
   });
 
-  // === Merge Contacts (by name) ===
-  (pkg.contacts||[]).forEach(function(pc){
-    var existing=ST.contacts.find(function(c){return c.name.toLowerCase()===pc.name.toLowerCase();});
-    if(!existing){
-      var nc=Object.assign({},pc,{id:uid()});
-      ST.contacts=ST.contacts.concat([nc]);
-      added.contacts++;
-    }
-  });
+  (pkg.contacts||[]).forEach(function(c){ _process('contact',ST.contacts,c.id,c.name||''); });
 
-  // === Auto-create contact for package sender (if not already present) ===
+  // Check package sender as a contact (if not already in pkg.contacts)
   var senderName=(pkg._fromUser||'').trim();
   if(senderName){
-    var senderExists=ST.contacts.find(function(c){return c.name.toLowerCase()===senderName.toLowerCase();});
-    if(!senderExists){
-      var sc={
-        id:uid(),
-        name:senderName,
-        role:pkg._fromRole||'',
-        initials:pkg._fromInitials||senderName.split(' ').filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase().substring(0,3),
-        email:'',
-        phone:'',
-        rate:'',
-        ownPct:100,
-        rateHistory:[]
-      };
-      ST.contacts=ST.contacts.concat([sc]);
-      added.contacts++;
+    var senderInContacts=(pkg.contacts||[]).some(function(c){return (c.name||'').toLowerCase()===senderName.toLowerCase();});
+    if(!senderInContacts){
+      var key='contact:'+senderName.toLowerCase();
+      var rule=ST.linkageRules[key];
+      if(rule){
+        if(rule.isNew){
+          resolved.contacts['__sender__']=null;
+        } else {
+          var stillExists=ST.contacts.some(function(c){return c.id===rule.localId;});
+          if(stillExists){
+            resolved.contacts['__sender__']=rule.localId;
+          } else {
+            // Stale — fall through to name match / conflict below
+            rule=null;
+          }
+        }
+      }
+      if(!rule){
+        var match=ST.contacts.find(function(c){return (c.name||'').toLowerCase()===senderName.toLowerCase();});
+        if(match){
+          resolved.contacts['__sender__']=match.id;
+        } else {
+          var il=senderName.toLowerCase();
+          var sugs=ST.contacts.filter(function(x){var nl=(x.name||'').toLowerCase();return nl.indexOf(il)!==-1||il.indexOf(nl)!==-1;}).slice(0,6).map(function(x){return {id:x.id,name:x.name};});
+          conflicts.push({type:'contact',pkgId:'__sender__',incomingName:senderName,isSender:true,suggestions:sugs});
+        }
+      }
     }
   }
 
-  // Rebuild lookups so ID resolution works for entries
+  return {resolved:resolved,conflicts:conflicts};
+}
+
+// Smart merge import — merges package data with existing local data.
+// linkageMap (optional) is the output of _detectImportConflicts + user overrides:
+//   { clients:{pkgId→localId|null}, matters:{pkgId→localId|null}, contacts:{pkgId→localId|null} }
+//   null means "add as new regardless of name match".
+// Returns a summary string for the toast.
+function _importWorkflowPackage(pkg, linkageMap){
+  linkageMap=linkageMap||{clients:{},matters:{},contacts:{}};
+  var added={clients:0,matters:0,contacts:0,entries:0,updated:0};
+
+  // pkgId→localId lookup tables built as entities are merged/resolved.
+  // Used by entry resolution so IDs always bind correctly even when names differ.
+  var clMap={}; // pkgClientId  → local ST client id
+  var maMap={}; // pkgMatterId  → local ST matter id
+  var ctMap={}; // pkgContactId → local ST contact id
+
+  // === Merge Clients ===
+  (pkg.clients||[]).forEach(function(pc){
+    var forced=(linkageMap.clients||{})[pc.id];
+    if(forced===null){
+      // User said "Add as New" (null = forced-new)
+      var nc=Object.assign({},pc,{id:uid()});
+      ST.clients=ST.clients.concat([nc]);
+      clMap[pc.id]=nc.id; added.clients++;
+    } else if(forced){
+      // User linked this pkg client to an existing local client
+      clMap[pc.id]=forced;
+    } else {
+      // Default: case-insensitive name match
+      var existing=ST.clients.find(function(c){return (c.name||'').toLowerCase()===(pc.name||'').toLowerCase();});
+      if(!existing){
+        var nc=Object.assign({},pc,{id:uid()});
+        ST.clients=ST.clients.concat([nc]);
+        clMap[pc.id]=nc.id; added.clients++;
+      } else {
+        clMap[pc.id]=existing.id;
+      }
+    }
+  });
+
+  // === Merge Matters ===
+  (pkg.matters||[]).forEach(function(pm){
+    var forced=(linkageMap.matters||{})[pm.id];
+    var resolvedClientId=clMap[pm.clientId]||pm.clientId||'';
+    if(forced===null){
+      var nm=Object.assign({},pm,{id:uid(),clientId:resolvedClientId,matterNumber:pm.matterNumber||pm._matterNumber||''});
+      delete nm._clientName;
+      ST.matters=ST.matters.concat([nm]);
+      maMap[pm.id]=nm.id; added.matters++;
+    } else if(forced){
+      maMap[pm.id]=forced;
+      // Backfill matter number if learned from package
+      if(pm.matterNumber){
+        ST.matters=ST.matters.map(function(m){
+          return m.id===forced&&!m.matterNumber?Object.assign({},m,{matterNumber:pm.matterNumber}):m;
+        });
+      }
+    } else {
+      // Name match within the same resolved client
+      var existing=ST.matters.find(function(m){
+        return (m.name||'').toLowerCase()===(pm.name||'').toLowerCase()&&
+               (!resolvedClientId||m.clientId===resolvedClientId);
+      });
+      if(!existing){
+        var nm=Object.assign({},pm,{id:uid(),clientId:resolvedClientId,matterNumber:pm.matterNumber||pm._matterNumber||''});
+        delete nm._clientName;
+        ST.matters=ST.matters.concat([nm]);
+        maMap[pm.id]=nm.id; added.matters++;
+      } else {
+        maMap[pm.id]=existing.id;
+        if(pm.matterNumber&&!existing.matterNumber){
+          ST.matters=ST.matters.map(function(m){return m.id===existing.id?Object.assign({},m,{matterNumber:pm.matterNumber}):m;});
+        }
+      }
+    }
+  });
+
+  // === Merge Contacts ===
+  (pkg.contacts||[]).forEach(function(pc){
+    var forced=(linkageMap.contacts||{})[pc.id];
+    if(forced===null){
+      var nc=Object.assign({},pc,{id:uid()});
+      ST.contacts=ST.contacts.concat([nc]);
+      ctMap[pc.id]=nc.id; added.contacts++;
+    } else if(forced){
+      ctMap[pc.id]=forced;
+    } else {
+      var existing=ST.contacts.find(function(c){return (c.name||'').toLowerCase()===(pc.name||'').toLowerCase();});
+      if(!existing){
+        var nc=Object.assign({},pc,{id:uid()});
+        ST.contacts=ST.contacts.concat([nc]);
+        ctMap[pc.id]=nc.id; added.contacts++;
+      } else {
+        ctMap[pc.id]=existing.id;
+      }
+    }
+  });
+
+  // === Resolve / create sender contact ===
+  // Skip resolution when the sender name is the generic 'Unknown' fallback — multiple
+  // attorneys without a profile all export as 'Unknown', and merging them into one
+  // contact would commingle their entries under a single alias.
+  var senderName=(pkg._fromUser||'').trim();
+  var senderIsNamed=senderName&&senderName.toLowerCase()!=='unknown';
+  if(senderIsNamed){
+    var forcedSender=(linkageMap.contacts||{})['__sender__'];
+    if(forcedSender===null){
+      // Forced new
+      var sc={id:uid(),name:senderName,role:pkg._fromRole||'',
+        initials:pkg._fromInitials||senderName.split(' ').filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase().substring(0,3),
+        email:'',phone:'',rate:'',ownPct:100,rateHistory:[]};
+      ST.contacts=ST.contacts.concat([sc]);
+      ctMap['__sender__']=sc.id; added.contacts++;
+    } else if(forcedSender){
+      ctMap['__sender__']=forcedSender;
+    } else {
+      var senderExists=ST.contacts.find(function(c){return (c.name||'').toLowerCase()===senderName.toLowerCase();});
+      if(!senderExists){
+        var sc={id:uid(),name:senderName,role:pkg._fromRole||'',
+          initials:pkg._fromInitials||senderName.split(' ').filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase().substring(0,3),
+          email:'',phone:'',rate:'',ownPct:100,rateHistory:[]};
+        ST.contacts=ST.contacts.concat([sc]);
+        ctMap['__sender__']=sc.id; added.contacts++;
+      } else {
+        ctMap['__sender__']=senderExists.id;
+      }
+    }
+  }
+
+  // Rebuild lookups so resolved IDs are visible to entry resolution
   markLuDirty(); buildLookups();
 
-  // === Merge Entries (by original exported ID, then by date+client+desc as fallback) ===
+  // === Merge Entries ===
+  // Resolution order for FKs: linkageMap/merge map → name fallback → original pkg ID (last resort)
+  var _newEntries=[];  // collect all new entries, then concat once at the end
   (pkg.entries||[]).forEach(function(pe){
-    // Resolve names → IDs using the now-merged local data
-    var cl=ST.clients.find(function(c){return c.name.toLowerCase()===(pe._clientName||'').toLowerCase();});
-    var mt=ST.matters.find(function(m){
-      return m.name.toLowerCase()===(pe._matterName||'').toLowerCase()&&(!cl||m.clientId===(cl?cl.id:m.clientId));
-    });
-    var ct=ST.contacts.find(function(c){return c.name.toLowerCase()===(pe._contactName||'').toLowerCase();});
-    var clientId=cl?cl.id:(pe.clientId||'');
-    var matterId=mt?mt.id:(pe.matterId||'');
-    var contactId=ct?ct.id:(pe.contactId||'');
+    // Resolve client/matter/contact IDs using the maps built above
+    var clientId=clMap[pe.clientId]||(function(){
+      var cl=ST.clients.find(function(c){return (c.name||'').toLowerCase()===(pe._clientName||'').toLowerCase();});
+      return cl?cl.id:pe.clientId||'';
+    })();
+    var matterId=maMap[pe.matterId]||(function(){
+      var mt=ST.matters.find(function(m){return (m.name||'').toLowerCase()===(pe._matterName||'').toLowerCase()&&(!clientId||m.clientId===clientId);});
+      return mt?mt.id:pe.matterId||'';
+    })();
+    var contactId=ctMap[pe.contactId]||(function(){
+      var ct=ST.contacts.find(function(c){return (c.name||'').toLowerCase()===(pe._contactName||'').toLowerCase();});
+      return ct?ct.id:pe.contactId||'';
+    })();
 
-    // Check by original ID
+    // Check by original exported ID
     var existIdx=ST.entries.findIndex(function(e){return String(e.id)===String(pe.id);});
     if(existIdx>=0){
-      // Merge: update status, hours, rate, description, abaCode, partnerComment
       var ex=ST.entries[existIdx];
       var mergedFields={
         status:pe.status||ex.status,
@@ -8935,29 +9361,35 @@ function _importWorkflowPackage(pkg){
         partnerEdited:pe.partnerEdited||ex.partnerEdited||false,
         showCommentOnInvoice:pe.showCommentOnInvoice||ex.showCommentOnInvoice||false
       };
-      // If package is a partner approval, also update hours/rate/description if partner edited
       if(pkg._type==='partner_approval'&&pe.partnerEdited){
         mergedFields.hours=pe.hours;
         mergedFields.rate=pe.rate;
         mergedFields.description=pe.description;
         mergedFields.submittedHours=pe.submittedHours;
       }
-      var merged=Object.assign({},ex,mergedFields,{clientId:clientId||ex.clientId,matterId:matterId||ex.matterId,contactId:contactId||ex.contactId});
-      ST.entries[existIdx]=merged;
+      var updated=Object.assign({},ex,mergedFields,{
+        clientId:clientId||ex.clientId,
+        matterId:matterId||ex.matterId,
+        contactId:contactId||ex.contactId
+      });
+      ST.entries[existIdx]=updated;
+      _dirtyEntries[updated.id]=updated;   // granular: only this record needs writing
       added.updated++;
     } else {
-      // New entry — add it
       var ne=Object.assign({},pe,{
-        id:uid(), // new local ID
+        id:uid(),
         clientId:clientId,
         matterId:matterId,
         contactId:contactId
       });
       delete ne._clientName; delete ne._matterName; delete ne._matterNumber; delete ne._contactName;
-      ST.entries=ST.entries.concat([ne]);
+      _newEntries.push(ne);
+      _dirtyEntries[ne.id]=ne;   // granular: only new record needs writing
       added.entries++;
     }
   });
+  // Single concat at the end — avoids O(n²) intermediate array allocations
+  if(_newEntries.length) ST.entries=ST.entries.concat(_newEntries);
 
   markLuDirty();
   _invalidateEntryCaches();
@@ -8965,12 +9397,80 @@ function _importWorkflowPackage(pkg){
 
   // Bulk-persist all merged collections in one pass — avoids opening hundreds of
   // IndexedDB transactions (one per saveOne call), which freezes the UI and crashes
-  // Safari. _dirtyEntries is intentionally left empty so _flushSave writes the full
-  // ST.entries array via a single putBatch call.
+  // Safari. _dirtyEntries was populated granularly above (only new/updated records),
+  // so _flushSave writes only the delta rather than the entire ST.entries array.
   _markDirty('clients'); _markDirty('matters'); _markDirty('contacts'); _markDirty('entries');
   _flushSave();
 
   return 'Imported: '+added.clients+' new clients, '+added.matters+' matters, '+added.contacts+' contacts, '+added.entries+' new entries, '+added.updated+' entries updated';
+}
+
+// ── Linkage Review Modal ─────────────────────────────────────────────────────
+// Shown when _detectImportConflicts finds entities that couldn't be matched.
+// For each conflict the user picks: link to an existing record OR add as new.
+// Choices can be saved as linkage rules so future imports auto-resolve.
+function buildLinkageReviewModal(){
+  var d=ST._pendingLinkage;
+  if(!d||!d.conflicts||!d.conflicts.length) return '';
+  var pkg=d.pkg;
+
+  function _section(type,label,icon){
+    var items=d.conflicts.filter(function(c){return c.type===type;});
+    if(!items.length) return '';
+    var localArr=type==='client'?ST.clients:type==='matter'?ST.matters:ST.contacts;
+    var rows=items.map(function(c,i){
+      var selId='lnk-sel-'+type+'-'+i;
+      var chkId='lnk-rem-'+type+'-'+i;
+      // Pre-select the single suggestion when there is exactly one — otherwise default to "Add as new"
+      var preselId=c.suggestions&&c.suggestions.length===1?c.suggestions[0].id:'';
+      var opts='<option value="__new__"'+(preselId?'':' selected')+'>➕ Add as new record</option>'
+        +localArr.map(function(x){return '<option value="'+H(x.id)+'"'+(x.id===preselId?' selected':'')+'>'+H(x.name)+'</option>';}).join('');
+      var hint=c.isSender?'Package sender — not in your contacts':'';
+      return '<div style="background:var(--bg);border:1px solid var(--brd);border-radius:10px;padding:14px 16px;margin-bottom:10px">'
+        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:2px">'+label+(c.isSender?' · Sender':'')+'</div>'
+        +'<div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+H(c.incomingName)+'">📥 '+H(c.incomingName)+'</div>'
+        +(hint?'<div style="font-size:11px;color:var(--ink3);margin-top:2px">'+H(hint)+'</div>':'')
+        +(c.staleRule?'<div style="font-size:11px;color:var(--red);margin-top:3px">⚠ Saved rule pointed to a deleted record — please re-link</div>':'')
+        +(c.suggestions&&c.suggestions.length?'<div style="font-size:11px;color:var(--amber);margin-top:3px">Similar: '+c.suggestions.map(function(s){return H(s.name);}).join(', ')+'</div>':'')
+        +'</div>'
+        +'<div style="font-size:22px;color:var(--ink4);line-height:1">🔗</div>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +'<select id="'+selId+'" data-lnk-type="'+H(type)+'" data-lnk-pkgid="'+H(c.pkgId)+'" data-lnk-name="'+H(c.incomingName)+'" style="flex:1;padding:8px 12px;border:1px solid var(--brd);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink)">'+opts+'</select>'
+        +'</div>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);cursor:pointer">'
+        +'<input type="checkbox" id="'+chkId+'" data-lnk-rem="'+type+'-'+i+'" style="margin:0"> Remember this choice for future imports'
+        +'</label>'
+        +'</div>';
+    }).join('');
+    return '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:8px">'+icon+' '+label+'s ('+items.length+')</div>'+rows+'</div>';
+  }
+
+  var typeColors={attorney_submission:'var(--blue)',billing_review:'var(--amber)',partner_approval:'var(--green)'};
+  var color=typeColors[pkg._type]||'var(--ink2)';
+
+  return '<div class="ov"><div class="modal modal-md" style="max-height:94vh;display:flex;flex-direction:column">'
+    +'<div class="modal-hd"><h2 style="display:flex;align-items:center;gap:8px">🔗 Resolve Name Conflicts</h2>'
+    +'<button class="btn-ic" onclick="A.cancelLinkageReview()">'+IC.x+'</button></div>'
+    +'<div class="modal-bd" style="overflow-y:auto;flex:1">'
+    +'<div style="border-left:3px solid '+color+';padding:10px 14px;background:var(--bg2);border-radius:0 8px 8px 0;margin-bottom:18px">'
+    +'<div style="font-size:13px;font-weight:600;margin-bottom:3px">From: '+H(pkg._fromUser||'Unknown')+(pkg._firmName?' · '+H(pkg._firmName):'')+'</div>'
+    +'<div style="font-size:12px;color:var(--ink2)">'+d.conflicts.length+' item'+(d.conflicts.length!==1?'s':'')+' could not be automatically matched to your existing data. '
+    +'Link each to an existing record or choose <strong>Add as new record</strong> to create it.</div>'
+    +'</div>'
+    +_section('client','Client','🏢')
+    +_section('matter','Matter','📁')
+    +_section('contact','Contact','👤')
+    +'<div style="font-size:11px;color:var(--ink3);background:var(--bg);border-radius:8px;padding:10px 12px;margin-top:4px">'
+    +'💡 <strong>Tip:</strong> Check "Remember this choice" to save the mapping — future packages from this sender will auto-resolve without prompting.'
+    +'</div>'
+    +'</div>'
+    +'<div class="modal-ft">'
+    +'<button class="btn btn-gh" onclick="A.cancelLinkageReview()">Cancel</button>'
+    +'<button class="btn btn-dk" onclick="A.confirmLinkageReview()">Apply &amp; Continue →</button>'
+    +'</div></div></div>';
 }
 
 // Build modal for previewing a workflow package before importing
@@ -9296,6 +9796,7 @@ document.addEventListener('keydown',function(e){
     Store.getMeta('itmode'),
     Store.getAll('invoices'),
     Store.getMeta('mailplaceholders'),
+    Store.getMeta('linkageRules'),
     Store.countEntries(),                       // cheap count — no data transfer
     Store.getAll('groups')
   ]).then(function(res){
@@ -9310,9 +9811,9 @@ document.addEventListener('keydown',function(e){
       return Object.assign({},c,{clientPeople:c.clientPeople.map(function(p){return p.id?p:Object.assign({id:uid()},p);})});
     });
     try{if(res[2]&&res[2].length)ST.matters=res[2];}catch(e){}
-    // res[3] = partial entries (this year); res[11] = total count from IDB
+    // res[3] = partial entries (this year); res[12] = total count from IDB
     try{if(res[3]&&res[3].length)ST.entries=res[3];}catch(e){}
-    try{ST._totalEntryCount=Number(res[11])||0;}catch(e){}
+    try{ST._totalEntryCount=Number(res[12])||0;}catch(e){}
     // Mark partial if we didn't load everything
     ST._entriesMode=(ST._totalEntryCount>0&&ST.entries.length<ST._totalEntryCount)?'partial':'full';
     try{if(res[4]&&res[4].length)ST.contacts=res[4];}catch(e){}
@@ -9432,7 +9933,8 @@ document.addEventListener('keydown',function(e){
     try{if(res[8]){ST.itMode=!!res[8].itMode;if(res[8].firmProfile)ST.firmProfile=res[8].firmProfile;}}catch(e){}
     try{if(res[9]&&res[9].length)ST.invoices=res[9];}catch(e){}
     try{if(res[10]&&res[10].length)ST.mailPlaceholders=res[10];}catch(e){}
-    try{if(res[12]&&res[12].length)ST.groups=res[12];}catch(e){}
+    try{if(res[11])ST.linkageRules=res[11];}catch(e){}
+    try{if(res[13]&&res[13].length)ST.groups=res[13];}catch(e){}
     markLuDirty();
     applyPrefs();
     if(!ST.user){
