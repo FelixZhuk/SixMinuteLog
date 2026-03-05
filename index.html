@@ -7851,7 +7851,19 @@ var A={
   delCt:function(id){A.confirm_('Delete this contact? This cannot be undone.',function(){ST.contacts=ST.contacts.filter(function(c){return c.id!=id;});delOne('contacts',id);toast('Deleted','warn');render();},{title:'Delete Contact'});},
 
   // Quick Log
-  openQL:function(){if(isBilling()){toast('Use New Entry to add entries on behalf of an attorney','warn');return;}ST.modal='ql';ST.ql={clientId:'',matterId:'',hours:'',rate:'',description:'',addToId:'',rawMs:null,newCl:false,newClName:'',newMa:false,newMaName:''};render();},
+  openQL:function(){
+    if(isBilling()){toast('Use New Entry to add entries on behalf of an attorney','warn');return;}
+    var selfContactId='';var selfRate='';
+    if(ST.user){
+      var selfCt=ST.contacts.find(function(c){return c.isUser||(c.name&&ST.user.name&&c.name===ST.user.name);});
+      if(selfCt){
+        selfContactId=String(selfCt.id);
+        var r0=autoRate('','',selfCt.id,today());
+        if(r0) selfRate=String(r0);
+      }
+    }
+    ST.modal='ql';ST.ql={clientId:'',matterId:'',contactId:selfContactId,hours:'',rate:selfRate,description:'',addToId:'',rawMs:null,newCl:false,newClName:'',newMa:false,newMaName:''};render();
+  },
   efSaveAndTimer:function(){
     // Validate everything except hours — timer will supply the time
     var f=ST.ef;
@@ -7901,14 +7913,14 @@ var A={
     syncForm();
     if(v==='__new__'){ST.ql.newCl=true;ST.ql.newClName='';render();return;}
     ST.ql.clientId=v;ST.ql.matterId='';ST.ql.newCl=false;
-    var r=autoRate(v,'','',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
+    var r=autoRate(v,'',ST.ql.contactId||'',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
     render();
   },
   qlMa:function(v){
     syncForm();
     if(v==='__new__'){ST.ql.newMa=true;ST.ql.newMaName='';render();return;}
     ST.ql.matterId=v;ST.ql.newMa=false;
-    var r=autoRate(ST.ql.clientId,v,'',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
+    var r=autoRate(ST.ql.clientId,v,ST.ql.contactId||'',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
     render();
   },
   qlCancelNew:function(which){syncForm();if(which==='cl')ST.ql.newCl=false;else ST.ql.newMa=false;render();},
@@ -7919,6 +7931,7 @@ var A={
     var rec={id:uid(),name:name,email:'',phone:'',rate:0,contactId:''};
     ST.clients=ST.clients.concat([rec]);saveOne('clients',rec);
     ST.ql.clientId=String(rec.id);ST.ql.matterId='';ST.ql.newCl=false;ST.ql.newClName='';
+    var r=autoRate(String(rec.id),'',ST.ql.contactId||'',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
     toast('Client created','ok');render();
   },
   qlCreateMatter:function(){
@@ -7929,6 +7942,7 @@ var A={
     var rec={id:uid(),name:name,clientId:ST.ql.clientId,description:'',rate:0,contactId:''};
     ST.matters=ST.matters.concat([rec]);saveOne('matters',rec);
     ST.ql.matterId=String(rec.id);ST.ql.newMa=false;ST.ql.newMaName='';
+    var r=autoRate(ST.ql.clientId,String(rec.id),ST.ql.contactId||'',today());if(r&&!ST.ql.rate)ST.ql.rate=String(r);
     toast('Matter created','ok');render();
   },
   qlPickEntry:function(id){
@@ -7959,7 +7973,7 @@ var A={
         ST.modal=null;ST.tab='timesheet';toast('+'+hrs.toFixed(1)+'h added \u2192 '+newHrs.toFixed(1)+'h total \u26A1');render();return;
       }
     }
-    var entry={id:uid(),date:today(),clientId:f.clientId,matterId:f.matterId||'',contactId:'',
+    var entry={id:uid(),date:today(),clientId:f.clientId,matterId:f.matterId||'',contactId:f.contactId||'',
       hours:hrs,rawMs:(f.rawMs!=null?f.rawMs:null),rate:f.rate?Number(f.rate):0,description:f.description||'',
       createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?',
       status:qlStatus,finalized:false};
