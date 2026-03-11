@@ -95,6 +95,14 @@ body.dark .mail-preset-card{background:var(--white);border-color:var(--border)}
 body.dark select{background:var(--white);color:var(--ink);border-color:var(--border)}
 body.dark .fab-tog{background:var(--border)}
 
+/* == Scrollbars == */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg);border-radius:4px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--ink3)}
+::-webkit-scrollbar-corner{background:var(--bg)}
+.nav::-webkit-scrollbar{display:none}
+
 /* == Layout Sizes == */
 body.layout-compact{--space-sm:10px;--space-md:14px;--space-lg:16px;--card-pad:12px;--fbox-pad:16px;--field-pad:7px 11px;font-size:13px}
 body.layout-compact .main{padding:16px 14px}
@@ -611,10 +619,10 @@ html,body{overflow-x:hidden;max-width:100vw}
 }
 
 #z-tablock{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(14,12,10,.72);backdrop-filter:blur(4px);padding:16px}
-#z-tablock .tl-card{background:var(--sfc,#fff);border-radius:12px;padding:32px 28px 24px;max-width:420px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.35);text-align:center}
+#z-tablock .tl-card{background:var(--white);border-radius:12px;padding:32px 28px 24px;max-width:420px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.35);text-align:center}
 #z-tablock .tl-icon{font-size:2.4rem;margin-bottom:12px}
-#z-tablock h2{margin:0 0 8px;font-size:1.15rem;font-weight:700;color:var(--ink,#1c1814)}
-#z-tablock p{margin:0 0 20px;font-size:.875rem;color:var(--ink3,#6b6560);line-height:1.5}
+#z-tablock h2{margin:0 0 8px;font-size:1.15rem;font-weight:700;color:var(--ink)}
+#z-tablock p{margin:0 0 20px;font-size:.875rem;color:var(--ink2);line-height:1.5}
 #z-tablock .tl-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 /* === UTILITY CLASSES (auto-generated from repeated inline styles) === */
 .u-cardhd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:12px}
@@ -949,15 +957,42 @@ const Store=(function(){
     // ── Full sync: upsert all records, delete IDs no longer in arr ──
     // Use this for imports or bulk replace — never in normal edit flows.
     syncCollection:function(name,arr){
-      // Two-phase strategy to avoid Safari's strict per-transaction time limit:
-      //   Phase 1 — one transaction: cursor-prune keys not present in arr.
-      //   Phase 2 — N transactions: upsert arr in SYNC_CHUNK_SIZE slices.
-      // Each transaction is short-lived, giving the browser time to commit
-      // between chunks and preventing abort on 50k+ record restores.
+      // Two-phase strategy — upsert-first, prune-second — to eliminate the
+      // data-loss window present in the previous delete-first approach.
+      //
+      // ATOMICITY RATIONALE:
+      //   Old order (delete → write): crash between phases left the store empty.
+      //   New order (write → delete): crash between phases leaves the store with
+      //   all correct records PLUS stale orphans — always recoverable, never empty.
+      //
+      //   Phase 1 — N transactions: upsert arr in SYNC_CHUNK_SIZE slices.
+      //             Short-lived transactions avoid Safari's per-tx time limit on
+      //             large (50k+) restores.
+      //   Phase 2 — one transaction: cursor-prune keys not present in arr.
+      //             Runs only after all writes are safely committed.
+      //             A crash here leaves orphan records — harmless, no data loss.
+      //
+      // Each transaction is short-lived and sequential to prevent lock contention.
       var SYNC_CHUNK_SIZE=5000;
       var records=arr||[];
       return _open().then(function(db){
-        // ── Phase 1: prune orphaned keys ──────────────────────────────────
+        // ── Phase 1: upsert in chunks (safe baseline established first) ───
+        var i=0;
+        function nextChunk(){
+          if(i>=records.length)return Promise.resolve(db);
+          var chunk=records.slice(i,i+SYNC_CHUNK_SIZE);
+          i+=SYNC_CHUNK_SIZE;
+          return new Promise(function(resolve,reject){
+            var tx=db.transaction(name,'readwrite');
+            var os=tx.objectStore(name);
+            chunk.forEach(function(r){if(r&&r.id!=null)os.put(r);});
+            tx.oncomplete=function(){resolve(db);};
+            tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+          }).then(nextChunk);
+        }
+        return nextChunk();
+      }).then(function(db){
+        // ── Phase 2: prune orphaned keys (all writes committed before this) ─
         return new Promise(function(resolve,reject){
           var tx=db.transaction(name,'readwrite');
           var os=tx.objectStore(name);
@@ -972,27 +1007,9 @@ const Store=(function(){
               cursor.continue();
             }
           };
-          tx.oncomplete=function(){resolve(db);};
+          tx.oncomplete=function(){resolve();};
           tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
         });
-      }).then(function(db){
-        // ── Phase 2: upsert in chunks ─────────────────────────────────────
-        // Executes each chunk sequentially so no two readwrite transactions
-        // on the same store overlap (avoids contention / lock starvation).
-        var i=0;
-        function nextChunk(){
-          if(i>=records.length)return Promise.resolve();
-          var chunk=records.slice(i,i+SYNC_CHUNK_SIZE);
-          i+=SYNC_CHUNK_SIZE;
-          return new Promise(function(resolve,reject){
-            var tx=db.transaction(name,'readwrite');
-            var os=tx.objectStore(name);
-            chunk.forEach(function(r){if(r&&r.id!=null)os.put(r);});
-            tx.oncomplete=function(){resolve();};
-            tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
-          }).then(nextChunk);
-        }
-        return nextChunk();
       }).catch(function(err){throw err;});
     },
 
@@ -1031,6 +1048,67 @@ const Store=(function(){
 
     // ── Explicit full entries load (analytics, export, invoice) ──
     getAllEntries:function(){return this.getAll('entries');},
+
+    // ── Cursor-based page fetch for "All Time" view ──────────────────────────
+    // Returns Promise<{entries:Array, total:Number, hrs:Number, bill:Number}>.
+    // For date sorts: true IDB cursor pagination — O(page_size) peak memory.
+    // For non-date sorts: streams all matching entries, GC's after JS sort+slice.
+    // opts: {sort, page, pageSize, createdBy, clientId, matterId}
+    getEntriesPage:function(opts){
+      var sort=opts.sort||'date-desc';
+      var page=opts.page||0;
+      var pageSize=opts.pageSize||50;
+      var createdBy=opts.createdBy||'';
+      var clientId=String(opts.clientId||'');
+      var matterId=String(opts.matterId||'');
+      function passes(rec){
+        if(createdBy&&rec.createdBy!==createdBy)return false;
+        if(clientId&&String(rec.clientId)!==clientId)return false;
+        if(matterId&&String(rec.matterId)!==matterId)return false;
+        return true;
+      }
+      var isDateSort=(sort==='date-desc'||sort==='date-asc');
+      return _open().then(function(db){
+        if(isDateSort){
+          // True cursor pagination via dateIdx — never loads more than pageSize records
+          return new Promise(function(resolve,reject){
+            var tx=db.transaction('entries','readonly');
+            var dir=sort==='date-asc'?'next':'prev';
+            var req=tx.objectStore('entries').index('dateIdx').openCursor(null,dir);
+            var total=0,skipped=0,entries=[],hrs=0,bill=0;
+            var offset=page*pageSize;
+            req.onsuccess=function(e){
+              var cursor=e.target.result;
+              if(!cursor){resolve({entries:entries,total:total,hrs:hrs,bill:bill});return;}
+              var rec=cursor.value;
+              if(passes(rec)){
+                hrs+=Number(rec.hours)||0;
+                bill+=(Number(rec.hours)||0)*(Number(rec.rate)||0);
+                if(skipped<offset){skipped++;}
+                else if(entries.length<pageSize){entries.push(rec);}
+                total++;
+              }
+              cursor.continue();
+            };
+            req.onerror=function(e){reject(e.target&&e.target.error||new Error('getEntriesPage cursor failed'));};
+          });
+        } else {
+          // Non-date sort: stream all matching entries, sort+paginate in JS, discard rest
+          return new Promise(function(resolve,reject){
+            var tx=db.transaction('entries','readonly');
+            var req=tx.objectStore('entries').openCursor();
+            var all=[];
+            req.onsuccess=function(e){
+              var cursor=e.target.result;
+              if(!cursor){resolve({entries:all,total:all.length,hrs:0,bill:0,needsSort:true});return;}
+              if(passes(cursor.value))all.push(cursor.value);
+              cursor.continue();
+            };
+            req.onerror=function(e){reject(e.target&&e.target.error||new Error('getEntriesPage(ns) failed'));};
+          });
+        }
+      });
+    },
 
     // ── Status-indexed query (v6) — uses statusIdx; only matches explicit status values ──
     getEntriesByStatus:function(status){
@@ -1074,17 +1152,22 @@ const Store=(function(){
     // ── Wipe everything (reset only) ──
     clearData:function(){
       return _open().then(function(db){
-        return new Promise(function(resolve){
+        return new Promise(function(resolve,reject){
           var all=COLLECTIONS.concat(['meta']);
           var tx=db.transaction(all,'readwrite');
           all.forEach(function(name){tx.objectStore(name).clear();});
           tx.oncomplete=function(){resolve();};
-          tx.onerror=function(){resolve();};
+          tx.onerror=function(e){reject(new Error('IndexedDB clear failed: '+(e.target&&e.target.error?e.target.error.message:'unknown error')));};
+          tx.onabort=function(e){reject(new Error('IndexedDB clear aborted: '+(e.target&&e.target.error?e.target.error.message:'unknown error')));};
         });
-      }).catch(function(){});
+      });
     }
   };
 })();
+
+// === APP IIFE — keeps all internal vars off window; only A, fmtCur and the
+// small set of bare names referenced by inline HTML event handlers are exported.
+(function(){
 
 // === STATE
 var ST={
@@ -1170,7 +1253,7 @@ var ST={
   //   'full'    = all entries loaded (only by explicit export/import)
   //   Approvals and "All Time" now use dedicated live-patched caches:
   //     ST._approvalEntries — loaded via statusIdx/createdByIdx, patched on every mutation
-  //     ST._tsAllEntries    — loaded via full range scan,          patched on every mutation
+  //     _tsPageResult       — current "All Time" page result (cursor-fetched, module-level)
   //   Neither cache is ever cleared by markLuDirty (which fires constantly).
   //   They are only nulled by bulk-replace operations (import/restore/reset).
   _entriesMode:'partial',
@@ -1178,7 +1261,7 @@ var ST={
   _anEntries:null,     // IDB-fetched entries scoped to current analytics filter
   _exportEntries:null, // temporary all-entries cache for export/submit/backup — never replaces ST.entries or changes _entriesMode
   _approvalEntries:null, // null=not loaded; array=loaded (patched, never replaced by markLuDirty)
-  _tsAllEntries:null,    // null=not loaded; array=loaded (patched, never replaced by markLuDirty)
+  _tsAllEntries:null,    // kept for legacy compat; cursor pagination uses module-level _tsPageResult
   // Invoice form and review state
   invf:{},
   invFilter:'all',invPrintId:null,
@@ -1334,10 +1417,74 @@ function msToHours(ms){return toPreciseHours((ms||0)/3600000);}
 function addPreciseHours(h1,h2){return toPreciseHours(Number(h1||0)+Number(h2||0));}
 function $d(s){if(!s)return '';var d=new Date(s+'T00:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function H(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-function buildEmptyState(icon,title,desc,style){return '<div class="empty"'+(style?' style="'+style+'"':'')+'>'+( icon?'<div class="empty-ico">'+icon+'</div>':'' )+(title?'<p>'+title+'</p>':'')+(desc?'<small>'+desc+'</small>':'')+'</div>';}
+
+// ── html tagged template literal ────────────────────────────────────────────
+// Tiny zero-dep template engine. No external libs. Fully offline.
+//
+// USAGE
+//   html`<td class="name">${row.name}</td>`              ← user data: auto-escaped via H()
+//   html`<div>${safe(field('Rate','r',{val:r}))}</div>`  ← trusted HTML: safe() skips escaping
+//   html`<ul>${rows.map(r => html`<li>${r.name}</li>`)}</ul>` ← arrays of SafeStr: joined as-is
+//   html`<span style="${cls}">…</span>`                  ← attribute value: auto-escaped
+//   String(html`…`) or html`…`.toString()               ← extract plain string when needed
+//
+// RULES
+//   • All interpolated values are H()-escaped by default → XSS-safe
+//   • Wrap pre-built HTML (field(), IC.*, sub-templates) with safe() to prevent double-escaping
+//   • html`…` returns a SafeStr; morph()/innerHTML coerce it to string automatically
+//   • Arrays of SafeStr are joined; arrays of plain strings are each H()-escaped
+//   • null / undefined → '' (no literal "null" in output)
+//
+class SafeStr {
+  constructor(s){ this.v = s; }
+  toString(){ return this.v; }
+}
+// safe(v) — mark a value as trusted HTML. Accepts string, SafeStr, or array thereof.
+function safe(v){
+  if(v instanceof SafeStr) return v;
+  if(Array.isArray(v)) return new SafeStr(v.map(x => x instanceof SafeStr ? x.v : H(x)).join(''));
+  return new SafeStr(v == null ? '' : String(v));
+}
+// html — tagged template literal. Auto-escapes interpolations; SafeStr values pass through.
+function html(strings, ...vals){
+  let r = strings[0];
+  for(let i = 0; i < vals.length; i++){
+    const v = vals[i];
+    if(v instanceof SafeStr)  r += v.v;
+    else if(Array.isArray(v)) r += v.map(x => x instanceof SafeStr ? x.v : H(x)).join('');
+    else if(v == null)        r += '';
+    else                      r += H(v);
+    r += strings[i + 1];
+  }
+  return new SafeStr(r);
+}
+// ────────────────────────────────────────────────────────────────────────────
+
+function buildEmptyState(icon,title,desc,style){
+  return html`<div class="empty"${style ? safe(` style="${style}"`) : ''}>
+    ${icon  ? html`<div class="empty-ico">${safe(icon)}</div>`  : ''}
+    ${title ? html`<p>${title}</p>`                             : ''}
+    ${desc  ? html`<small>${desc}</small>`                      : ''}
+  </div>`;
+}
 // Interactive contact link helpers — use in all display-side email/phone output
-function mailLink(email,style){if(!email)return '';var je=H(email).replace(/'/g,'&#39;');return '<a href="#" style="'+(style||'')+'color:inherit;text-decoration:none" onclick="event.preventDefault();A.openMailTo(\''+ je +'\')" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(email)+'</a>';}
-function telLink(phone,style){if(!phone)return '';var stripped=phone.replace(/[^\d+]/g,'');return '<a href="tel:'+H(stripped)+'" style="'+(style||'')+'color:inherit;text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(phone)+'</a>';}
+function mailLink(email, style){
+  if(!email) return '';
+  const je = H(email).replace(/'/g, '&#39;');
+  return html`<a href="#"
+    style="${(style||'')}color:inherit;text-decoration:none"
+    onclick="event.preventDefault();A.openMailTo('${safe(je)}')"
+    onmouseover="this.style.textDecoration='underline'"
+    onmouseout="this.style.textDecoration='none'">${email}</a>`;
+}
+function telLink(phone, style){
+  if(!phone) return '';
+  const stripped = phone.replace(/[^\d+]/g,'');
+  return html`<a href="tel:${stripped}"
+    style="${(style||'')}color:inherit;text-decoration:none"
+    onmouseover="this.style.textDecoration='underline'"
+    onmouseout="this.style.textDecoration='none'">${phone}</a>`;
+}
 function pad2(n){return String(n).padStart(2,'0');}
 // toIsoDate: canonical YYYY-MM-DD from any Date object (local time, no UTC drift)
 function toIsoDate(d){return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());}
@@ -1573,19 +1720,22 @@ function salaryPeriodLabel(f){
 
 // Sync form field values to state before any re-render triggered by dropdown changes
 // This prevents typed text from being lost when a select triggers a re-render
-// syncForm() — generic DOM-driven state preservation.
+// syncForm(target?) — generic DOM-driven state preservation.
 // Every input/select/textarea rendered by field() carries data-sf="<id>".
 // Raw manual inputs (quick-log, sub-person forms, etc.) also carry data-sf.
-// On each call we scan ALL [data-sf] elements and write their current values
-// back into the active form-state object. No field ID ever needs to be
-// hardcoded here again — adding a new field to any form is sufficient.
+//
+// When called with a DOM element that has a data-sf attribute (the common
+// hot-path: one field just changed) only that single element is processed —
+// O(1) instead of O(N).  When called without an argument (bulk-preservation
+// before a re-render, or from a context without a direct target) it falls
+// back to the full querySelectorAll('[data-sf]') scan.
 //
 // MODAL_MAP structure per entry:
 //   obj    — the ST sub-object to write into
 //   pfx    — the id prefix shared by every field in this modal (e.g. 'ef-')
 //   alias  — { shortKey: stateKey } for abbreviated / non-obvious IDs
 //   nested — { shortKey: 'parentProp.childProp' } for one level of nesting
-function syncForm(){
+function syncForm(target){
   var MODAL_MAP={
     ef:{
       obj:ST.ef, pfx:'ef-',
@@ -1636,23 +1786,31 @@ function syncForm(){
   var pfx=conf.pfx;
   var alias=conf.alias||{};
   var nested=conf.nested||{};
-  document.querySelectorAll('[data-sf]').forEach(function(el){
+
+  // Inner write helper shared by both paths
+  function _writeEl(el){
     var sfId=el.dataset.sf;
-    // Only process fields belonging to the active modal (prefix guard)
-    if(sfId.indexOf(pfx)!==0) return;
-    var key=sfId.slice(pfx.length); // strip prefix → short key
+    if(!sfId||sfId.indexOf(pfx)!==0) return;
+    var key=sfId.slice(pfx.length);
     var val=el.type==='checkbox'?el.checked:el.value;
-    // Nested one-level path (e.g. newPerson.name)
     if(nested[key]){
       var parts=nested[key].split('.');
       if(!obj[parts[0]]) obj[parts[0]]={};
       obj[parts[0]][parts[1]]=val;
       return;
     }
-    // Resolve alias, or use short key directly as state key
     var stateKey=alias.hasOwnProperty(key)?alias[key]:key;
     obj[stateKey]=val;
-  });
+  }
+
+  // Fast path: O(1) - caller supplied the changed element directly
+  if(target&&target.dataset&&target.dataset.sf){
+    _writeEl(target);
+    return;
+  }
+
+  // Full scan fallback - no target supplied (bulk preservation before re-render)
+  document.querySelectorAll('[data-sf]').forEach(_writeEl);
 }
 
 // === SAVE
@@ -1902,25 +2060,15 @@ function _loadAnalyticsEntries(filter){
 }
 
 // ── Entry cache helpers ───────────────────────────────────────────────────────
-// Called after every single-entry mutation. Keeps _tsAllEntries and _approvalEntries
+// Called after every single-entry mutation. Keeps _approvalEntries
 // consistent without a full IDB reload. markLuDirty() deliberately does NOT clear
 // these caches — they are live-patched here instead.
+// _tsPageResult is invalidated (not patched) so the next render re-fetches the correct page.
 
-// Upsert one entry record into both caches (if loaded).
+// Upsert one entry record into the approval cache (if loaded); invalidate the page result.
 function _patchEntry(rec){
-  if(ST._tsAllEntries){
-    var found=false;
-    ST._tsAllEntries=ST._tsAllEntries.map(function(e){
-      if(e.id==rec.id){found=true;return rec;}
-      return e;
-    });
-    if(!found) ST._tsAllEntries=ST._tsAllEntries.concat([rec]);
-  } else if(_tsAllLoading){
-    // Cache not yet populated but a load is in flight — buffer this mutation so
-    // it can be replayed once the IDB fetch resolves (fixes async race condition).
-    _tsPendingPatches=_tsPendingPatches.filter(function(p){return p.op!=='upsert'||p.rec.id!==rec.id;});
-    _tsPendingPatches.push({op:'upsert',rec:rec});
-  }
+  // Invalidate cursor page; bump gen so any in-flight load discards its stale result
+  _tsPageResult=null; _tsPageGen++;
   if(ST._approvalEntries){
     var found2=false;
     ST._approvalEntries=ST._approvalEntries.map(function(e){
@@ -1933,26 +2081,20 @@ function _patchEntry(rec){
   if(_luEnVer!==-1) _lu.en[rec.id]=rec;
 }
 
-// Remove one entry from both caches (if loaded).
+// Remove one entry from the approval cache (if loaded); invalidate the page result.
 function _removeEntry(id){
-  if(ST._tsAllEntries)
-    ST._tsAllEntries=ST._tsAllEntries.filter(function(e){return e.id!=id;});
-  else if(_tsAllLoading){
-    // Buffer removal so it is applied when the IDB fetch resolves.
-    _tsPendingPatches=_tsPendingPatches.filter(function(p){
-      return !(p.op==='remove'&&p.id===id);
-    });
-    _tsPendingPatches.push({op:'remove',id:id});
-  }
+  // Invalidate cursor page; bump gen so any in-flight load discards its stale result
+  _tsPageResult=null; _tsPageGen++;
   if(ST._approvalEntries)
     ST._approvalEntries=ST._approvalEntries.filter(function(e){return e.id!=id;});
   // Keep _lu.en live — O(1) delete avoids a full O(n) rebuild on every entry deletion
   if(_luEnVer!==-1) delete _lu.en[id];
 }
 
-// Invalidate both caches (bulk operations: import, reset, restore).
+// Invalidate all entry caches (bulk operations: import, reset, restore).
 function _invalidateEntryCaches(){
-  ST._tsAllEntries=null; _tsAllLoading=false; _tsPendingPatches=[];
+  ST._tsAllEntries=null; _tsPageResult=null; _tsPageLoading=false; _tsPageGen++;
+  _tsAllLoading=false; _tsPendingPatches=[];
   ST._approvalEntries=null; _approvalsLoading=false;
   _luEnVer=-1; _lu.en={}; // force full rebuild on next invoice access after bulk change
 }
@@ -1994,42 +2136,68 @@ function _loadApprovalsEntries(){
 }
 
 // ── Timesheet "All Time" loader ───────────────────────────────────────────────
-// Loads full history into ST._tsAllEntries. ST.entries (partial year) is never replaced.
-// The cache is live-patched by _patchEntry/_removeEntry, never cleared by markLuDirty.
-var _tsAllLoading=false;
-// Mutations (upserts/removes) that arrive while _loadTsAllEntries is in flight
-// are buffered here and replayed onto ST._tsAllEntries when the fetch resolves,
-// preventing the async IDB response from silently overwriting in-flight changes.
-var _tsPendingPatches=[]; // [{op:'upsert',rec}|{op:'remove',id}]
-function _loadTsAllEntries(){
-  if(_tsAllLoading) return;
-  _tsAllLoading=true;
+// Cursor-based "All Time" page loader — replaces the old _loadTsAllEntries that
+// pulled every entry into RAM. Only the current PAGE_SIZE slice is ever held in memory.
+// For date sorts: IDB cursor skips to the correct offset — O(offset) time, O(page_size) space.
+// For non-date sorts: streams all matching entries, sorts in JS, returns slice, GC's the rest.
+var _tsPageResult=null;  // {entries,total,hrs,bill,key} | null
+var _tsPageLoading=false;
+var _tsPageGen=0;         // incremented by every mutation; guards in-flight loads against stale writes
+var _tsAllLoading=false;  // kept so legacy guards compile (always false now)
+var _tsPendingPatches=[];  // no longer used; kept to avoid ReferenceError in legacy guards
+
+function _loadTsPage(){
+  if(_tsPageLoading)return;
+  var PAGE_SIZE=ST.TS_PAGE_SIZE||50;
+  var role=ST.user?ST.user.role||'attorney':'attorney';
+  var me=ST.user?ST.user.name:'';
+  // Billing staff see all timekeepers; attorneys see only their own
+  var effCreatedBy=(role==='billing_staff')?'':me;
+  // Contact filter (billing staff filtering by attorney) overrides the default
+  var ctFName=ST.tsContactFilter&&_lu.ct[ST.tsContactFilter]?_lu.ct[ST.tsContactFilter].name:'';
+  var finalCreatedBy=ctFName||effCreatedBy;
+  var pageKey=[ST.tsSort,ST.tsClientFilter||'',ST.tsMatterFilter||'',finalCreatedBy,ST.tsPage,PAGE_SIZE].join('|');
+  if(_tsPageResult&&_tsPageResult.key===pageKey)return; // already current
+  _tsPageLoading=true;
+  var _capturedGen=_tsPageGen;  // snapshot — if a mutation fires during flight, gen advances and we discard
   var base=_saveTimer?_flushSave():Promise.resolve();
   base.then(function(){
-    return Store.getEntriesInRange('','');
-  }).then(function(entries){
-    _tsAllLoading=false;
-    // Replay any mutations that arrived while the IDB fetch was in flight,
-    // so entries logged/edited/deleted during that window are not lost.
-    if(_tsPendingPatches.length){
-      _tsPendingPatches.forEach(function(p){
-        if(p.op==='upsert'){
-          var found=false;
-          entries=entries.map(function(e){if(e.id==p.rec.id){found=true;return p.rec;}return e;});
-          if(!found) entries=entries.concat([p.rec]);
-        } else if(p.op==='remove'){
-          entries=entries.filter(function(e){return e.id!=p.id;});
+    return Store.getEntriesPage({
+      sort:ST.tsSort, page:ST.tsPage, pageSize:PAGE_SIZE,
+      createdBy:finalCreatedBy,
+      clientId:ST.tsClientFilter||'',
+      matterId:ST.tsMatterFilter||''
+    });
+  }).then(function(res){
+    _tsPageLoading=false;
+    // If a mutation fired while we were fetching, discard stale result — next render re-fetches
+    if(_tsPageGen!==_capturedGen){ render(); return; }
+    var entries=res.entries, total=res.total, hrs=res.hrs||0, bill=res.bill||0;
+    if(res.needsSort){
+      // Non-date sort: sort the streamed matches in JS using lookup tables, then paginate
+      entries.sort(function(a,b){
+        if(ST.tsSort==='client'){
+          var ca=_lu.cl[a.clientId],cb=_lu.cl[b.clientId];
+          return((ca&&ca.name)||'').localeCompare((cb&&cb.name)||'');
         }
+        if(ST.tsSort==='hours')return Number(b.hours)-Number(a.hours);
+        if(ST.tsSort==='amount')return(Number(b.hours)||0)*(Number(b.rate)||0)-(Number(a.hours)||0)*(Number(a.rate)||0);
+        var dd=(+new Date(b.date))-(+new Date(a.date)); return dd!==0?dd:(b.createdAt||0)-(a.createdAt||0);
       });
-      _tsPendingPatches=[];
+      total=entries.length;
+      hrs=entries.reduce(function(s,e){return s+(Number(e.hours)||0);},0);
+      bill=entries.reduce(function(s,e){return s+(Number(e.hours)||0)*(Number(e.rate)||0);},0);
+      var start=ST.tsPage*PAGE_SIZE;
+      entries=entries.slice(start,start+PAGE_SIZE); // return page slice; rest is GC'd
     }
-    ST._tsAllEntries=entries;
+    _tsPageResult={entries:entries,total:total,hrs:hrs,bill:bill,key:pageKey};
     render();
   }).catch(function(e){
-    console.warn('_loadTsAllEntries failed',e);
-    _tsAllLoading=false;
-    _tsPendingPatches=[];
-    ST._tsAllEntries=[];
+    console.warn('_loadTsPage failed',e);
+    _tsPageLoading=false;
+    if(_tsPageGen===_capturedGen){
+      _tsPageResult={entries:[],total:0,hrs:0,bill:0,key:pageKey};
+    }
     render();
   });
 }
@@ -2125,7 +2293,13 @@ window.addEventListener('pagehide', function(){
   _closeFlush();
 });
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState==='hidden') _closeFlush();
+  if(document.visibilityState==='hidden'){
+    _closeFlush();
+  } else {
+    // Tab returned from background — setInterval may have been throttled or frozen while
+    // hidden, so explicitly check for a midnight rollover now with the correct wall-clock time.
+    _checkRowTmrRollover();
+  }
 });
 
 function savePrefs(){
@@ -2317,26 +2491,56 @@ function buildModal(o){
 // === VIEWS
 
 // == Timesheet ==
+// Returns (lazily-creating) the Web Worker used for large-dataset off-thread sorting.
+// The worker code is inlined as a Blob so the app stays 100% offline with no CDN.
+// Pre-computed numeric sort keys (_ts, _cn, _hr, _am, _cat) are attached to each
+// entry before transfer so the worker needs no lookup tables.
+function _getSortWorker(){
+  if(_sortWorker) return _sortWorker;
+  var code=[
+    'self.onmessage=function(e){',
+    '  var d=e.data,arr=d.entries,s=d.sort;',
+    '  arr.sort(function(a,b){',
+    '    if(s==="date-asc")  return a._ts-b._ts;',
+    '    if(s==="client")    return a._cn.localeCompare(b._cn);',
+    '    if(s==="hours")     return b._hr-a._hr;',
+    '    if(s==="amount")    return b._am-a._am;',
+    '    var dd=b._ts-a._ts; return dd!==0?dd:b._cat-a._cat;',  // date-desc default
+    '  });',
+    '  self.postMessage({key:d.key,sorted:arr,hrs:d.hrs,bill:d.bill});',
+    '};'
+  ].join('\n');
+  var blob=new Blob([code],{type:'application/javascript'});
+  _sortWorker=new Worker(URL.createObjectURL(blob));
+  return _sortWorker;
+}
+
 function vTimesheet(){
   var role=myRole();
   var me=ST.user?ST.user.name:'';
 
-  // "All Time" filter: use _tsAllEntries when ready; kick off background load if not yet loaded.
-  // Fall through and render ST.entries (partial year) while the load is in progress —
-  // no blocking spinner. When IDB resolves, re-render will swap to the full dataset.
-  // If _entriesMode is 'full' (post-export), promote ST.entries so no IDB round-trip is needed.
+  // "All Time" filter: use cursor-based IDB pagination — never loads full history into RAM.
+  // When the page result is ready, _tsPageResult holds exactly one page of entries + totals.
+  // While loading, fall through and render ST.entries (partial year) as a placeholder.
+  var _PAGE_SIZE=ST.TS_PAGE_SIZE||50;
+  var _usePageResult=false;
   if(ST.tsFilter==='all'){
-    if(ST._tsAllEntries===null&&ST._entriesMode==='full'){
-      ST._tsAllEntries=ST.entries;
-    } else if(ST._tsAllEntries===null&&!_tsAllLoading){
-      _loadTsAllEntries(); // async; fall through to render partial data now
+    var _effCreatedBy=(role==='billing_staff')?'':me;
+    var _ctFName2=ST.tsContactFilter&&_lu.ct[ST.tsContactFilter]?_lu.ct[ST.tsContactFilter].name:'';
+    var _finalCreatedBy=_ctFName2||_effCreatedBy;
+    var _tsPageKey=[ST.tsSort,ST.tsClientFilter||'',ST.tsMatterFilter||'',_finalCreatedBy,ST.tsPage,_PAGE_SIZE].join('|');
+    if(_tsPageResult&&_tsPageResult.key===_tsPageKey){
+      _usePageResult=true;  // page is ready — use it directly
+    } else if(!_tsPageLoading){
+      _loadTsPage();  // kick off async fetch; fall through to partial data this render
     }
   }
 
   // Attorneys and partners see ONLY their own entries in this tab.
   // Billing staff see all entries (that's their job as hub).
-  var _basePool=(ST.tsFilter==='all'&&ST._tsAllEntries!==null)?ST._tsAllEntries:ST.entries;
-  var baseEntries=(role==='billing_staff')
+  // When _usePageResult: entries are already filtered/sorted/paginated by IDB layer.
+  var _basePool=_usePageResult?_tsPageResult.entries:ST.entries;
+  var baseEntries=(_usePageResult||(role==='billing_staff'))
     ? _basePool
     : _basePool.filter(function(e){return e.createdBy===me;});
 
@@ -2359,7 +2563,7 @@ function vTimesheet(){
   // The entry form (ef) is NOT in the key — form changes don't need a table rebuild.
   var tsCacheKey=[_dataVer,ST.tsFilter,ST.tsClientFilter||'',ST.tsMatterFilter||'',ST.tsContactFilter||'',
                   ST.tsSort,ST.tsPage,role,me,(ST.rowTmr?'t'+ST.rowTmr.entId:''),
-                  (ST._tsAllEntries===null?'N':ST._tsAllEntries.length)].join('|');
+                  (_usePageResult?_tsPageResult.key:(_tsPageLoading?'L':'N'))].join('|');
   var tableH, hrs, bill;
   if(_tsCache.key===tsCacheKey){
     // Fast path: nothing that affects the table changed. Skip all filter/sort/row work.
@@ -2372,18 +2576,28 @@ function vTimesheet(){
   // row slice. The sort cache is invalidated only when data or filter/sort inputs change.
   var tsSortKey=[_dataVer,ST.tsFilter,ST.tsClientFilter||'',ST.tsMatterFilter||'',
                  ST.tsContactFilter||'',ST.tsSort,role,me,
-                 (ST._tsAllEntries===null?'N':ST._tsAllEntries.length)].join('|');
-  var sorted, hrs, bill;
+                 (_usePageResult?_tsPageResult.key:(_tsPageLoading?'L':'N'))].join('|');
+  var sorted, paginated, totalFiltered;
+
+  if(_usePageResult){
+    // ── Cursor fast path: IDB already filtered, sorted, and paginated ──────────
+    // The IDB cursor delivered exactly _PAGE_SIZE entries for this page.
+    // No JS sort, filter, or slice needed.
+    paginated=_tsPageResult.entries;
+    totalFiltered=_tsPageResult.total;
+    hrs=_tsPageResult.hrs;
+    bill=_tsPageResult.bill;
+    sorted=paginated; // used only for the sorted.length===0 guard below
+  } else {
   if(_tsSortCache.key===tsSortKey){
     // Fast sort path: reuse cached result — O(1)
     sorted=_tsSortCache.sorted; hrs=_tsSortCache.hrs; bill=_tsSortCache.bill;
   } else {
     // Slow sort path: filter (O(n) date compare) + sort (O(m log m)).
     // For small datasets (≤2000 entries) or when no prior cached result exists, sort
-    // runs synchronously this frame. For large datasets, the O(m log m) sort is deferred
-    // to the next macrotask via setTimeout(0), keeping the main thread responsive.
-    // The stale cached result is served for this render pass; a follow-up render() fires
-    // when the deferred sort completes and _tsSortCache is updated.
+    // runs synchronously this frame. For large datasets the sort is handed off to a
+    // Web Worker (true off-thread execution) and the stale cached result is served
+    // for this render pass; a follow-up render() fires when the worker posts back.
     var fe=filterEnt(baseEntries,ST.tsFilter);
     if(ST.tsClientFilter) fe=fe.filter(function(e){return e.clientId==ST.tsClientFilter;});
     if(ST.tsMatterFilter) fe=fe.filter(function(e){return e.matterId==ST.tsMatterFilter;});
@@ -2407,28 +2621,36 @@ function vTimesheet(){
       _tsSortCache={key:tsSortKey,sorted:sorted,hrs:hrs,bill:bill};
       _tsSortPending=false;
     } else if(_tsSortPendingKey!==tsSortKey){
-      // Large dataset: schedule deferred sort, serve stale result this frame
+      // Large dataset: sort on a Web Worker thread — zero main-thread blocking.
+      // Entries are augmented with pre-computed numeric sort keys before transfer
+      // so the worker needs no lookup tables and postMessage serialisation is cheap.
       _tsSortPending=true;
       _tsSortPendingKey=tsSortKey;
-      (function(_capKey,_capFe,_capSort){
-        setTimeout(function(){
-          _tsSortPending=false;
-          _tsSortPendingKey=null;
-          var _s=[].concat(_capFe).sort(function(a,b){
-            if(_capSort==='date-asc') return localDate(a.date)-localDate(b.date);
-            if(_capSort==='client'){var _ca=_lu.cl[a.clientId],_cb=_lu.cl[b.clientId];return ((_ca&&_ca.name)||'').localeCompare((_cb&&_cb.name)||'');}
-            if(_capSort==='hours') return Number(b.hours)-Number(a.hours);
-            if(_capSort==='amount') return calcAmount(b.hours,b.rate)-calcAmount(a.hours,a.rate);
-            var _dd=localDate(b.date)-localDate(a.date);
-            return _dd!==0?_dd:(b.createdAt||0)-(a.createdAt||0);
-          });
-          var _h=_capFe.reduce(function(s,e){return s+Number(e.hours);},0);
-          var _bi=_capFe.reduce(function(s,e){return s+calcAmount(e.hours,e.rate);},0);
-          _tsSortCache={key:_capKey,sorted:_s,hrs:_h,bill:_bi};
-          render();
-        },0);
-      })(tsSortKey,fe,ST.tsSort);
-      // Serve stale sort cache for this render pass while the new sort is pending
+      var _aug=fe.map(function(e){
+        var o=Object.assign({},e);
+        o._ts=+localDate(e.date);
+        o._cn=(_lu.cl[e.clientId]&&_lu.cl[e.clientId].name)||'';
+        o._hr=Number(e.hours);
+        o._am=calcAmount(e.hours,e.rate);
+        o._cat=e.createdAt||0;
+        return o;
+      });
+      var _wHrs=fe.reduce(function(s,e){return s+Number(e.hours);},0);
+      var _wBill=fe.reduce(function(s,e){return s+calcAmount(e.hours,e.rate);},0);
+      var _w=_getSortWorker();
+      _w.onmessage=function(ev){
+        var r=ev.data;
+        _tsSortPending=false;
+        _tsSortPendingKey=null;
+        _tsSortCache={key:r.key,sorted:r.sorted,hrs:r.hrs,bill:r.bill};
+        render();
+      };
+      _w.onerror=function(){
+        // Worker failed (e.g. strict CSP): fall back to synchronous sort next render
+        _sortWorker=null; _tsSortPending=false; _tsSortPendingKey=null; render();
+      };
+      _w.postMessage({key:tsSortKey,entries:_aug,sort:ST.tsSort,hrs:_wHrs,bill:_wBill});
+      // Serve stale sort cache for this render pass while the worker is running
       sorted=_tsSortCache.sorted;
       hrs=_tsSortCache.hrs;
       bill=_tsSortCache.bill;
@@ -2439,21 +2661,23 @@ function vTimesheet(){
       bill=_tsSortCache.bill;
     }
   }
+  // Paginate from sorted array (non-All-Time path or All-Time with non-date sort during load)
+  totalFiltered=sorted.length;
+  var totalPages_=Math.max(1,Math.ceil(totalFiltered/_PAGE_SIZE));
+  if(ST.tsPage>=totalPages_) ST.tsPage=totalPages_-1;
+  if(ST.tsPage<0) ST.tsPage=0;
+  var _ps=ST.tsPage*_PAGE_SIZE;
+  paginated=sorted.slice(_ps,_ps+_PAGE_SIZE);
+  } // end else (!_usePageResult)
 
-  // ── Page-level slow path: slice + row-build — O(page_size) ──────────────────
+  // ── Row build — O(page_size) ──────────────────────────────────────────────
   tableH='';
-  if(sorted.length===0){
+  var totalPages=Math.max(1,Math.ceil(totalFiltered/_PAGE_SIZE));
+  if(sorted.length===0&&!_usePageResult){
+    tableH=buildEmptyState('&#9201;','No entries yet',(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click &ldquo;+ New Entry&rdquo; or tap &#9889; to log time.'));
+  } else if(paginated.length===0){
     tableH=buildEmptyState('&#9201;','No entries yet',(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click &ldquo;+ New Entry&rdquo; or tap &#9889; to log time.'));
   } else {
-    var PAGE_SIZE=ST.TS_PAGE_SIZE||50;
-    var totalFiltered=sorted.length;
-    var totalPages=Math.max(1,Math.ceil(totalFiltered/PAGE_SIZE));
-    if(ST.tsPage>=totalPages) ST.tsPage=totalPages-1;
-    if(ST.tsPage<0) ST.tsPage=0;
-    var pageStart=ST.tsPage*PAGE_SIZE;
-    var pageEnd=Math.min(pageStart+PAGE_SIZE,totalFiltered);
-    var paginated=sorted.slice(pageStart,pageEnd);
-
     var rows=paginated.map(function(e){
       var cl=_lu.cl[e.clientId];
       var mt=_lu.ma[e.matterId];
@@ -2512,7 +2736,7 @@ function vTimesheet(){
         +'</tr>';
     }).join('');
 
-    var pagCtrl=buildPagination(ST.tsPage,totalPages,totalFiltered,PAGE_SIZE,'ts','padding:10px 0;justify-content:center');
+    var pagCtrl=buildPagination(ST.tsPage,totalPages,totalFiltered,_PAGE_SIZE,'ts','padding:10px 0;justify-content:center');
 
     var thBy=role==='billing_staff'?'<th>By</th>':'';
 
@@ -2544,7 +2768,7 @@ function vTimesheet(){
       +pagCtrl;
   }
   // Store in cache for next render
-  _tsCache={key:tsCacheKey,hrs:hrs,bill:bill,filteredLen:sorted.length,tableH:tableH};
+  _tsCache={key:tsCacheKey,hrs:hrs,bill:bill,filteredLen:totalFiltered,tableH:tableH};
   } // end slow path
 
   // Use cached stats (hrs, bill, filteredLen) — computed in slow path, persisted across renders
@@ -2598,7 +2822,7 @@ function vTimesheet(){
     +'<div><h2 class="u-stval">'
     +(role==='billing_staff'?'All Entries':'My Timesheet')+'</h2>'
     +'<p class="u-fs12c3">'+cLen+' entr'+(cLen===1?'y':'ies')
-    +(ST._entriesMode==='partial'&&ST._totalEntryCount>ST.entries.length&&ST.tsFilter!=='all'&&ST._tsAllEntries===null&&!_tsAllLoading
+    +(ST._entriesMode==='partial'&&ST._totalEntryCount>ST.entries.length&&ST.tsFilter!=='all'&&_tsPageResult===null&&!_tsPageLoading
       ?' <button onclick="A.loadAllEntriesNow()" style="background:none;border:none;padding:0;color:var(--amber);cursor:pointer;font-size:12px;text-decoration:underline dotted" title="Click to load full entry history">&#9432; '+ST._totalEntryCount+' total — showing this year only. Click to load all.</button>':'')
     +'</p></div>'
     +'<div class="u-fw8">'+actionBtns+'</div></div>'
@@ -6164,7 +6388,8 @@ function buildSubmitTimesheetModal(){
   } else {
     var pCt=ST.contacts.find(function(c){return c.email&&c.role&&isPartnerRole(c.role);});
     if(pCt) rcpEmail=pCt.email;
-  }'border:1px solid var(--border);border-radius:10px;padding:16px 18px;flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px';
+  }
+  var cardStyle='border:1px solid var(--border);border-radius:10px;padding:16px 18px;flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px';
   var cardHoverStyle='background:var(--bg2)';
 
   var _stBody=emptyNotice
@@ -6361,8 +6586,9 @@ var _dataVer=0; // incremented by markLuDirty() on any data mutation
 //                  When only the page changes the sort is free (O(1) lookup) and
 //                  only the O(page_size) row-build runs.
 var _tsSortCache={key:null,sorted:[],hrs:0,bill:0};
-var _tsSortPending=false;   // true while a deferred large-dataset sort is in flight
+var _tsSortPending=false;   // true while an off-thread sort is in flight
 var _tsSortPendingKey=null; // tsSortKey the pending sort was scheduled for
+var _sortWorker=null;       // lazily-created Web Worker for large-dataset sorts
 var _tsCache={key:null,hrs:0,bill:0,filteredLen:0,tableH:'',statRows:null};
 
 // ── Analytics cache ──────────────────────────────────────────────────────────
@@ -6538,7 +6764,7 @@ function render(){
     +'|'+(ST.anFilter||'')+'|an'+_anFetchVer
     +'|'+(ST.clSearch||'')+(ST.clSort||'')+(ST.clGrpFilter||'')+(ST.clGrpsOpen?'1':'0')+(ST.maSearch||'')+(ST.maSort||'')+(ST.maGroup?'1':'0')+(ST.maClientFilter||'')+(ST.ctSearch||'')+(ST.ctSort||'')
     +'|'+(ST.rowTmr?'t'+ST.rowTmr.entId:'')
-    +'|tsAll'+(ST._tsAllEntries===null?'N':ST._tsAllEntries.length)
+    +'|tsAll'+(_tsPageResult===null?'N':_tsPageResult.key||'0')
     +'|appr'+(ST._approvalEntries===null?'N':ST._approvalEntries.length);
   var _inlineModal=function(m){return m==='ef'||m==='cf'||m==='mf'||m==='ctf'||m==='gf';};
   var efInvolved=(_inlineModal(ST.modal)||_inlineModal(_rKeys.mainModal));
@@ -6594,6 +6820,50 @@ function render(){
 }
 
 
+// === ROW TIMER ROLLOVER CHECK
+// Called both from the setInterval tick AND from the visibilitychange 'visible' handler.
+// Returns true if a rollover was detected and handled (caller should skip display update).
+// Extracted so that a tab waking from background suspension always evaluates the correct
+// elapsed time and midnight boundary — setInterval is throttled/frozen in hidden tabs.
+function _checkRowTmrRollover(){
+  if(!ST.rowTmr||!ST.rowTmr.startMs) return false;
+  // Derive the session's start date using the **current** local timezone offset.
+  // Both sides of the comparison use the same offset, so a mid-session timezone change
+  // (user travels) shifts both values together — no spurious or missed rollovers.
+  // The old cached startDate string was computed at timer-start in the then-current
+  // timezone, making it stale and incorrect after the device timezone changes.
+  var nowDate=today();
+  var startDateLocal=toIsoDate(new Date(ST.rowTmr.startMs));
+  if(nowDate===startDateLocal) return false;
+  // Midnight boundary crossed — save elapsed to old entry, open new entry for today.
+  var rtSnap=ST.rowTmr;
+  clearInterval(rtSnap.iv);
+  var elapsed=Date.now()-rtSnap.startMs+rtSnap.accMs;
+  var addHrs=msToHours(elapsed);
+  var srcEnt=ST.entries.find(function(x){return String(x.id)===String(rtSnap.entId);});
+  if(srcEnt&&addHrs>0){
+    var finalHrs=addPreciseHours(srcEnt.hours,addHrs);
+    var finalRawMs=srcEnt.rawMs!=null?(srcEnt.rawMs+elapsed):elapsed;
+    var closed=Object.assign({},srcEnt,{hours:finalHrs,rawMs:finalRawMs});
+    ST.entries=ST.entries.map(function(x){return String(x.id)===String(rtSnap.entId)?closed:x;});
+    _patchEntry(closed);
+    saveOne('entries',closed);
+  }
+  if(srcEnt){
+    var newEnt=Object.assign({},srcEnt,{id:uid(),date:nowDate,hours:0,rawMs:null,
+      status:(myRole()==='partner'?'approved':'pending'),finalized:false});
+    ST.entries=ST.entries.concat([newEnt]);
+    _patchEntry(newEnt);
+    saveOne('entries',newEnt);
+    ST.rowTmr=null;
+    toast('Midnight \u2014 time saved. New entry started for today.','ok');
+    A.rowTmrStart(newEnt.id);
+  } else {
+    ST.rowTmr=null; render();
+  }
+  return true;
+}
+
 // === ACTIONS
 var A={
   // Custom confirm dialog — iOS-safe replacement for window.confirm()
@@ -6625,7 +6895,7 @@ var A={
   },
   setTsF:function(v){
     ST.tsFilter=v; ST.tsPage=0;
-    if(v==='all'&&ST._tsAllEntries===null&&!_tsAllLoading) _loadTsAllEntries();
+    if(v==='all'){_tsPageResult=null; _tsPageLoading=false;} // reset so next render triggers fresh fetch
     render();
   },
   setAnF:function(v){
@@ -6635,18 +6905,18 @@ var A={
     render(); // vAnalytics will see null and call _loadAnalyticsEntries(v)
   },
   // Timesheet extra filters & sort — all reset the page
-  setTsClF:function(v){ST.tsClientFilter=v;ST.tsMatterFilter='';ST.tsPage=0;render();},
-  setTsMaF:function(v){ST.tsMatterFilter=v;ST.tsPage=0;render();},
-  setTsCtF:function(v){ST.tsContactFilter=v;ST.tsPage=0;render();},
-  loadAllEntriesNow:function(){ST.tsFilter='all';ST.tsPage=0;if(ST._tsAllEntries===null&&!_tsAllLoading)_loadTsAllEntries();render();},
-  setTsSort:function(v){ST.tsSort=v;ST.tsPage=0;render();},
+  setTsClF:function(v){ST.tsClientFilter=v;ST.tsMatterFilter='';ST.tsPage=0;_tsPageResult=null;_tsPageGen++;render();},
+  setTsMaF:function(v){ST.tsMatterFilter=v;ST.tsPage=0;_tsPageResult=null;_tsPageGen++;render();},
+  setTsCtF:function(v){ST.tsContactFilter=v;ST.tsPage=0;_tsPageResult=null;_tsPageGen++;render();},
+  loadAllEntriesNow:function(){ST.tsFilter='all';ST.tsPage=0;_tsPageResult=null;_tsPageLoading=false;render();},
+  setTsSort:function(v){ST.tsSort=v;ST.tsPage=0;_tsPageResult=null;_tsPageGen++;render();},
   toggleTsFilters:function(){ST.tsFiltersOpen=!ST.tsFiltersOpen;render();},
   // Pagination actions
   tsPrevPage:function(){if(ST.tsPage>0){ST.tsPage--;render();}},
   tsNextPage:function(){ST.tsPage++;render();},
   tsFirstPage:function(){ST.tsPage=0;render();},
   tsLastPage:function(p){ST.tsPage=p;render();},
-  clearTsFilters:function(){ST.tsClientFilter='';ST.tsMatterFilter='';ST.tsContactFilter='';ST.tsSort='date-desc';ST.tsPage=0;ST.tsFiltersOpen=false;render();},
+  clearTsFilters:function(){ST.tsClientFilter='';ST.tsMatterFilter='';ST.tsContactFilter='';ST.tsSort='date-desc';ST.tsPage=0;ST.tsFiltersOpen=false;_tsPageResult=null;_tsPageGen++;render();},
   // Clients
   setClSort:function(v){ST.clSort=v;ST.clPage=0;render();},
   setClSearch:function(v){ST.clSearch=v;ST.clPage=0;dRender();},
@@ -8097,7 +8367,10 @@ var A={
         if(r0) selfRate=String(r0);
       }
     }
-    ST.modal='ql';ST.ql={clientId:'',matterId:'',contactId:selfContactId,hours:'',rate:selfRate,description:'',addToId:'',rawMs:null,newCl:false,newClName:'',newMa:false,newMaName:''};render();
+    ST.modal='ql';ST.ql={clientId:'',matterId:'',contactId:selfContactId,hours:'',rate:selfRate,description:'',addToId:'',rawMs:null,newCl:false,newClName:'',newMa:false,newMaName:''};
+    // Auto-start the QL timer immediately — mutual exclusion (row timer stop) is handled inside togTmr
+    if(!ST.tmrOn){A.togTmr();return;}
+    render();
   },
   efSaveAndTimer:function(){
     // Validate everything except hours — timer will supply the time
@@ -8141,8 +8414,14 @@ var A={
     _patchEntry(entry);
     saveOne('entries',entry);
     A.closeF();
-    A.rowTmrStart(newId);
-    toast('Timer started — stop it when done to log time','ok');
+    // If the row timer is already live for this exact entry, preserve it — do not reset.
+    var _rt=ST.rowTmr;
+    if(_rt&&String(_rt.entId)===String(newId)){
+      toast('Entry saved — timer continues running','ok');
+    } else {
+      A.rowTmrStart(newId);
+      toast('Timer started — stop it when done to log time','ok');
+    }
   },
   closeQL:function(){stopTmr();ST.modal=null;render();},
   qlSet:function(k,v){ST.ql[k]=v;},
@@ -8262,7 +8541,7 @@ var A={
     var entry={id:uid(),date:today(),clientId:f.clientId,matterId:f.matterId||'',contactId:f.contactId||'',
       hours:hrs,rawMs:(f.rawMs!=null?f.rawMs:null),rate:f.rate?Number(f.rate):0,description:f.description||'',
       createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?',
-      status:qlStatus,finalized:false};
+      status:qlStatus,finalized:false,createdAt:Date.now()};
     // 24-hour daily cap for new quick-log entries
     var _qlDate=entry.date;
     var _qlDayTotal=ST.entries.reduce(function(s,e){return e.date===_qlDate?s+Number(e.hours):s;},0);
@@ -8286,7 +8565,7 @@ var A={
     var entry={id:newId,date:today(),clientId:f.clientId,matterId:f.matterId||'',contactId:f.contactId||'',
       hours:0,rawMs:null,rate:f.rate?Number(f.rate):0,description:f.description||'',
       createdBy:ST.user?ST.user.name:'',createdByIni:ST.user?ST.user.initials:'?',
-      status:qlStatus,finalized:false};
+      status:qlStatus,finalized:false,createdAt:Date.now()};
     ST.entries=ST.entries.concat([entry]);
     _patchEntry(entry);
     saveOne('entries',entry);
@@ -8315,40 +8594,13 @@ var A={
     A._startRowTmr(entId);
   },
   _startRowTmr:function(entId,initialAccMs){
-    ST.rowTmr={entId:entId,startMs:Date.now(),accMs:initialAccMs||0,iv:null,startDate:today()};
+    // startMs anchors the session epoch — rollover check derives the start date from this
+    // at check time using the then-current timezone, so device timezone changes mid-session
+    // (travel) keep both sides of the comparison in sync. No cached startDate string needed.
+    ST.rowTmr={entId:entId,startMs:Date.now(),accMs:initialAccMs||0,iv:null};
     ST.rowTmr.iv=setInterval(function(){
-      // Midnight rollover: if date has changed, close out current entry and start a new one
-      var nowDate=today();
-      if(ST.rowTmr&&ST.rowTmr.startDate&&nowDate!==ST.rowTmr.startDate){
-        // Save elapsed time to current entry
-        var rtSnap=ST.rowTmr;
-        clearInterval(rtSnap.iv);
-        var elapsed=Date.now()-rtSnap.startMs+rtSnap.accMs;
-        var addHrs=msToHours(elapsed);
-        var srcEnt=ST.entries.find(function(x){return String(x.id)===String(rtSnap.entId);});
-        if(srcEnt&&addHrs>0){
-          var finalHrs=addPreciseHours(srcEnt.hours,addHrs);
-          var finalRawMs=srcEnt.rawMs!=null?(srcEnt.rawMs+elapsed):elapsed;
-          var closed=Object.assign({},srcEnt,{hours:finalHrs,rawMs:finalRawMs});
-          ST.entries=ST.entries.map(function(x){return String(x.id)===String(rtSnap.entId)?closed:x;});
-          _patchEntry(closed);
-          saveOne('entries',closed);
-        }
-        // Create a new entry for today copying client/matter/rate/description
-        if(srcEnt){
-          var newEnt=Object.assign({},srcEnt,{id:uid(),date:nowDate,hours:0,rawMs:null,
-            status:(myRole()==='partner'?'approved':'pending'),finalized:false});
-          ST.entries=ST.entries.concat([newEnt]);
-          _patchEntry(newEnt);
-          saveOne('entries',newEnt);
-          ST.rowTmr=null;
-          toast('Midnight \u2014 time saved. New entry started for today.','ok');
-          A.rowTmrStart(newEnt.id);
-        } else {
-          ST.rowTmr=null; render();
-        }
-        return;
-      }
+      // Midnight rollover — delegate to shared helper (also called on tab-visibility restore).
+      if(_checkRowTmrRollover()) return;
       var el=document.getElementById('row-tmr-'+entId);
       if(!el){return;} // Element hidden (user changed tabs) — keep ticking in memory.
       var ms=Date.now()-ST.rowTmr.startMs+ST.rowTmr.accMs;
@@ -8435,6 +8687,10 @@ var A={
     // Clear IndexedDB, then redirect to setup
     Store.clearData().then(function(){
       ST._splashMode=true; ST.modal='profileImport'; toast('All data reset','warn'); render();
+    }).catch(function(err){
+      console.error('Reset failed:',err);
+      toast('Reset failed — data may not have been wiped. Check console for details.','err');
+      render();
     });
       },{title:'Final Warning \u2014 Cannot Undo',okLabel:'Yes, Delete Everything'});
     },{title:'Reset All Data',okLabel:'Delete All Data'});
@@ -9060,7 +9316,12 @@ tableRows,
 'uid()                              crypto.randomUUID() — collision-free UUID for distributed offline instances',
 'today()                            YYYY-MM-DD string',
 '$m(n) $h(n) $d(s)                 $X.XX  X.XXh  Jan 1, 2025',
-'H(str)                             HTML-escape - ALWAYS use on user data in templates',
+'H(str)                             HTML-escape — escapes &, <, >, ", \' for safe injection into HTML strings',
+'html`<div>${val}</div>`            Tagged template — auto-escapes all interpolated values via H()',
+'safe(v)                            Mark trusted HTML as safe — prevents double-escaping in html`` templates',
+'                                   • Wrap: field() output, IC.* icons, sub-templates, pre-built HTML',
+'                                   • Arrays of SafeStr are joined; arrays of strings are each H()-escaped',
+'                                   • html`` returns SafeStr; .toString() or String() extracts the raw string',
 'g(id)                              get DOM element value by id',
 'save()                             bulk debounced sync (imports, settings, approve-all)',
 'saveOne(coll, rec)                 immediate single-record upsert — use for form saves',
@@ -9184,7 +9445,9 @@ tableRows,
 '## GOTCHAS',
 '',
 '1. syncForm() FIRST in every onchange - scans [data-sf] elements; no manual field list needed',
-'2. H() on ALL user data in template strings',
+'2. NEW CODE: prefer html`…` tagged template over string concat. User data auto-escapes.',
+'   Wrap trusted HTML (field(), IC.*, sub-html results) with safe(). See KEY FUNCTIONS.',
+'   EXISTING CODE: H() on ALL user data in template strings (still valid, not deprecated)',
 '3. Only auto-fill rate when empty: if(!ST.ef.rate){ ... }',
 '4. Phone: oninput="A.livePhone(\'id\')" - formats in-place, no re-render',
 '5. IDs: always uid() for new records',
@@ -10127,8 +10390,8 @@ function buildWorkflowImportPreview(){
 // === CHANGE DELEGATION
 document.addEventListener('change',function(e){
   var id=e.target.id;
-  // Always sync current form state first
-  syncForm();
+  // Sync only the changed field (O(1) fast path); full scan used elsewhere before re-renders
+  syncForm(e.target);
   if(id==='ef-d'){
     // Re-evaluate rate when date changes (if rate is still empty or was auto-filled)
     ST.ef.date=e.target.value;
@@ -10375,7 +10638,7 @@ document.addEventListener('keydown',function(e){
   if(navigator.storage&&navigator.storage.persist){
     navigator.storage.persist().then(function(granted){
       if(!granted) console.warn('Storage persistence not granted — data may be evicted under low disk.');
-    }).catch(function(){});
+    }).catch(function(err){ console.warn('storage.persist() unavailable:',err); });
   }
 
   // Fast startup: load only current-year entries (covers today/week/month/year filters).
@@ -10553,7 +10816,19 @@ document.addEventListener('keydown',function(e){
   });
 })();
 
-window.A=A; window.fmtCur=fmtCur;
+// === EXPORTS — only what inline HTML event handlers require on window
+// A        : all user actions (onclick="A.xxx()")
+// fmtCur   : currency formatter (oninput="…fmtCur(…)")
+// ST       : a handful of onclick handlers mutate state directly (e.g. ST.modal=…;render())
+// render   : called directly from a few onclick strings
+// syncForm : called bare in onchange handlers before state mutation
+// savePrefs: one onclick calls savePrefs() outside the A namespace
+// _fnInsert / _mpInsert / _mpApplyTemplate / _mpPreview : mail-template bare handlers
+window.A=A; window.fmtCur=fmtCur; window.ST=ST; window.render=render;
+window.syncForm=syncForm; window.savePrefs=savePrefs;
+window._fnInsert=_fnInsert; window._mpInsert=_mpInsert;
+window._mpApplyTemplate=_mpApplyTemplate; window._mpPreview=_mpPreview;
+})(); // end APP IIFE
 </script>
 </body>
 </html>
