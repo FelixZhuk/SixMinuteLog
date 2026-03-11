@@ -2674,9 +2674,9 @@ function vTimesheet(){
   tableH='';
   var totalPages=Math.max(1,Math.ceil(totalFiltered/_PAGE_SIZE));
   if(sorted.length===0&&!_usePageResult){
-    tableH=buildEmptyState('&#9201;','No entries yet',(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click &ldquo;+ New Entry&rdquo; or tap &#9889; to log time.'));
+    tableH=buildEmptyState('\u23F1','No entries yet',(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click \u201C+ New Entry\u201D or tap \u26A1 to log time.'));
   } else if(paginated.length===0){
-    tableH=buildEmptyState('&#9201;','No entries yet',(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click &ldquo;+ New Entry&rdquo; or tap &#9889; to log time.'));
+    tableH=buildEmptyState('\u23F1','No entries yet',(role==='billing_staff'?'No entries in this time range. Use \'+ New Entry\' to add entries on behalf of an attorney.':'Click \u201C+ New Entry\u201D or tap \u26A1 to log time.'));
   } else {
     var rows=paginated.map(function(e){
       var cl=_lu.cl[e.clientId];
