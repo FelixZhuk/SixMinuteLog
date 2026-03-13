@@ -3634,7 +3634,7 @@ function _buildRoutingSection(formState,prefix,isForMatter){
     srcOpts+='<option value="static"'+(srcVal==='static'?' selected':'')+'>Custom text\u2026</option>';
     // Field selector (name/email/phone) — only when a person/contact is selected
     var fieldSel=(srcVal&&srcVal!=='static')
-      ?'<select name="ph-field-'+ph.id+'" aria-label="Contact field for '+ph.key+'" onchange="A.'+prefix+'RouteField(\''+ph.id+'\',this.value)" style="'+selectStyle+'">'
+      ?'<select name="ph-field-'+ph.id+'" aria-label="Contact field for '+H(ph.key)+'" onchange="A.'+prefix+'RouteField(\''+ph.id+'\',this.value)" style="'+selectStyle+'">'
         +'<option value="email"'+(fld==='email'?' selected':'')+'>Email</option>'
         +'<option value="name"'+(fld==='name'?' selected':'')+'>Name</option>'
         +'<option value="phone"'+(fld==='phone'?' selected':'')+'>Phone</option>'
@@ -3647,7 +3647,7 @@ function _buildRoutingSection(formState,prefix,isForMatter){
     var preview=previewVal
       ?String(html`<span style="font-size:11px;color:var(--green);white-space:nowrap">\u2713 ${previewVal}</span>`)
       :(srcVal?'<span style="font-size:11px;color:var(--amber)">not found</span>':'');
-    return String(html`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-l)"><div style="flex:0 0 auto;min-width:0"><code style="font-size:12px;color:var(--blue);background:var(--bg);border:1px solid var(--border-l);border-radius:4px;padding:1px 6px">{${ph.key}}</code><div style="font-size:11px;color:var(--ink3);margin-top:1px">${ph.label}</div></div>${safe('<select name="ph-src-'+ph.id+'" aria-label="Source for '+ph.key+'" onchange="A.'+prefix+'RouteSource(\''+ph.id+'\',this.value)" style="flex:1;min-width:160px;'+selectStyle+'">'+srcOpts+'</select>')}${safe(fieldSel)}${safe(textInp)}${safe(preview)}</div>`);
+    return String(html`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-l)"><div style="flex:0 0 auto;min-width:0"><code style="font-size:12px;color:var(--blue);background:var(--bg);border:1px solid var(--border-l);border-radius:4px;padding:1px 6px">{${ph.key}}</code><div style="font-size:11px;color:var(--ink3);margin-top:1px">${ph.label}</div></div>${safe('<select name="ph-src-'+ph.id+'" aria-label="Source for '+H(ph.key)+'" onchange="A.'+prefix+'RouteSource(\''+ph.id+'\',this.value)" style="flex:1;min-width:160px;'+selectStyle+'">'+srcOpts+'</select>')}${safe(fieldSel)}${safe(textInp)}${safe(preview)}</div>`);
   }).join('');
   var overrideNote=isForMatter
     ?'<p style="font-size:11px;color:var(--ink3);margin:0 0 8px">Matter-level assignments override the client-level ones when resolving <code>{tokens}</code>.</p>'
@@ -7133,6 +7133,9 @@ function _mAttrs(o,n){
   // Add/update attrs from new node
   for(var j=0;j<n.attributes.length;j++){
     var a=n.attributes[j];
+    // Guard: skip attrs whose names contain characters invalid for setAttribute
+    // (can occur if user-entered data with " chars corrupts parsed HTML)
+    if(/["'<>\s\/=]/.test(a.name)) continue;
     if(o.getAttribute(a.name)!==a.value) o.setAttribute(a.name,a.value);
   }
 }
