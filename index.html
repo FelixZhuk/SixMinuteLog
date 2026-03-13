@@ -7398,7 +7398,10 @@ function _checkRowTmrRollover(){
   var srcEnt=ST.entries.find(function(x){return String(x.id)===String(rtSnap.entId);});
   if(srcEnt&&elapsed>0){
     // Accumulate in ms first; convert to decimal hours exactly once to avoid repeated FP addition errors.
-    var finalRawMs=srcEnt.rawMs!=null?(srcEnt.rawMs+elapsed):elapsed;
+    // Base off the entry's current hours (respects manual edits) rather than rawMs,
+    // so a user-adjusted hours value is preserved and the new elapsed time is added on top.
+    var baseMs=Math.round((srcEnt.hours||0)*3600000);
+    var finalRawMs=baseMs+elapsed;
     var finalHrs=msToHours(finalRawMs);
     var closed=Object.assign({},srcEnt,{hours:finalHrs,rawMs:finalRawMs});
     ST.entries=ST.entries.map(function(x){return String(x.id)===String(rtSnap.entId)?closed:x;});
@@ -9196,7 +9199,10 @@ var A={
     var target=ST.entries.find(function(x){return String(x.id)===String(rt.entId);});
     if(!target){ST.rowTmr=null;render();return;}
     // Accumulate in ms first; convert to decimal hours exactly once to avoid repeated FP addition errors.
-    var newRawMs=target.rawMs!=null?(target.rawMs+elapsed):elapsed;
+    // Base off the entry's current hours (respects manual edits) rather than rawMs,
+    // so a user-adjusted hours value is preserved and the new elapsed time is added on top.
+    var baseMs=Math.round((target.hours||0)*3600000);
+    var newRawMs=baseMs+elapsed;
     var newHrs=msToHours(newRawMs);
     var updated;
     ST.entries=ST.entries.map(function(x){
