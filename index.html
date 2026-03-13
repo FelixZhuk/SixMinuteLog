@@ -1622,7 +1622,7 @@ var ABA_TASK_CODES=[
   {v:'A109',l:'A109 – Appear For/Attend'}
 ];
 function $m(n){return '$'+Number(n||0).toFixed(2);}
-function $h(n){return Number(n||0).toFixed(1)+'h';}
+function $h(n){var v=Number(n||0);return (Math.round((v+Number.EPSILON)*10)/10).toFixed(1)+'h';}
 // msToHMS: convert milliseconds to "H:MM:SS" string for raw-time tooltips
 function msToHMS(ms){
   var s=Math.floor((ms||0)/1000);
@@ -1737,7 +1737,7 @@ function fmtCur(v){
 }
 
 // Round hours to nearest 1/10th (billing standard).
-function rndHours(h){ return Math.round(Number(h||0)*10)/10; }
+function rndHours(h){ var v=Number(h||0); return (Math.round((v+Number.EPSILON)*10)/10); }
 // Split decimal hours into whole hours + whole minutes for the dual-field UI
 function parseHHMM(decHours){
   var d=Number(decHours)||0;
@@ -1878,6 +1878,43 @@ function filterEnt(arr,f){
   } else return arr; // 'all'
   // Parse YYYY-MM-DD as local midnight via global localDate() — avoids timezone boundary errors
   return arr.filter(function(e){return localDate(e.date)>=cut;});
+}
+
+// mruOpts — builds an opts array for a <select> with MRU items first, then alphabetical remainder.
+// arr      : entity array (clients / matters / contacts)
+// entries  : ST.entries — scanned newest-first to determine recent usage
+// field    : key on entry to match against entity id (e.g. 'clientId', 'matterId', 'contactId')
+// labelFn  : function(entity) → label string
+// n        : max MRU items to surface at the top (default 10)
+// Returns  : flat opts array [{v,l}] — MRU group (with disabled header), then rest (with disabled header if both non-empty).
+function mruOpts(arr, entries, field, labelFn, n){
+  n = n || 10;
+  var sorted = arr.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  var seen = {}, mruIds = [];
+  // Walk entries newest-first to collect unique recently-used ids
+  var byDate = ST.entries.slice().sort(function(a,b){ return b.date < a.date ? -1 : b.date > a.date ? 1 : 0; });
+  for(var i=0; i<byDate.length && mruIds.length<n; i++){
+    var eid = String(byDate[i][field]||'');
+    if(eid && !seen[eid]){ seen[eid]=true; mruIds.push(eid); }
+  }
+  // Split into mru subset (recency order) and rest (alphabetical)
+  var mruSet = {};
+  mruIds.forEach(function(id){ mruSet[id]=true; });
+  var mruItems = mruIds.map(function(id){ return arr.find(function(x){ return String(x.id)===id; }); }).filter(Boolean);
+  var restItems = sorted.filter(function(x){ return !mruSet[String(x.id)]; });
+  var opts = [];
+  if(mruItems.length && restItems.length){
+    opts.push({grp:'Recent'});
+    mruItems.forEach(function(x){ opts.push({v:x.id, l:labelFn(x)}); });
+    opts.push({grpEnd:true});
+    opts.push({grp:'All'});
+    restItems.forEach(function(x){ opts.push({v:x.id, l:labelFn(x)}); });
+    opts.push({grpEnd:true});
+  } else {
+    // Not enough history yet — just alphabetical
+    sorted.forEach(function(x){ opts.push({v:x.id, l:labelFn(x)}); });
+  }
+  return opts;
 }
 
 // Convert an analytics filter period to an IDB-queryable {from, to} date range.
@@ -2861,7 +2898,9 @@ function field(label,id,o){
     ctrl='<div class="ql-new-row"><input id="'+id+'" data-sf="'+(o.sf||id)+'" value="'+H(o.val||'')+'" placeholder="'+H(o.ph||'')+'"'+(o.dis?' disabled':'')+reqAttr+ariaInvalid+ariaDesc+autocompleteAttr+oninput+onkeydown+afocus+' />'+confirmBtn+cancelBtn+'</div>';
   } else if(o.type==='select'){
     var opts=(o.opts||[]).map(function(op){
-      return '<option value="'+H(op.v)+'"'+(String(op.v)===String(o.val||'')?'selected':'')+'>'+H(op.l)+'</option>';
+      if(op.grp !== undefined) return '<optgroup label="'+H(op.grp)+'">';
+      if(op.grpEnd) return '</optgroup>';
+      return '<option value="'+H(op.v)+'"'+(String(op.v)===String(o.val||'')?'selected':'')+(op.dis?' disabled':'')+'>'+H(op.l)+'</option>';
     }).join('');
     ctrl='<select id="'+id+'" data-sf="'+(o.sf||id)+'" class="'+ec+'"'+(o.dis?' disabled':'')+reqAttr+ariaInvalid+ariaDesc+autocompleteAttr+oninput+onchange+'>'+opts+'</select>';
   } else if(o.type==='textarea'){
@@ -2976,7 +3015,7 @@ function _getAnalyticsWorker(){
     '  var splitCts=d.splitCts, ctIdSet=d.ctIdSet, userPct=d.userPct;',
     '  var anFilter=d.anFilter, nowMs=d.nowMs, key=d.key;',
     // ── Inline helpers (no main-thread globals available inside Worker) ──────
-    '  function rndHours(h){ return Math.round(Number(h||0)*10)/10; }',
+    '  function rndHours(h){ var v=Number(h||0); return (Math.round((v+Number.EPSILON)*10)/10); }',
     '  function calcAmt(hours,rate){',
     '    return Math.round(rndHours(hours)*Number(rate||0)*100)/100;',
     '  }',
@@ -3422,15 +3461,15 @@ function vTimesheet(){
   // Use cached stats (hrs, bill, filteredLen) — computed in slow path, persisted across renders
   var cHrs=_tsCache.hrs, cBill=_tsCache.bill, cLen=_tsCache.filteredLen;
   var statRows=[['Total Hours',$h(cHrs),''],['Total Billing',$m(cBill),''],['Avg Rate',cHrs>0?$m(cBill/cHrs):'\u2014',''],['Entries',String(cLen),'']];
-  var clFilterOpts='<option value="">All Clients</option>'+ST.clients.map(function(c){
+  var clFilterOpts='<option value="">All Clients</option>'+ST.clients.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){
     return String(html`<option value="${c.id}"${safe(ST.tsClientFilter==c.id?' selected':'')}>${c.name}</option>`);
   }).join('');
-  var availMa=ST.matters.filter(function(m){return !ST.tsClientFilter||m.clientId==ST.tsClientFilter;});
+  var availMa=ST.matters.filter(function(m){return !ST.tsClientFilter||m.clientId==ST.tsClientFilter;}).slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
   var maFilterOpts='<option value="">All Matters</option>'+availMa.map(function(m){
     return String(html`<option value="${m.id}"${safe(ST.tsMatterFilter==m.id?' selected':'')}>${m.name}</option>`);
   }).join('');
   // Attorney/timekeeper filter — billing staff only
-  var ctFilterOpts='<option value="">All Attorneys / Timekeepers</option>'+ST.contacts.map(function(c){
+  var ctFilterOpts='<option value="">All Attorneys / Timekeepers</option>'+ST.contacts.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){
     return String(html`<option value="${c.id}"${safe(ST.tsContactFilter==c.id?' selected':'')}>${c.name}${c.role?' \u2013 '+c.role:''} </option>`);
   }).join('');
   var sortOpts=[['date-desc','Date ↓'],['date-asc','Date ↑'],['client','Client A–Z'],['hours','Hours ↓'],['amount','Amount ↓']].map(function(x){
@@ -3487,10 +3526,10 @@ function vTimesheet(){
 function entryForm(){
   var role=myRole();
   var f=ST.ef;
-  var clOpts=[{v:'',l:'Select client...'},{v:'__new__',l:'+ Add new client\u2026'}].concat(ST.clients.map(function(c){return{v:c.id,l:c.name};}));
+  var clOpts=[{v:'',l:'Select client...'},{v:'__new__',l:'+ Add new client\u2026'}].concat(mruOpts(ST.clients,ST.entries,'clientId',function(c){return c.name;}));
   var avMat=ST.matters.filter(function(m){return m.clientId==f.clientId;});
-  var maOpts=[{v:'',l:'General work'}].concat(f.clientId?[{v:'__new__',l:'+ Add new matter\u2026'}]:[]).concat(avMat.map(function(m){return{v:m.id,l:m.name};}));
-  var ctOpts=[{v:'',l:'Select team member...'}].concat(ST.contacts.map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
+  var maOpts=[{v:'',l:'General work'}].concat(f.clientId?[{v:'__new__',l:'+ Add new matter\u2026'}]:[]).concat(mruOpts(avMat,ST.entries,'matterId',function(m){return m.name;}));
+  var ctOpts=[{v:'',l:'Select team member...'}].concat(mruOpts(ST.contacts,ST.entries,'contactId',function(c){return c.name+(c.role?' - '+c.role:'');}));
   var total=(f.hours&&f.rate!==''&&f.rate!=null)?$m(Number(f.hours)*Number(f.rate)):null;
   var matHint=!f.clientId?'Select a client first':(avMat.length===0?'No matters for this client':'');
   var existingStatus=ST.editId?(ST.entries.find(function(e){return e.id==ST.editId;})||{}).status||'pending':null;
@@ -3591,8 +3630,8 @@ function vClients(){
   var grpFilterH='';
   if(ST.groups.length){
     var grpFOpts='<option value="">All Clients</option>'+String(html`<option value="ungrouped"${safe(ST.clGrpFilter==='ungrouped'?' selected':'')}>Ungrouped</option>`)
-      +ST.groups.map(function(g){return String(html`<option value="${g.id}"${safe(ST.clGrpFilter==g.id?' selected':'')}>${g.name}</option>`);}).join('');
-    grpFilterH='<select name="cl-group-filter" aria-label="Filter by group" onchange="syncForm();ST.clGrpFilter=this.value;ST.clPage=0;render();" class="filter-select">'+grpFOpts+'</select>';
+      +ST.groups.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(g){return String(html`<option value="${g.id}"${safe(ST.clGrpFilter==g.id?' selected':'')}>${g.name}</option>`);}).join('');
+    grpFilterH='<select name="cl-group-filter" aria-label="Filter by group" onchange="syncForm();ST.clGrpFilter=this.value;ST.clPage=0;dRender();" class="filter-select">'+grpFOpts+'</select>';
   }
 
   var clPagH=buildPagination(ST.clPage,clTotalPages,clTotalFiltered,CL_PS,'cl');
@@ -3739,7 +3778,7 @@ function clientForm(){
   var selIds=f.contactIds||((f.contactId&&f.contactId!='')?[f.contactId]:[]);
   // Firm contacts not yet added
   var available=ST.contacts.filter(function(c){return !selIds.some(function(id){return id==c.id;});});
-  var ctOpts=[{v:'',l:'Add team member...'}].concat(available.map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
+  var ctOpts=[{v:'',l:'Add team member...'}].concat(available.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
   // Firm contact chips
   var chipsH=selIds.length===0?''
     :selIds.map(function(id){
@@ -3819,7 +3858,7 @@ function clientForm(){
         +'<table class="rate-hist-table"><thead><tr><th>Attorney</th><th>Rate</th><th>Effective Date</th><th>Note</th><th></th></tr></thead><tbody>'+arRows+'</tbody></table>'
         +'<div class="u-mt10"><div class="u-slbl">Add negotiated rate:</div>'
         +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;align-items:end">'
-        +field('Attorney','cf-ar-ct',{type:'select',opts:[{v:'',l:'Select attorney\u2026'}].concat(ST.contacts.map(function(c){return{v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};})),val:''})
+        +field('Attorney','cf-ar-ct',{type:'select',opts:[{v:'',l:'Select attorney\u2026'}].concat(ST.contacts.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return{v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};})),val:''})
         +field('Rate ($/hr)','cf-ar-rate',{type:'number',inputmode:'decimal',ph:'200.00',min:0,step:'0.01'})
         +field('Effective Date','cf-ar-date',{type:'date',val:today()})
         +field('Note','cf-ar-note',{ph:'Insurance cap, negotiated\u2026'})
@@ -3835,7 +3874,7 @@ function clientForm(){
 // == Matters ==
 function vMatters(){
   var formH=ST.modal==='mf'?matterForm():'';
-  var clFilterOpts='<option value="">All Clients</option>'+ST.clients.map(function(c){return String(html`<option value="${c.id}"${safe(ST.maClientFilter==c.id?' selected':'')}>${c.name}</option>`);}).join('');
+  var clFilterOpts='<option value="">All Clients</option>'+ST.clients.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return String(html`<option value="${c.id}"${safe(ST.maClientFilter==c.id?' selected':'')}>${c.name}</option>`);}).join('');
   var sortOpts=[['alpha','Name A\u2013Z'],['client','Client A\u2013Z']].map(function(x){return String(html`<option value="${x[0]}"${safe(ST.maSort===x[0]?' selected':'')}>${x[1]}</option>`);}).join('');
   var cardsH='';
   // Data preparation delegated to selector — filter, sort, paginate
@@ -3916,8 +3955,8 @@ function matterCard(m){
 
 function matterForm(){
   var f=ST.mf;
-  var clOpts=[{v:'',l:'Select client...'}].concat(ST.clients.map(function(c){return{v:c.id,l:c.name};}));
-  var ctOpts=[{v:'',l:'None'}].concat(ST.contacts.map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
+  var clOpts=[{v:'',l:'Select client...'}].concat(ST.clients.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return{v:c.id,l:c.name};}));
+  var ctOpts=[{v:'',l:'None'}].concat(ST.contacts.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return{v:c.id,l:c.name+(c.role?' - '+c.role:'')};}));
   var selCl=_lu.cl[f.clientId]||null;
   // Client-side people for the selected client
   var cppl=selCl&&selCl.clientPeople&&selCl.clientPeople.length?selCl.clientPeople:[];
@@ -3959,7 +3998,7 @@ function matterForm(){
         +'<table class="rate-hist-table"><thead><tr><th>Attorney</th><th>Rate</th><th>Effective Date</th><th>Note</th><th></th></tr></thead><tbody>'+arRows+'</tbody></table>'
         +'<div class="u-mt10"><div class="u-slbl">Add matter-specific rate:</div>'
         +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;align-items:end">'
-        +field('Attorney','mf-ar-ct',{type:'select',opts:[{v:'',l:'Select attorney\u2026'}].concat(ST.contacts.map(function(c){return{v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};})),val:''})
+        +field('Attorney','mf-ar-ct',{type:'select',opts:[{v:'',l:'Select attorney\u2026'}].concat(ST.contacts.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return{v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};})),val:''})
         +field('Rate ($/hr)','mf-ar-rate',{type:'number',inputmode:'decimal',ph:'150.00',min:0,step:'0.01'})
         +field('Effective Date','mf-ar-date',{type:'date',val:today()})
         +field('Note','mf-ar-note',{ph:'Insurance cap, agreement\u2026'})
@@ -4442,9 +4481,9 @@ function invTotalLive(inv){
 function buildInvoiceForm(){
   var f=ST.invf||{};
   var isEdit=!!ST.editId;
-  var clOpts=[{v:'',l:'— Select Client —'}].concat(ST.clients.map(function(c){return {v:c.id,l:c.name};}));
+  var clOpts=[{v:'',l:'— Select Client —'}].concat(ST.clients.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return {v:c.id,l:c.name};}));
   var mtOpts=[{v:'',l:'All Matters'}].concat(
-    (f.clientId?ST.matters.filter(function(m){return m.clientId==f.clientId;}):ST.matters)
+    (f.clientId?ST.matters.filter(function(m){return m.clientId==f.clientId;}):ST.matters).slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');})
     .map(function(m){return {v:m.id,l:m.name};})
   );
   // Invoice statuses: Draft → Sent. Approval is for time entries only.
@@ -4577,7 +4616,7 @@ function buildInvoicePrint(){
   var total=subtotal+taxAmt;
 
   var lineRows=lineItems.map(function(l){
-    return String(html`<tr><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;color:#555">${l.date?safe($d(l.date)):''}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee">${l.desc}${l.matter?html`<br><span style="font-size:11px;color:#888">${l.matter}</span>`:''}${l.by?html`<br><span style="font-size:11px;color:#aaa">${l.by}</span>`:''}${l.partnerComment?html`<br><span style="font-size:11px;color:#555;font-style:italic">Note: ${l.partnerComment}</span>`:''}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right">${l.origHours!=null?safe('<span style="text-decoration:line-through;color:#bbb;font-size:11px;margin-right:5px">'+l.origHours.toFixed(1)+'</span>'):safe('')}${safe(l.hours.toFixed(1))}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right">${safe($m(l.rate))}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${safe($m(l.amount))}</td></tr>`);
+    return String(html`<tr><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;color:#555">${l.date?safe($d(l.date)):''}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee">${l.desc}${l.matter?html`<br><span style="font-size:11px;color:#888">${l.matter}</span>`:''}${l.by?html`<br><span style="font-size:11px;color:#aaa">${l.by}</span>`:''}${l.partnerComment?html`<br><span style="font-size:11px;color:#555;font-style:italic">Note: ${l.partnerComment}</span>`:''}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right">${l.origHours!=null?safe('<span style="text-decoration:line-through;color:#bbb;font-size:11px;margin-right:5px">'+(Math.round((l.origHours+Number.EPSILON)*10)/10).toFixed(1)+'</span>'):safe('')}${safe((Math.round((l.hours+Number.EPSILON)*10)/10).toFixed(1))}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right">${safe($m(l.rate))}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${safe($m(l.amount))}</td></tr>`);
   }).join('');
 
   var firmName=H(inv.firmName||ST.firmProfile&&ST.firmProfile.firmName||ST.prefs.appName||'');
@@ -4648,7 +4687,7 @@ function buildInvoicePrint(){
 // == Group Form (inline in Clients tab) ==
 function groupForm(){
   var f=ST.gf||{};
-  var ctOpts=[{v:'',l:'— Add firm contact —'}].concat(ST.contacts.map(function(c){return {v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};}));
+  var ctOpts=[{v:'',l:'— Add firm contact —'}].concat(ST.contacts.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return {v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};}));
   var selIds=f.contactIds||[];
   var chipsH=selIds.map(function(id){
     var ct=_lu.ct[id];
@@ -4709,7 +4748,7 @@ function groupForm(){
     +'<table class="rate-hist-table"><thead><tr><th>Attorney</th><th>Rate</th><th>Effective Date</th><th>Note</th><th></th></tr></thead><tbody>'+arRows+'</tbody></table>'
     +'<div class="u-mt10"><div class="u-slbl">Add negotiated rate:</div>'
     +'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:6px;align-items:end">'
-    +field('Attorney','gf-ar-ct',{type:'select',opts:[{v:'',l:'Select attorney\u2026'}].concat(ST.contacts.map(function(c){return{v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};})),val:''})
+    +field('Attorney','gf-ar-ct',{type:'select',opts:[{v:'',l:'Select attorney\u2026'}].concat(ST.contacts.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(c){return{v:String(c.id),l:c.name+(c.role?' \u2013 '+c.role:'')};})),val:''})
     +field('Rate ($/hr)','gf-ar-rate',{type:'number',inputmode:'decimal',ph:'200.00',min:0,step:'0.01'})
     +field('Effective Date','gf-ar-date',{type:'date',val:today()})
     +field('Note','gf-ar-note',{ph:'Insurance cap, retainer\u2026'})
@@ -4925,7 +4964,7 @@ function buildQL(){
   } else {
     clientField=field('Client','ql-cl',{req:true,type:'select',
       opts:[{v:'',l:'Select client...'},{v:'__new__',l:'+ Add new client\u2026'}]
-        .concat(ST.clients.map(function(c){return{v:String(c.id),l:c.name};})),
+        .concat(mruOpts(ST.clients,ST.entries,'clientId',function(c){return c.name;})),
       val:String(f.clientId||''),onchange:"A.qlCl(this.value)",sf:'ql.clientId'});
   }
 
@@ -4940,7 +4979,7 @@ function buildQL(){
     matterField=field('Matter','ql-ma',{type:'select',
       opts:[{v:'',l:'General'}]
         .concat(f.clientId?[{v:'__new__',l:'+ Add new matter\u2026'}]:[])
-        .concat(f.clientId?avMat.map(function(m){return{v:String(m.id),l:m.name};}): []),
+        .concat(f.clientId?mruOpts(avMat,ST.entries,'matterId',function(m){return m.name;}): []),
       val:String(f.matterId||''),dis:!f.clientId,onchange:"A.qlMa(this.value)",sf:'ql.matterId'});
   }
 
@@ -4964,7 +5003,7 @@ function buildQL(){
     +'<button class="btn '+(ST.tmrOn?'btn-rd':'btn-dk')+'" onclick="A.togTmr()" style="padding:8px 14px;font-size:13px">'+(ST.tmrOn?'Stop':(ST.tmrMs>0?'Resume':'Start'))+'</button>'
     +(ST.tmrMs>0?'<button class="btn btn-gh" onclick="A.rstTmr()" style="padding:8px 12px;font-size:13px">Reset</button>':'')
     +'</div>'
-    +(ST.tmrMs>0&&!ST.tmrOn?'<span class="u-fs12c3" title="Exact measured time">'+msToHMS(ST.tmrMs)+' ('+rnd.toFixed(1)+'h)</span>':'')
+    +(ST.tmrMs>0&&!ST.tmrOn?'<span class="u-fs12c3" title="Exact measured time">'+msToHMS(ST.tmrMs)+' ('+(Math.round((rnd+Number.EPSILON)*10)/10).toFixed(1)+'h)</span>':'')
     +'</div>';
   var _qlBody=clientMatterH
     +'<div class="frow c2 u-mb12">'
@@ -7550,11 +7589,11 @@ var A={
     render(); // vAnalytics will see null and call _loadAnalyticsEntries(v)
   },
   // Timesheet extra filters & sort — all reset the page and invalidate agg cache
-  setTsClF:function(v){ST.tsClientFilter=v;ST.tsMatterFilter='';ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;render();},
-  setTsMaF:function(v){ST.tsMatterFilter=v;ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;render();},
-  setTsCtF:function(v){ST.tsContactFilter=v;ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;render();},
+  setTsClF:function(v){ST.tsClientFilter=v;ST.tsMatterFilter='';ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;dRender();},
+  setTsMaF:function(v){ST.tsMatterFilter=v;ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;dRender();},
+  setTsCtF:function(v){ST.tsContactFilter=v;ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;dRender();},
   loadAllEntriesNow:function(){ST.tsFilter='all';ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageLoading=false;render();},
-  setTsSort:function(v){ST.tsSort=v;ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;render();},
+  setTsSort:function(v){ST.tsSort=v;ST.tsPage=0;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;dRender();},
   toggleTsFilters:function(){ST.tsFiltersOpen=!ST.tsFiltersOpen;render();},
   // Pagination actions
   tsPrevPage:function(){if(ST.tsPage>0){ST.tsPage--;render();}},
@@ -7563,15 +7602,15 @@ var A={
   tsLastPage:function(p){ST.tsPage=p;render();},
   clearTsFilters:function(){ST.tsClientFilter='';ST.tsMatterFilter='';ST.tsContactFilter='';ST.tsSort='date-desc';ST.tsPage=0;ST.tsFiltersOpen=false;_tsPageResult=null;_tsAggCache=null;_tsPageGen++;render();},
   // Clients
-  setClSort:function(v){ST.clSort=v;ST.clPage=0;render();},
+  setClSort:function(v){ST.clSort=v;ST.clPage=0;dRender();},
   setClSearch:function(v){ST.clSearch=v;ST.clPage=0;dRender();},
   clPrevPage:function(){if(ST.clPage>0){ST.clPage--;render();}},
   clNextPage:function(){ST.clPage++;render();},
   clFirstPage:function(){ST.clPage=0;render();},
   clLastPage:function(p){ST.clPage=p;render();},
   // Matters
-  setMaSort:function(v){ST.maSort=v;ST.maPage=0;render();},
-  setMaClF:function(v){ST.maClientFilter=v;ST.maPage=0;render();},
+  setMaSort:function(v){ST.maSort=v;ST.maPage=0;dRender();},
+  setMaClF:function(v){ST.maClientFilter=v;ST.maPage=0;dRender();},
   setMaSearch:function(v){ST.maSearch=v;ST.maPage=0;dRender();},
   toggleMaGroup:function(){ST.maGroup=!ST.maGroup;ST.maPage=0;render();},
   clearMaFilters:function(){ST.maClientFilter='';ST.maSearch='';ST.maSort='alpha';ST.maGroup=false;ST.maPage=0;render();},
@@ -7580,7 +7619,7 @@ var A={
   maFirstPage:function(){ST.maPage=0;render();},
   maLastPage:function(p){ST.maPage=p;render();},
   // Contacts
-  setCtSort:function(v){ST.ctSort=v;ST.ctPage=0;render();},
+  setCtSort:function(v){ST.ctSort=v;ST.ctPage=0;dRender();},
   setCtSearch:function(v){ST.ctSearch=v;ST.ctPage=0;dRender();},
   ctPrevPage:function(){if(ST.ctPage>0){ST.ctPage--;render();}},
   ctNextPage:function(){ST.ctPage++;render();},
@@ -7898,7 +7937,7 @@ var A={
       invNum:null,
       invAmount:null,
       entriesCount:target.length,
-      hoursTotal:hrs.toFixed(1),
+      hoursTotal:(Math.round((hrs+Number.EPSILON)*10)/10).toFixed(1),
       _preview:false, _draft:null, _mailto:null, _preset:null
     };
     ST.modal='mailcompose'; render();
@@ -8462,7 +8501,7 @@ var A={
       clientName:clName,
       invId:null, invNum:null, invAmount:null,
       entriesCount:target.length,
-      hoursTotal:hrs.toFixed(1),
+      hoursTotal:(Math.round((hrs+Number.EPSILON)*10)/10).toFixed(1),
       note:'',
       _preview:false, _draft:null, _mailto:null, _preset:null
     };
@@ -9201,7 +9240,7 @@ var A={
         var updated;
         ST.entries=ST.entries.map(function(x){if(String(x.id)===String(f.addToId)){updated=Object.assign({},x,{hours:newHrs,rawMs:newRawMs});return updated;}return x;});
         if(updated){_patchEntry(updated);saveOne('entries',updated);}
-        ST.modal=null;ST.tab='timesheet';toast('+'+hrs.toFixed(1)+'h added \u2192 '+newHrs.toFixed(1)+'h total \u26A1');render();return;
+        ST.modal=null;ST.tab='timesheet';toast('+'+(Math.round((hrs+Number.EPSILON)*10)/10).toFixed(1)+'h added \u2192 '+(Math.round((newHrs+Number.EPSILON)*10)/10).toFixed(1)+'h total \u26A1');render();return;
       }
     }
     var entry={id:uid(),date:today(),clientId:f.clientId,matterId:f.matterId||'',contactId:f.contactId||'',
@@ -9294,7 +9333,7 @@ var A={
     });
     if(updated){_patchEntry(updated);saveOne('entries',updated);}
     ST.rowTmr=null;
-    toast('+'+msToHours(elapsed).toFixed(1)+'h added \u2192 '+newHrs.toFixed(1)+'h total \u26A1');
+    toast('+'+(Math.round((msToHours(elapsed)+Number.EPSILON)*10)/10).toFixed(1)+'h added \u2192 '+(Math.round((newHrs+Number.EPSILON)*10)/10).toFixed(1)+'h total \u26A1');
     render();
   },
 
@@ -11120,7 +11159,7 @@ function buildWorkflowImportPreview(){
           +'<div class="u-f1"><strong>'+H(e._clientName||'?')+'</strong>'+(e._matterName?' / '+H(e._matterName):'')
           +(e._matterNumber?' <span style="font-family:var(--font-mono);font-size:10px;color:var(--blue)">#'+H(e._matterNumber)+'</span>':'')
           +'<div style="color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+H(e.description||'—')+(e.abaCode?' <span style="color:var(--blue);font-family:var(--font-mono);font-size:10px">'+H(e.abaCode)+'</span>':'')+'</div></div>'
-          +'<div style="text-align:right;white-space:nowrap"><strong>'+Number(e.hours||0).toFixed(1)+'h</strong>'
+          +'<div style="text-align:right;white-space:nowrap"><strong>'+$h(e.hours)+'</strong>'
           +'<div style="font-size:11px;color:'+stColor+'">'+H(st)+'</div>'
           +'</div></div>';
       }).join('')
@@ -11157,6 +11196,41 @@ function buildWorkflowImportPreview(){
 
 // === CHANGE DELEGATION ===
 // Sync form state BEFORE any dropdown-triggered re-render so typed values survive
+
+// Custom type-ahead for <select> — replaces broken browser cycling.
+// Handles: repeated letter press cycles through all matches; single match stays put;
+// works correctly across optgroups and any option ordering.
+(function(){
+  var _k='', _ek='', _i=0, _t=null;
+  // Use a stable string key for the element so morph() re-renders don't break cycling.
+  // morph patches the DOM in place but may return a new node object; id/name/data-sf are stable.
+  function elKey(el){ return el.id||el.name||el.getAttribute('data-sf')||''; }
+  document.addEventListener('keydown', function(e){
+    var el=e.target;
+    if(el.tagName!=='SELECT'||el.disabled) return;
+    // Only handle printable single characters; let Tab/Enter/arrows pass through
+    if(e.key.length!==1||e.ctrlKey||e.metaKey||e.altKey) return;
+    var ch=e.key.toLowerCase();
+    e.preventDefault(); // block browser's own (broken) type-ahead
+    // Collect navigable options: skip disabled and blank placeholder
+    var opts=Array.prototype.slice.call(el.options).filter(function(o){
+      return !o.disabled && o.value!=='';
+    });
+    var matches=opts.filter(function(o){
+      return o.text.trim().toLowerCase().charAt(0)===ch;
+    });
+    if(!matches.length) return;
+    var ek=elKey(el);
+    // Same key on same element (by stable id/name/data-sf key) within 1.2 s → advance; otherwise restart
+    var idx=(_k===ch&&_ek===ek) ? (_i+1)%matches.length : 0;
+    el.value=matches[idx].value;
+    el.dispatchEvent(new Event('change',{bubbles:true}));
+    _k=ch; _ek=ek; _i=idx;
+    if(_t) clearTimeout(_t);
+    _t=setTimeout(function(){_k='';_ek='';_i=0;},1200);
+  });
+})();
+
 // === CHANGE DELEGATION
 document.addEventListener('change',function(e){
   var id=e.target.id;
