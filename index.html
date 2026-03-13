@@ -896,6 +896,27 @@ const Store=(function(){
     });
   }
 
+  // ── Write serialization queue ──────────────────────────────────────────────
+  // All readwrite IDB transactions are serialized through this promise chain.
+  // This eliminates AbortError / lock-contention races when saveOne (putRecord)
+  // and _flushSave (putBulkAll) attempt concurrent readwrite locks on the same
+  // object store.  Read-only transactions are NOT queued — IDB handles concurrent
+  // reads internally and they never contend with each other.
+  //
+  // _enqueue(fn) — fn must return a Promise (the actual IDB work).
+  //   • fn is always called regardless of whether the previous step failed, so
+  //     a single bad write never permanently stalls the queue.
+  //   • The promise returned to the caller resolves/rejects with fn's result,
+  //     giving callers accurate error signals.
+  //   • _writeQ is always kept in a "settled resolved" state so the next
+  //     _enqueue never blocks on a prior rejection.
+  var _writeQ=Promise.resolve();
+  function _enqueue(fn){
+    var p=_writeQ.then(fn,fn);     // run fn even if previous step rejected
+    _writeQ=p.then(function(){},function(){}); // keep chain alive regardless
+    return p;                       // caller gets the real promise (can reject)
+  }
+
   // ── Bounded Max-Heap — retains only the top K items during cursor scan ───
   // cmpFn(a,b) mirrors Array.prototype.sort: negative → a before b.
   // Root = "worst" item in the current top-K set (largest by cmpFn).
@@ -922,6 +943,18 @@ const Store=(function(){
   };
   BoundedHeap.prototype.toArray=function(){return this._d.slice();};
 
+  // ── Private batch-upsert — used internally by putBatch, putBatchChunked,
+  // and syncCollection.  Does NOT go through _enqueue so these callers can
+  // chain multiple _putBatch calls inside a single enqueued operation without
+  // re-entering the queue and deadlocking.
+  function _putBatch(name,arr){
+    if(!arr||!arr.length)return Promise.resolve();
+    return _tx(name,function(tx){
+      var os=tx.objectStore(name);
+      arr.forEach(function(rec){if(rec&&rec.id!=null)os.put(rec);});
+    });
+  }
+
   return{
     // ── Read ──
     getAll:function(name){
@@ -937,22 +970,19 @@ const Store=(function(){
     // ── Single-record upsert (safe: no clear, atomic) ──
     putRecord:function(name,rec){
       if(!rec||rec.id==null){console.warn('Store.putRecord: invalid record',name,rec);return Promise.resolve();}
-      return _tx(name,function(tx){tx.objectStore(name).put(rec);});
+      return _enqueue(function(){ return _tx(name,function(tx){tx.objectStore(name).put(rec);}); });
     },
 
     // ── Single-record delete (safe, atomic) ──
     deleteRecord:function(name,id){
       if(id==null){return Promise.resolve();}
-      return _tx(name,function(tx){tx.objectStore(name).delete(id);});
+      return _enqueue(function(){ return _tx(name,function(tx){tx.objectStore(name).delete(id);}); });
     },
 
     // ── Batch upsert WITHOUT clearing — safe even if interrupted ──
     putBatch:function(name,arr){
       if(!arr||!arr.length)return Promise.resolve();
-      return _tx(name,function(tx){
-        var os=tx.objectStore(name);
-        arr.forEach(function(rec){if(rec&&rec.id!=null)os.put(rec);});
-      });
+      return _enqueue(function(){ return _putBatch(name,arr); });
     },
 
     // ── Chunked sequential writer — splits arr into discrete transactions of chunkSize ──
@@ -960,14 +990,18 @@ const Store=(function(){
     // quota or lock failures that killed the previous oversized putBulkAll transaction.
     // Each chunk is its own IDB transaction; if a chunk fails, earlier chunks are already
     // committed (progress is preserved) and the error propagates so dirty flags are restored.
+    // The entire multi-chunk sequence is enqueued as ONE item so no other write can
+    // interleave between individual chunk transactions.
     putBatchChunked:function(name,arr,chunkSize){
       if(!arr||!arr.length)return Promise.resolve();
       var sz=chunkSize||50;
       var chunks=[];
       for(var i=0;i<arr.length;i+=sz) chunks.push(arr.slice(i,i+sz));
-      return chunks.reduce(function(p,chunk){
-        return p.then(function(){ return Store.putBatch(name,chunk); });
-      },Promise.resolve());
+      return _enqueue(function(){
+        return chunks.reduce(function(p,chunk){
+          return p.then(function(){ return _putBatch(name,chunk); });
+        },Promise.resolve());
+      });
     },
 
     // ── ATOMIC multi-store bulk write — single IDB transaction spanning all stores ──
@@ -983,37 +1017,41 @@ const Store=(function(){
       Object.keys(delsMap||{}).forEach(_push);
       if(metaMap&&Object.keys(metaMap).length)_push('meta');
       if(!storeNames.length)return Promise.resolve();
-      return _open().then(function(db){
-        return new Promise(function(resolve,reject){
-          var tx=db.transaction(storeNames,'readwrite');
-          tx.oncomplete=function(){resolve();};
-          tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
-          tx.onabort=function(e){reject(tx.error||e.target&&e.target.error||e);};
-          try{
-            // Upsert all dirty collection records
-            Object.keys(colsMap||{}).forEach(function(name){
-              var arr=colsMap[name]; if(!arr||!arr.length)return;
-              var os=tx.objectStore(name);
-              arr.forEach(function(rec){if(rec&&rec.id!=null)os.put(rec);});
-            });
-            // Drain pending deletes
-            Object.keys(delsMap||{}).forEach(function(name){
-              var ids=delsMap[name]; if(!ids)return;
-              var os=tx.objectStore(name);
-              Object.keys(ids).forEach(function(id){os.delete(id);});
-            });
-            // Write all meta keys
-            if(metaMap&&Object.keys(metaMap).length){
-              var metaOS=tx.objectStore('meta');
-              Object.keys(metaMap).forEach(function(k){metaOS.put({k:k,v:metaMap[k]});});
-            }
-          }catch(err){reject(err);}
+      return _enqueue(function(){
+        return _open().then(function(db){
+          return new Promise(function(resolve,reject){
+            var tx=db.transaction(storeNames,'readwrite');
+            tx.oncomplete=function(){resolve();};
+            tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+            tx.onabort=function(e){reject(tx.error||e.target&&e.target.error||e);};
+            try{
+              // Upsert all dirty collection records
+              Object.keys(colsMap||{}).forEach(function(name){
+                var arr=colsMap[name]; if(!arr||!arr.length)return;
+                var os=tx.objectStore(name);
+                arr.forEach(function(rec){if(rec&&rec.id!=null)os.put(rec);});
+              });
+              // Drain pending deletes
+              Object.keys(delsMap||{}).forEach(function(name){
+                var ids=delsMap[name]; if(!ids)return;
+                var os=tx.objectStore(name);
+                Object.keys(ids).forEach(function(id){os.delete(id);});
+              });
+              // Write all meta keys
+              if(metaMap&&Object.keys(metaMap).length){
+                var metaOS=tx.objectStore('meta');
+                Object.keys(metaMap).forEach(function(k){metaOS.put({k:k,v:metaMap[k]});});
+              }
+            }catch(err){reject(err);}
+          });
         });
       });
     },
 
     // ── Full sync: upsert all records, delete IDs no longer in arr ──
     // Use this for imports or bulk replace — never in normal edit flows.
+    // The entire two-phase operation is enqueued as ONE item so no other write
+    // can interleave between Phase 1 (upsert chunks) and Phase 2 (orphan prune).
     syncCollection:function(name,arr){
       // Two-phase strategy — upsert-first, prune-second — to eliminate the
       // data-loss window present in the previous delete-first approach.
@@ -1035,64 +1073,48 @@ const Store=(function(){
       // Each transaction is short-lived and sequential to prevent lock contention.
       var SYNC_CHUNK_SIZE=5000;
       var records=arr||[];
-      return _open().then(function(db){
-        // ── Phase 1: upsert in chunks (safe baseline established first) ───
-        var i=0;
-        function nextChunk(){
-          if(i>=records.length)return Promise.resolve(db);
-          var chunk=records.slice(i,i+SYNC_CHUNK_SIZE);
-          i+=SYNC_CHUNK_SIZE;
+      return _enqueue(function(){
+        return _open().then(function(db){
+          // ── Phase 1: upsert in chunks (safe baseline established first) ───
+          var i=0;
+          function nextChunk(){
+            if(i>=records.length)return Promise.resolve(db);
+            var chunk=records.slice(i,i+SYNC_CHUNK_SIZE);
+            i+=SYNC_CHUNK_SIZE;
+            return _putBatch(name,chunk).then(function(){ return nextChunk(); }).then(function(){ return db; });
+          }
+          return nextChunk();
+        }).then(function(db){
+          // ── Phase 2: prune orphaned keys (all writes committed before this) ─
           return new Promise(function(resolve,reject){
-            var tx=db.transaction(name,'readwrite');
-            var os=tx.objectStore(name);
-            chunk.forEach(function(r){if(r&&r.id!=null)os.put(r);});
-            tx.oncomplete=function(){resolve(db);};
-            tx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
-          }).then(nextChunk);
-        }
-        return nextChunk();
-      }).then(function(db){
-        // ── Phase 2: prune orphaned keys (all writes committed before this) ─
-        // Optimized: getAllKeys() fetches the full key list in one IDB request,
-        // then JS set-difference identifies orphans — no cursor iteration needed.
-        // For 10 years of entries the cursor would visit every record one-by-one;
-        // getAllKeys() + batch delete visits only the (typically tiny) orphan set.
-        return new Promise(function(resolve,reject){
-          // Build ID-existence set from incoming array (key strings only).
-          var incoming={};
-          records.forEach(function(r){if(r&&r.id!=null)incoming[r.id]=true;});
-          // Step 1: read all stored keys in one shot (readonly tx — no lock contention).
-          var rtx=db.transaction(name,'readonly');
-          var ros=rtx.objectStore(name);
-          var keysReq=ros.getAllKeys();
-          keysReq.onsuccess=function(e){
-            var allKeys=e.target.result;
-            // Step 2: compute orphans purely in JS — O(n) hash-set lookup.
-            var orphans=allKeys.filter(function(k){return !incoming[k];});
-            if(!orphans.length){resolve();return;}
-            // Step 3: delete orphan keys in sequential chunked transactions.
-            // A single transaction holding thousands of delete requests can exceed
-            // Safari's per-transaction time limit and abort. Chunking mirrors the
-            // Phase 1 upsert strategy — each short-lived tx commits before the next
-            // begins, keeping the transaction queue shallow on all browsers.
-            var DEL_CHUNK=2000;
-            var di=0;
-            function nextDelChunk(){
-              if(di>=orphans.length){resolve();return;}
-              var slice=orphans.slice(di,di+DEL_CHUNK);
-              di+=DEL_CHUNK;
-              var wtx=db.transaction(name,'readwrite');
-              var wos=wtx.objectStore(name);
-              slice.forEach(function(k){wos.delete(k);});
-              wtx.oncomplete=function(){nextDelChunk();};
-              wtx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
-            }
-            nextDelChunk();
-          };
-          keysReq.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
-          rtx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+            var incoming={};
+            records.forEach(function(r){if(r&&r.id!=null)incoming[r.id]=true;});
+            var rtx=db.transaction(name,'readonly');
+            var ros=rtx.objectStore(name);
+            var keysReq=ros.getAllKeys();
+            keysReq.onsuccess=function(e){
+              var allKeys=e.target.result;
+              var orphans=allKeys.filter(function(k){return !incoming[k];});
+              if(!orphans.length){resolve();return;}
+              var DEL_CHUNK=2000;
+              var di=0;
+              function nextDelChunk(){
+                if(di>=orphans.length){resolve();return;}
+                var slice=orphans.slice(di,di+DEL_CHUNK);
+                di+=DEL_CHUNK;
+                var wtx=db.transaction(name,'readwrite');
+                var wos=wtx.objectStore(name);
+                slice.forEach(function(k){wos.delete(k);});
+                wtx.oncomplete=function(){nextDelChunk();};
+                wtx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+              }
+              nextDelChunk();
+            };
+            keysReq.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+            rtx.onerror=function(e){reject(e.target&&e.target.error?e.target.error:e);};
+          });
         });
-      }).catch(function(err){throw err;});
+      });
     },
 
     // ── Legacy alias (now uses syncCollection — safe upsert+prune) ──
@@ -1338,19 +1360,21 @@ const Store=(function(){
     },
     setMeta:function(key,val){
       if(key==='prefs'){try{localStorage.setItem('bl-prefs',JSON.stringify(val));}catch(e){}}
-      return _tx('meta',function(tx){tx.objectStore('meta').put({k:key,v:val});});
+      return _enqueue(function(){ return _tx('meta',function(tx){tx.objectStore('meta').put({k:key,v:val});}); });
     },
 
     // ── Wipe everything (reset only) ──
     clearData:function(){
-      return _open().then(function(db){
-        return new Promise(function(resolve,reject){
-          var all=COLLECTIONS.concat(['meta']);
-          var tx=db.transaction(all,'readwrite');
-          all.forEach(function(name){tx.objectStore(name).clear();});
-          tx.oncomplete=function(){resolve();};
-          tx.onerror=function(e){reject(new Error('IndexedDB clear failed: '+(e.target&&e.target.error?e.target.error.message:'unknown error')));};
-          tx.onabort=function(e){reject(new Error('IndexedDB clear aborted: '+(e.target&&e.target.error?e.target.error.message:'unknown error')));};
+      return _enqueue(function(){
+        return _open().then(function(db){
+          return new Promise(function(resolve,reject){
+            var all=COLLECTIONS.concat(['meta']);
+            var tx=db.transaction(all,'readwrite');
+            all.forEach(function(name){tx.objectStore(name).clear();});
+            tx.oncomplete=function(){resolve();};
+            tx.onerror=function(e){reject(new Error('IndexedDB clear failed: '+(e.target&&e.target.error?e.target.error.message:'unknown error')));};
+            tx.onabort=function(e){reject(new Error('IndexedDB clear aborted: '+(e.target&&e.target.error?e.target.error.message:'unknown error')));};
+          });
         });
       });
     }
@@ -1360,6 +1384,7 @@ const Store=(function(){
 // === APP IIFE — keeps all internal vars off window; only A, fmtCur and the
 // small set of bare names referenced by inline HTML event handlers are exported.
 (function(){
+"use strict";
 
 // === STATE
 var ST={
@@ -1756,8 +1781,12 @@ function hhmmToDec(hh,mm){ return msToHours(hhmmToMs(hh,mm)); }
 // Compute billable amount. doRound=true applies 1/10th rounding before multiplication.
 function calcAmount(hours, rate, doRound){
   var h = doRound ? rndHours(hours) : Number(hours||0);
-  // Round to nearest cent so accumulated totals never drift (e.g. $120.0000000001).
-  return Math.round(h * Number(rate||0) * 100) / 100;
+  // Integer-based cent math: avoids IEEE-754 micro-fractions (e.g. 1.005*100 → 100.499…).
+  // Convert hours to ten-thousandths and rate to cents, multiply as integers, then
+  // divide back to dollars.  Math.round at each conversion step keeps units exact.
+  var hUnits  = Math.round(h * 10000);          // hours × 10000 (integer)
+  var rateCts = Math.round(Number(rate||0) * 100); // rate in cents (integer)
+  return Math.round(hUnits * rateCts / 10000) / 100;
 }
 
 function myRole(){ return ST.user&&ST.user.role||'attorney'; }
@@ -2919,9 +2948,9 @@ function field(label,id,o){
 }
 
 function stats(arr){
-  return '<div class="srow">'+arr.map(function(s){
-    return '<div class="sc'+(s[2]?' '+s[2]:'')+'"><div class="sc-lbl">'+H(s[0])+'</div><div class="sc-val">'+H(String(s[1]))+'</div></div>';
-  }).join('')+'</div>';
+  return html`<div class="srow">${arr.map(function(s){
+    return html`<div class="sc${s[2]?' '+s[2]:''}""><div class="sc-lbl">${s[0]}</div><div class="sc-val">${String(s[1])}</div></div>`;
+  })}</div>`;
 }
 // buildModal(o) — standard modal chrome. Eliminates repeated outer-wrapper boilerplate.
 // opts: size (sm|md|lg, default md), title (inner HTML of h2), titleClass (optional class on h2),
@@ -2973,29 +3002,10 @@ function buildModal(o){
 function _getSortWorker(){
   if(_sortWorker) return _sortWorker;
   // Worker receives raw entry objects + a lightweight {id:name} client map.
-  // All augmentation (sort keys: _ts, _cn, _hr, _am, _cat) happens off-thread,
-  // avoiding the O(n) Object.assign + string-lookup loop that blocked the main thread.
-  // Worker receives only a slim array of {id,_ts,_cn,_hr,_am,_cat} objects —
-  // pre-computed on the main thread before postMessage so Structured Clone copies
-  // a minimal payload instead of full entry objects (avoids main-thread blocking
-  // for large datasets). The worker sorts and returns an array of IDs; the main
-  // thread reconstructs the sorted entry array via its own id→entry map.
-  var code=[
-    'self.onmessage=function(e){',
-    '  var d=e.data,arr=d.slim,s=d.sort;',
-    '  arr.sort(function(a,b){',
-    '    if(s==="date-asc")  return a._ts-b._ts;',
-    '    if(s==="client")    return a._cn.localeCompare(b._cn);',
-    '    if(s==="hours")     return b._hr-a._hr;',
-    '    if(s==="amount")    return b._am-a._am;',
-    '    var dd=b._ts-a._ts; return dd!==0?dd:b._cat-a._cat;',
-    '  });',
-    '  var ids=new Array(arr.length);',
-    '  for(var i=0;i<arr.length;i++) ids[i]=arr[i].id;',
-    '  self.postMessage({key:d.key,ids:ids,hrs:d.hrs,bill:d.bill});',
-    '};'
-  ].join('\n');
-  var blob=new Blob([code],{type:'application/javascript'});
+  // All augmentation (sort keys: _ts, _cn, _hr, _am, _cat) happens off-thread.
+  // Source stored in <script id="worker-sort"> tag so minifiers cannot corrupt it.
+  var src=document.getElementById('worker-sort').textContent;
+  var blob=new Blob([src],{type:'application/javascript'});
   _sortWorker=new Worker(URL.createObjectURL(blob));
   return _sortWorker;
 }
@@ -3008,121 +3018,9 @@ function _getSortWorker(){
 // message back to the main thread.
 function _getAnalyticsWorker(){
   if(_anCalcWorker) return _anCalcWorker;
-  var code=[
-    'self.onmessage=function(ev){',
-    '  var d=ev.data;',
-    '  var fe=d.fe, clMap=d.clMap, clToGrp=d.clToGrp, groups=d.groups;',
-    '  var splitCts=d.splitCts, ctIdSet=d.ctIdSet, userPct=d.userPct;',
-    '  var anFilter=d.anFilter, nowMs=d.nowMs, key=d.key;',
-    // ── Inline helpers (no main-thread globals available inside Worker) ──────
-    '  function rndHours(h){ var v=Number(h||0); return (Math.round((v+Number.EPSILON)*10)/10); }',
-    '  function calcAmt(hours,rate){',
-    '    return Math.round(rndHours(hours)*Number(rate||0)*100)/100;',
-    '  }',
-    '  function salaryForPeriod(annual,f){',
-    '    if(annual==null||annual==="") return null;',
-    '    var a=Number(annual), now=new Date(nowMs);',
-    '    if(f==="week")    return a/52;',
-    '    if(f==="month")   return a/12;',
-    '    if(f==="quarter") return a/4;',
-    '    if(f==="year")    return a;',
-    '    if(f==="this_month"){',
-    '      var dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();',
-    '      return (a/12)*(now.getDate()/dim);',
-    '    }',
-    '    if(f==="this_quarter"){',
-    '      var qsm=Math.floor(now.getMonth()/3)*3;',
-    '      var qs=new Date(now.getFullYear(),qsm,1);',
-    '      var qe=new Date(now.getFullYear(),qsm+3,0);',
-    '      var qd=(qe-qs)/86400000+1;',
-    '      var el=Math.floor((now-qs)/86400000)+1;',
-    '      return (a/4)*(el/qd);',
-    '    }',
-    '    if(f==="this_year"){',
-    '      var yr=now.getFullYear();',
-    '      var isLeap=(yr%4===0&&yr%100!==0)||(yr%400===0);',
-    '      var yd=isLeap?366:365;',
-    '      var j1=new Date(yr,0,1);',
-    '      var el2=Math.floor((now-j1)/86400000)+1;',
-    '      return a*(el2/yd);',
-    '    }',
-    '    return null;',
-    '  }',
-    // ── Totals: O(E) ────────────────────────────────────────────────────────
-    '  var totHrs=0, totBill=0;',
-    '  for(var i=0;i<fe.length;i++){',
-    '    totHrs+=Number(fe[i].hours);',
-    '    totBill+=calcAmt(fe[i].hours,fe[i].rate);',
-    '  }',
-    // ── Revenue by client: O(E) ─────────────────────────────────────────────
-    '  var clAcc={};',
-    '  for(var i=0;i<fe.length;i++){',
-    '    var e=fe[i]; if(!e.clientId) continue;',
-    '    if(!clAcc[e.clientId]) clAcc[e.clientId]={hrs:0,bill:0};',
-    '    clAcc[e.clientId].hrs=Math.round((clAcc[e.clientId].hrs+Number(e.hours))*10000)/10000;',
-    '    clAcc[e.clientId].bill=Math.round((clAcc[e.clientId].bill+calcAmt(e.hours,e.rate))*100)/100;',
-    '  }',
-    '  var byClient=[], cids=Object.keys(clAcc);',
-    '  for(var i=0;i<cids.length;i++){',
-    '    var cid=cids[i];',
-    '    if(clAcc[cid].hrs>0) byClient.push({name:clMap[cid]||"Unknown",hrs:clAcc[cid].hrs,bill:clAcc[cid].bill});',
-    '  }',
-    '  byClient.sort(function(a,b){return b.bill-a.bill;});',
-    // ── Revenue by group: O(E) ──────────────────────────────────────────────
-    '  var grpAcc={};',
-    '  for(var i=0;i<fe.length;i++){',
-    '    var e=fe[i]; var gid=clToGrp[e.clientId]; if(!gid) continue;',
-    '    if(!grpAcc[gid]) grpAcc[gid]={hrs:0,bill:0};',
-    '    grpAcc[gid].hrs=Math.round((grpAcc[gid].hrs+Number(e.hours))*10000)/10000;',
-    '    grpAcc[gid].bill=Math.round((grpAcc[gid].bill+calcAmt(e.hours,e.rate))*100)/100;',
-    '  }',
-    '  var byGroup=[];',
-    '  for(var i=0;i<groups.length;i++){',
-    '    var g=groups[i], a=grpAcc[g.id]||{hrs:0,bill:0};',
-    '    if(a.hrs>0) byGroup.push({name:g.name,hrs:a.hrs,bill:a.bill});',
-    '  }',
-    '  byGroup.sort(function(a,b){return b.bill-a.bill;});',
-    // ── Contact revenue split: O(E) — accumulates ALL contacts for rawCtAcc ─
-    '  var ctAcc={};',
-    '  for(var i=0;i<fe.length;i++){',
-    '    var e=fe[i];',
-    '    var k=(e.contactId&&ctIdSet[e.contactId])?e.contactId:"__unassigned";',
-    '    if(!ctAcc[k]) ctAcc[k]={hrs:0,bill:0};',
-    '    ctAcc[k].hrs=Math.round((ctAcc[k].hrs+Number(e.hours))*10000)/10000;',
-    '    ctAcc[k].bill=Math.round((ctAcc[k].bill+calcAmt(e.hours,e.rate))*100)/100;',
-    '  }',
-    '  var contactSplit=[];',
-    '  for(var i=0;i<splitCts.length;i++){',
-    '    var c=splitCts[i], acc=ctAcc[c.id]||{hrs:0,bill:0};',
-    '    if(acc.hrs<=0) continue;',
-    '    var pct=c.ownPct!=null?Number(c.ownPct):100;',
-    '    var own=acc.bill*pct/100;',
-    '    var annSal=c.salary!=null&&c.salary!==""?Number(c.salary):null;',
-    '    var perSal=salaryForPeriod(annSal,anFilter);',
-    '    var net=perSal!=null?own-perSal:null;',
-    '    contactSplit.push({id:c.id,name:c.name,hrs:acc.hrs,bill:acc.bill,ownPct:pct,',
-    '      own:own,firm:acc.bill*(100-pct)/100,annualSalary:annSal,periodSalary:perSal,net:net});',
-    '  }',
-    '  var unacc=ctAcc["__unassigned"]||{hrs:0,bill:0};',
-    '  if(unacc.hrs>0){',
-    '    var uOwn=unacc.bill*userPct/100;',
-    '    contactSplit.push({id:"__unassigned",name:"(Unassigned)",hrs:unacc.hrs,bill:unacc.bill,',
-    '      ownPct:userPct,own:uOwn,firm:unacc.bill*(100-userPct)/100,',
-    '      annualSalary:null,periodSalary:null,net:null});',
-    '  }',
-    '  var totalOwn=0, totalFirm=0;',
-    '  for(var i=0;i<contactSplit.length;i++){totalOwn+=contactSplit[i].own;totalFirm+=contactSplit[i].firm;}',
-    '  self.postMessage({',
-    '    key:key,',
-    '    totals:{hrs:totHrs,bill:totBill},',
-    '    byClient:byClient,',
-    '    byGroup:byGroup,',
-    '    split:{contactSplit:contactSplit,totalOwn:totalOwn,totalFirm:totalFirm,',
-    '           uHrs:unacc.hrs,uBill:unacc.bill,userPct:userPct,rawCtAcc:ctAcc}',
-    '  });',
-    '};'
-  ].join('\n');
-  var blob=new Blob([code],{type:'application/javascript'});
+  // Source stored in <script id="worker-analytics"> tag so minifiers cannot corrupt it.
+  var src=document.getElementById('worker-analytics').textContent;
+  var blob=new Blob([src],{type:'application/javascript'});
   _anCalcWorker=new Worker(URL.createObjectURL(blob));
   _anCalcWorker.onmessage=function(ev){
     var res=ev.data;
@@ -3557,7 +3455,7 @@ function entryForm(){
     +'<h3>'+(ST.editId?'Edit Entry':'New Time Entry')+(role==='billing_staff'?' <span class="chip" style="background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);vertical-align:middle;margin-left:6px">Billing Entry</span>':'')+'</h3>'
     +statusNotice
     +byRow
-    +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d,sf:'ef.date'})+(function(){var _p=parseHHMM(f.hours);var _hh=f.hours?String(_p.hh):'';var _mm=f.hours?String(_p.mm):'';return '<div class="fl"><label>Hours <span class="req">*</span></label><div style="display:flex;gap:6px;align-items:center"><input type="number" inputmode="numeric" id="ef-hh" aria-label="Hours" min="0" step="1" value="'+H(_hh)+'" placeholder="0" style="width:72px;flex:none" oninput="A.efHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">hr</span><input type="number" inputmode="numeric" id="ef-mm" aria-label="Minutes" min="0" max="59" step="1" value="'+H(_mm)+'" placeholder="0" style="width:72px;flex:none" oninput="A.efHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">min</span></div>'+(f.errs&&f.errs.h?'<div class="ferr">'+H(f.errs.h)+'</div>':'<div class="fhint">Enter whole hours and minutes</div>')+'</div>';})()+'</div>'
+    +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d,sf:'ef.date'})+(function(){var _p=parseHHMM(f.hours);var _hh=f.hours?String(_p.hh):'';var _mm=f.hours?String(_p.mm):'';return String(html`<div class="fl"><label>Hours <span class="req">*</span></label><div style="display:flex;gap:6px;align-items:center"><input type="number" inputmode="numeric" id="ef-hh" aria-label="Hours" min="0" step="1" value="${_hh}" placeholder="0" style="width:72px;flex:none" oninput="A.efHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">hr</span><input type="number" inputmode="numeric" id="ef-mm" aria-label="Minutes" min="0" max="59" step="1" value="${_mm}" placeholder="0" style="width:72px;flex:none" oninput="A.efHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">min</span></div>${f.errs&&f.errs.h?html`<div class="ferr">${f.errs.h}</div>`:safe('<div class="fhint">Enter whole hours and minutes</div>')}</div>`);})()+'</div>'
     +'<div class="frow c2">'
     +(f.newCl
       ?field('Client','ef-ncn',{req:true,type:'inline-action',val:f.newClName||'',ph:'New client name',
@@ -3576,7 +3474,7 @@ function entryForm(){
       ?'<div class="frow">'+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Auto-filled from attorney rate schedule on entry date':'Auto-filled from attorney rate schedule on entry date',sf:'ef.rate'})+'</div>'
       :'<div class="frow c2">'+field('Team Member','ef-ct',{type:'select',opts:ctOpts,val:f.contactId||'',sf:'ef.contactId'})+field('Rate ($/hr)','ef-r',{pfx:'$',ph:'Auto from attorney schedule',val:(f.rate!==''&&f.rate!=null)?String(f.rate):'',err:f.errs&&f.errs.r,hint:total?'Total: '+total+'. Priority: Matter-attorney > Client-attorney > Attorney schedule':'Priority: Matter-attorney > Client-attorney > Attorney schedule',sf:'ef.rate'})+'</div>')
     +'<div class="frow c2">'+field('ABA/UTBMS Code','ef-aba',{type:'select',opts:ABA_TASK_CODES,val:f.abaCode||'',hint:'Optional task code for billing compliance',sf:'ef.abaCode'})+field('Description','ef-desc',{type:'textarea',rows:2,ph:'Describe the work performed...',val:f.description||'',sf:'ef.description'})+'</div>'
-    +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ef-desc\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'')
+    +(ST.descPresets.length>0?String(html`<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>${ST.descPresets.map(function(p,i){return html`<button type="button" class="desc-chip" onclick="A.pickDesc('ef-desc',${i})">${p}</button>`;})}</div>`):'')
     +'<div class="fa"><button class="btn btn-gh" onclick="A.closeF()">Cancel</button><button class="btn btn-bl" onclick="A.efSaveAndTimer()" title="Save entry and immediately start timer">⏱ Save &amp; Start Timer</button><button class="btn btn-dk" onclick="A.saveEnt()">'+IC.save+' Save Entry</button></div>'
     +'</div>';
 }
@@ -3686,7 +3584,7 @@ function vClients(){
     +(!ST.groups.length?'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px">No groups yet. <a href="#" onclick="event.preventDefault();A.openGF()" class="u-cbl">Create a client group</a> to share rates and contacts across multiple clients.</p>':'')
     +groupsH+groupFormH
     +(ST.clients.length>1?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
-    +'<input id="cl-search" aria-label="Search clients" type="text" value="'+H(ST.clSearch||'')+'" oninput="A.setClSearch(this.value)" placeholder="Search clients..." class="filter-select" style="min-width:160px">'
+    +String(html`<input id="cl-search" aria-label="Search clients" type="text" value="${ST.clSearch||''}" oninput="A.setClSearch(this.value)" placeholder="Search clients..." class="filter-select" style="min-width:160px">`)
     +grpFilterH
     +'<select name="cl-sort" aria-label="Sort clients" onchange="A.setClSort(this.value)" class="filter-select">'+sortOpts+'</select>'
     +(ST.clSearch||ST.clGrpFilter?'<button class="btn btn-gh" onclick="ST.clSearch=\'\';ST.clGrpFilter=\'\';ST.clPage=0;render();" style="font-size:12px;padding:7px 12px">&#10006; Clear</button>':'')
@@ -3814,9 +3712,9 @@ function clientForm(){
         var hints=[];
         if(selGrp.rate) hints.push('Default rate: <strong>'+$m(selGrp.rate)+'/hr</strong>');
         var grpCts=(selGrp.contactIds||[]).map(function(id){return _lu.ct[id];}).filter(Boolean);
-        if(grpCts.length) hints.push('Firm team: '+grpCts.map(function(c){return H(c.name);}).join(', '));
+        if(grpCts.length) hints.push('Firm team: '+grpCts.map(function(c){return String(html`${c.name}`);}).join(', '));
         var grpPpl=(selGrp.clientPeople||[]);
-        if(grpPpl.length) hints.push('Client contacts: '+grpPpl.map(function(p){return H(p.name);}).join(', '));
+        if(grpPpl.length) hints.push('Client contacts: '+grpPpl.map(function(p){return String(html`${p.name}`);}).join(', '));
         var arCount=(selGrp.attorneyRates||[]).length;
         if(arCount) hints.push(arCount+' negotiated attorney rate'+(arCount!==1?'s':''));
         if(hints.length) inheritH='<div style="font-size:11px;color:var(--ink2);background:var(--bg);border:1px solid var(--border-l);border-radius:6px;padding:7px 10px;margin-top:-4px"><span style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);display:block;margin-bottom:3px">Inherited from group (client-specific settings override)</span>'+hints.join(' &nbsp;&middot;&nbsp; ')+'</div>';
@@ -3919,7 +3817,7 @@ function vMatters(){
     +'<p class="u-fs12c3">'+(_maResult?_maResult.totalFiltered:ST.matters.length)+' of '+ST.matters.length+' matter'+(ST.matters.length!==1?'s':'')+'</p></div>'
     +addBtn+'</div>'
     +(ST.matters.length>0?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
-    +'<input id="ma-search" aria-label="Search matters" type="text" value="'+H(ST.maSearch||'')+'" oninput="A.setMaSearch(this.value)" placeholder="Search matters..." class="filter-select" style="min-width:160px">'
+    +String(html`<input id="ma-search" aria-label="Search matters" type="text" value="${ST.maSearch||''}" oninput="A.setMaSearch(this.value)" placeholder="Search matters..." class="filter-select" style="min-width:160px">`)
     +(ST.clients.length>1?'<select name="ma-client-filter" aria-label="Filter by client" onchange="A.setMaClF(this.value)" class="filter-select">'+clFilterOpts+'</select>':'')
     +'<select name="ma-sort" aria-label="Sort matters" onchange="A.setMaSort(this.value)" class="filter-select">'+sortOpts+'</select>'
     +'<button onclick="A.toggleMaGroup()" class="filter-select" style="cursor:pointer;background:'+(ST.maGroup?'var(--bg2)':'var(--white)')+';color:'+(ST.maGroup?'var(--ink)':'var(--ink3)')+';border-color:'+(ST.maGroup?'var(--ink3)':'var(--border)')+'">&#9776; Group</button>'
@@ -4050,7 +3948,7 @@ function vContacts(){
     +'<button class="btn btn-dk" onclick="A.openCTF()">'+IC.plus+' Add Contact</button>'
     +'</div>'
     +(ST.contacts.length>1?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">'
-    +'<input id="ct-search" aria-label="Search contacts" type="text" value="'+H(ST.ctSearch||'')+'" oninput="A.setCtSearch(this.value)" placeholder="Search contacts..." class="filter-select" style="min-width:160px">'
+    +String(html`<input id="ct-search" aria-label="Search contacts" type="text" value="${ST.ctSearch||''}" oninput="A.setCtSearch(this.value)" placeholder="Search contacts..." class="filter-select" style="min-width:160px">`)
     +'<select name="ct-sort" aria-label="Sort contacts" onchange="A.setCtSort(this.value)" class="filter-select">'+sortOpts+'</select>'
     +(ST.ctSearch?'<button class="btn btn-gh" onclick="A.setCtSearch(\'\')" style="font-size:12px;padding:7px 12px">&#10006; Clear</button>':'')
     +'</div>':'')
@@ -4619,11 +4517,11 @@ function buildInvoicePrint(){
     return String(html`<tr><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;color:#555">${l.date?safe($d(l.date)):''}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee">${l.desc}${l.matter?html`<br><span style="font-size:11px;color:#888">${l.matter}</span>`:''}${l.by?html`<br><span style="font-size:11px;color:#aaa">${l.by}</span>`:''}${l.partnerComment?html`<br><span style="font-size:11px;color:#555;font-style:italic">Note: ${l.partnerComment}</span>`:''}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right">${l.origHours!=null?safe('<span style="text-decoration:line-through;color:#bbb;font-size:11px;margin-right:5px">'+(Math.round((l.origHours+Number.EPSILON)*10)/10).toFixed(1)+'</span>'):safe('')}${safe((Math.round((l.hours+Number.EPSILON)*10)/10).toFixed(1))}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right">${safe($m(l.rate))}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${safe($m(l.amount))}</td></tr>`);
   }).join('');
 
-  var firmName=H(inv.firmName||ST.firmProfile&&ST.firmProfile.firmName||ST.prefs.appName||'');
-  var firmAddr=H(inv.firmAddress||'');
+  var firmName=String(html`${inv.firmName||ST.firmProfile&&ST.firmProfile.firmName||ST.prefs.appName||''}`);
+  var firmAddr=String(html`${inv.firmAddress||''}`);
   var firmPhone=inv.firmPhone?telLink(inv.firmPhone):'';
   var firmEmail=inv.firmEmail?mailLink(inv.firmEmail):'';
-  var invNum=H(inv.number||String(inv.id));
+  var invNum=String(html`${inv.number||String(inv.id)}`);
 
   var printWrap='<div id="inv-print-wrap" style="background:#fff;color:#222;font-family:'+fontSerif+';padding:0">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:32px 40px 24px;border-bottom:3px solid #111">'
@@ -4769,7 +4667,7 @@ function buildConfirmModal(){
     ovClick:'A.cancelConf()',
     modalStyle:'max-width:360px',
     bodyStyle:'padding:18px 22px',
-    body:'<p style="margin:0;font-size:14px;color:var(--ink2);line-height:1.55">'+H(c.msg||'Are you sure?')+'</p>',
+    body:html`<p style="margin:0;font-size:14px;color:var(--ink2);line-height:1.55">${c.msg||'Are you sure?'}</p>`,
     footer:'<button class="btn btn-gh" onclick="A.cancelConf()">Cancel</button>'
       +'<button class="btn '+(isDanger?'btn-rd':'btn-dk')+'" onclick="A.okConf()">'+(c.okLabel||'Delete')+'</button>'
   });
@@ -4777,14 +4675,14 @@ function buildConfirmModal(){
 function buildPromptModal(){
   var p=ST._prompt||{};
   return buildModal({size:'sm',
-    title:H(p.title||'Edit'),
+    title:String(html`${p.title||'Edit'}`),
     onClose:'A.cancelPrompt()',
     ovClick:'A.cancelPrompt()',
     modalStyle:'max-width:380px',
     bodyStyle:'padding:18px 22px',
     body:field(p.label||'Value','_prompt-val',{val:p.val||''}),
     footer:'<button class="btn btn-gh" onclick="A.cancelPrompt()">Cancel</button>'
-      +'<button class="btn btn-dk" onclick="A.okPrompt()">'+H(p.okLabel||'Save')+'</button>'
+      +String(html`<button class="btn btn-dk" onclick="A.okPrompt()">${p.okLabel||'Save'}</button>`)
   });
 }
 // == Partner Review Entry Modal ==
@@ -4803,10 +4701,10 @@ function buildPartnerReview(){
   var _prBody=''
     +'<div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:16px">'
     +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:6px">Original Submission</div>'
-    +'<div style="font-size:13px;font-weight:500">'+$d(e.date)+' — '+H(cl.name)+(mt?' / '+H(mt.name):'')+'</div>'
-    +'<div style="font-size:12px;color:var(--ink2);margin-top:3px">'+H(orig.description||'No description')+'</div>'
+    +String(html`<div style="font-size:13px;font-weight:500">${safe($d(e.date))} — ${cl.name}${mt?html` / ${mt.name}`:''}</div>`)
+    +String(html`<div style="font-size:12px;color:var(--ink2);margin-top:3px">${orig.description||'No description'}</div>`)
     +'<div style="font-size:12px;color:var(--ink3);margin-top:3px">'+$h(orig.hours)+' @ '+$m(orig.rate)+'/hr &nbsp;·&nbsp; <strong class="u-cgr">'+$m(Number(orig.hours)*Number(orig.rate))+'</strong>'
-    +(e.createdBy?' &nbsp;·&nbsp; by '+H(e.createdBy):'')+'</div>'
+    +String(html`${e.createdBy?html` &nbsp;·&nbsp; by ${e.createdBy}`:''}`)+'</div>'
     +'</div>'
     +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:10px">Partner Adjustments <span style="font-weight:400;text-transform:none;font-size:12px;color:var(--ink2)">(leave unchanged to keep originals)</span></div>'
     +'<div class="frow c2">'
@@ -4884,7 +4782,8 @@ function buildUP(){
       +splitFields
       +'<div style="margin-bottom:8px;font-size:13px;font-weight:600;color:var(--ink)">Your role</div>'
       +'<div class="splash-roles">'+roleCardsH+'</div>'
-      +'<input type="hidden" id="up-role" value="'+H(curRole)+'">'
+      +String(html`<input type="hidden" id="up-role" value="${curRole}">`)
+
       +'</div>'
       +'<div class="splash-footer">'
       +'<div style="display:flex;flex-direction:column;gap:5px">'
@@ -4900,7 +4799,7 @@ function buildUP(){
   }
 
   // Non-first-run: compact modal (chgUser)
-  var roleOpts=roles.map(function(o){return '<option value="'+o.v+'"'+(curRole===o.v?' selected':'')+'>'+H(o.label+' \u2014 '+o.desc)+'</option>';}).join('');
+  var roleOpts=roles.map(function(o){return String(html`<option value="${o.v}"${safe(curRole===o.v?' selected':'')}>${o.label+' \u2014 '+o.desc}</option>`);}).join('');
   return '<div class="up-wrap">'
     +'<div class="up-box">'
     +'<div class="up-icon">'+IC.usr+'</div>'
@@ -4944,7 +4843,7 @@ function buildQL(){
       +todayEntries.map(function(e){
         var cl=_lu.cl[e.clientId];var mt=_lu.ma[e.matterId];
         var label=(cl?cl.name:'?')+(mt?' \u2022 '+mt.name:'')+' ('+$h(e.hours)+')'+(e.description?' \u2013 '+e.description.substring(0,28)+(e.description.length>28?'\u2026':''):'');
-        return '<option value="'+e.id+'"'+(String(e.id)===String(addToId)?' selected':'')+'>'+H(label)+'</option>';
+        return String(html`<option value="${e.id}"${safe(String(e.id)===String(addToId)?' selected':'')}>${label}</option>`);
       }).join('');
     continueH='<div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 20px">'
       +'<label style="font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Continue existing entry today</label>'
@@ -4989,8 +4888,8 @@ function buildQL(){
     var cl2=_lu.cl[f.clientId]||null;
     var mt2=_lu.ma[f.matterId]||null;
     clientMatterH='<div class="frow c2 u-mb12">'
-      +'<div class="fl"><label>Client</label><div class="read-field">'+H(cl2?cl2.name:'\u2014')+'</div></div>'
-      +'<div class="fl"><label>Matter</label><div class="read-field" style="color:var(--ink2)">'+H(mt2?mt2.name:'General')+'</div></div>'
+      +String(html`<div class="fl"><label>Client</label><div class="read-field">${cl2?cl2.name:'\u2014'}</div></div>`)
+      +String(html`<div class="fl"><label>Matter</label><div class="read-field" style="color:var(--ink2)">${mt2?mt2.name:'General'}</div></div>`)
       +'</div>';
   } else {
     clientMatterH='<div class="frow c2 u-mb12">'+clientField+matterField+'</div>';
@@ -5007,12 +4906,12 @@ function buildQL(){
     +'</div>';
   var _qlBody=clientMatterH
     +'<div class="frow c2 u-mb12">'
-    +(function(){var _qp=parseHHMM(f.hours);var _qhh=f.hours?String(_qp.hh):'';var _qmm=f.hours?String(_qp.mm):'';var timerTip=f.rawMs!=null?' title="Timer-measured: '+msToHMS(f.rawMs)+' exact"':'';return '<div class="fl"><label>'+(f.addToId?'Hours to Add':'Hours')+' <span class="req">*</span></label><div style="display:flex;gap:6px;align-items:center"><input type="number" inputmode="numeric" id="ql-hh" aria-label="Hours" min="0" step="1" value="'+H(_qhh)+'" placeholder="0" style="width:68px;flex:none" oninput="A.qlHrsInput()"'+timerTip+'><span style="font-size:13px;color:var(--ink3);white-space:nowrap">hr</span><input type="number" inputmode="numeric" id="ql-mm" aria-label="Minutes" min="0" max="59" step="1" value="'+H(_qmm)+'" placeholder="0" style="width:68px;flex:none" oninput="A.qlHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">min</span></div></div>';})()
+    +(function(){var _qp=parseHHMM(f.hours);var _qhh=f.hours?String(_qp.hh):'';var _qmm=f.hours?String(_qp.mm):'';var timerTip=f.rawMs!=null?' title="Timer-measured: '+msToHMS(f.rawMs)+' exact"':'';return String(html`<div class="fl"><label>${f.addToId?'Hours to Add':'Hours'} <span class="req">*</span></label><div style="display:flex;gap:6px;align-items:center"><input type="number" inputmode="numeric" id="ql-hh" aria-label="Hours" min="0" step="1" value="${_qhh}" placeholder="0" style="width:68px;flex:none" oninput="A.qlHrsInput()"${safe(timerTip)}><span style="font-size:13px;color:var(--ink3);white-space:nowrap">hr</span><input type="number" inputmode="numeric" id="ql-mm" aria-label="Minutes" min="0" max="59" step="1" value="${_qmm}" placeholder="0" style="width:68px;flex:none" oninput="A.qlHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">min</span></div></div>`);})()
     +field('Rate ($/hr)','ql-r',{pfx:'$',val:f.rate||'',ph:'Auto',oninput:"A.qlSet('rate',fmtCur(this.value))",sf:'ql.rate'})
     +'</div>'
     +field('Description','ql-d',{val:f.description||'',ph:'What did you work on?',oninput:"A.qlSet('description',this.value)",onkeydown:"if(event.key==='Enter')A.saveQL()",sf:'ql.description'})
     +(total?'<div class="total-pill">Total: <strong>'+total+'</strong></div>':'')
-    +(ST.descPresets.length>0?'<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>'+ST.descPresets.map(function(p,i){return '<button type="button" class="desc-chip" onclick="A.pickDesc(\'ql-d\','+i+')">'+ H(p)+'</button>';}).join('')+'</div>':'');
+    +(ST.descPresets.length>0?String(html`<div class="desc-chips"><span style="font-size:11px;color:var(--ink3);margin-right:4px">Suggestions:</span>${ST.descPresets.map(function(p,i){return html`<button type="button" class="desc-chip" onclick="A.pickDesc('ql-d',${i})">${p}</button>`;})}</div>`):'');
   return buildModal({size:'sm',
     title:headingLabel,titleClass:'u-fac8',
     onClose:'A.closeQL()',
@@ -5182,12 +5081,12 @@ function buildHelp(){
       ['Which browsers are supported?','Chrome and Chromium-based browsers (Edge, Brave) offer the most stable IndexedDB implementation. Firefox and Safari also work. Always use the same browser profile for consistent access to your data.'],
       ['Does this work offline?','Yes. The file has no external dependencies and requires no internet connection. Download the HTML file, save it locally, and open it by double-clicking \u2014 it runs entirely in your browser without any network access.'],
       ['Can multiple people use the same file?','No \u2014 the app is designed for a single user per browser instance. Multi-person workflows use the submission package system: attorneys export their entries as a .json package, and the partner imports it. The Firm Profile handles initial configuration distribution.'],
-    ].map(function(q){return '<div class="faq-item"><strong>'+H(q[0])+'</strong><p>'+q[1]+'</p></div>';}).join('')
+    ].map(function(q){return String(html`<div class="faq-item"><strong>${q[0]}</strong><p>${safe(q[1])}</p></div>`);}).join('')
   };
   return buildModal({size:'lg',
     title:IC.help+' Help & Guide',titleClass:'u-fac8',
     onClose:'A.closeM()',
-    body:'<div class="help-lay"><div class="help-nav">'+tabs.map(function(t){return '<button class="'+(ST.helpTab===t[0]?'on':'')+'" onclick="A.setHT(\''+t[0]+'\')">'+H(t[1])+'</button>';}).join('')+'</div>'
+    body:'<div class="help-lay"><div class="help-nav">'+tabs.map(function(t){return String(html`<button class="${ST.helpTab===t[0]?'on':''}" onclick="A.setHT('${safe(t[0])}')">${t[1]}</button>`);}).join('')+'</div>'
       +'<div class="help-body">'+(content[ST.helpTab]||'')+'</div></div>'
   });
 }
@@ -5223,8 +5122,8 @@ function buildExportModal(){
   if(ds==='entries'){
     // Date range
     var drBody='<div class="frow c2">'
-      +'<div class="fl"><label for="csvx-dfrom">From</label><input type="date" id="csvx-dfrom" value="'+H(x.dateFrom||'')+'" onchange="A.csvXOpt(\'dateFrom\',this.value)"></div>'
-      +'<div class="fl"><label for="csvx-dto">To</label><input type="date" id="csvx-dto" value="'+H(x.dateTo||'')+'" onchange="A.csvXOpt(\'dateTo\',this.value)"></div>'
+      +String(html`<div class="fl"><label for="csvx-dfrom">From</label><input type="date" id="csvx-dfrom" value="${x.dateFrom||''}" onchange="A.csvXOpt('dateFrom',this.value)"></div>`)
+      +String(html`<div class="fl"><label for="csvx-dto">To</label><input type="date" id="csvx-dto" value="${x.dateTo||''}" onchange="A.csvXOpt('dateTo',this.value)"></div>`)
       +'</div>'
       +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px">'
       +['today','week','month','quarter','year','all'].map(function(p){
@@ -5243,7 +5142,7 @@ function buildExportModal(){
       clOpts2.forEach(function(c){
         clBd+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:2px 0">'
           +'<input type="checkbox" id="csv-cl-'+c.id+'" name="csv-cl-'+c.id+'" '+(x.clientIds[c.id]?'checked':'')+' onchange="A.csvXTogClient('+c.id+',this.checked)" class="u-ico-ns">'
-          +H(c.name)+'</label>';
+          +String(html`${c.name}`)+'</label>';
       });
       clBd+='</div>';
     } else if(!x.allClients){
@@ -5262,7 +5161,7 @@ function buildExportModal(){
         var cl=_lu.cl[m.clientId];
         maBd+='<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;padding:2px 0">'
           +'<input type="checkbox" id="csv-ma-'+m.id+'" name="csv-ma-'+m.id+'" '+(x.matterIds[m.id]?'checked':'')+' onchange="A.csvXTogMatter('+m.id+',this.checked)" class="u-ico-ns">'
-          +H(m.name)+(cl?' <span class="u-fs11c3">— '+H(cl.name)+'</span>':'')+'</label>';
+          +String(html`${m.name}${cl?html` <span class="u-fs11c3">— ${cl.name}</span>`:''}`)+'</label>';
       });
       maBd+='</div>';
     } else if(!x.allMatters){
@@ -5386,7 +5285,7 @@ function buildExportModal(){
   var outBd='<div class="frow c2">'
     +'<div class="fl"><label for="csv-datefmt">Date format</label><div style="display:flex;gap:6px;align-items:center"><select id="csv-datefmt" name="csv-datefmt" onchange="A.csvXOpt(\'dateFormat\',this.value)">'+dfOpts+'</select>'+_setDefBtn+'</div></div>'
     +'<div class="fl"><label for="csv-fnprefix">Filename prefix <span style="font-size:10px;color:var(--ink3)">(optional)</span></label>'
-    +'<input type="text" id="csv-fnprefix" name="csv-fnprefix" placeholder="e.g. acme_" value="'+H(x.filenamePrefix||'')+'" onchange="A.csvXOpt(\'filenamePrefix\',this.value)"></div>'
+    +String(html`<input type="text" id="csv-fnprefix" name="csv-fnprefix" placeholder="e.g. acme_" value="${x.filenamePrefix||''}" onchange="A.csvXOpt('filenamePrefix',this.value)">`)+'</div>'
     +'</div>'
     +(ds==='entries'?'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:6px">'
       +'<input type="checkbox" id="csv-currency-sym" name="csv-currency-sym" '+(x.currencySymbol?'checked':'')+' onchange="A.csvXOpt(\'currencySymbol\',this.checked)" class="u-ico">Include $ symbol in currency fields (uncheck for numeric-only)</label>'
@@ -5398,7 +5297,7 @@ function buildExportModal(){
   var rowCount=A._csvXCount();
   var preview='<div style="background:var(--bg2);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink2);display:flex;align-items:center;justify-content:space-between;margin-bottom:0">'
     +'<span>'+IC.list+' <strong style="color:var(--ink)">'+rowCount+'</strong> row'+(rowCount!==1?'s':'')+' will be exported'
-    +(ds==='entries'&&(x.dateFrom||x.dateTo)?'&ensp;<span class="u-c3">'+(x.dateFrom?'from '+H(x.dateFrom):'')+(x.dateTo?' to '+H(x.dateTo):'')+'</span>':'')
+    +(ds==='entries'&&(x.dateFrom||x.dateTo)?'&ensp;<span class="u-c3">'+String(html`${x.dateFrom?html`from ${x.dateFrom}`:''}${x.dateTo?html` to ${x.dateTo}`:''}`)+'</span>':'')
     +'</span></div>';
 
   return buildModal({
@@ -5447,7 +5346,7 @@ function buildSettings(){
   var s=ST.settings;
   var stab=ST.settingsTab||'firm';
   var settingsTabs=[['firm','Firm'],['appearance','Appearance'],['backup','Backup'],['descriptions','Descriptions'],['email','Email'],['export','Export'],['placeholders','Placeholders'],['advanced','Advanced']];
-  var tabNav='<div class="set-tabs" style="margin-bottom:0">'+settingsTabs.map(function(t){return '<button class="set-tab'+(stab===t[0]?' on':'')+'" onclick="A.setStab(\''+t[0]+'\')">'+H(t[1])+'</button>';}).join('')+'</div>';
+  var tabNav='<div class="set-tabs" style="margin-bottom:0">'+settingsTabs.map(function(t){return String(html`<button class="set-tab${stab===t[0]?' on':''}" onclick="A.setStab('${safe(t[0])}')">${t[1]}</button>`);}).join('')+'</div>';
   var body='';
 
   if(stab==='export'){
@@ -5605,13 +5504,13 @@ function buildSettings(){
       +'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
       +'<div class="fl" style="min-width:160px"><label class="u-fs12" for="csvq-datefmt">Date format</label><select id="csvq-datefmt" name="csvq-datefmt" onchange="A.csvQPref(\'dateFormat\',this.value)">'+qDfOpts+'</select></div>'
       +'<div class="fl" style="min-width:140px;flex:1"><label class="u-fs12" for="csvq-fnprefix">Filename prefix</label>'
-      +'<input type="text" id="csvq-fnprefix" name="csvq-fnprefix" placeholder="e.g. acme_{date}_" value="'+H(q.filenamePrefix||'')+'" onchange="A.csvQPref(\'filenamePrefix\',this.value)"></div>'
+      +String(html`<input type="text" id="csvq-fnprefix" name="csvq-fnprefix" placeholder="e.g. acme_{date}_" value="${q.filenamePrefix||''}" onchange="A.csvQPref('filenamePrefix',this.value)">`)+'</div>'
       +'</div>'
       +'<div style="background:var(--bg);border-radius:7px;padding:8px 10px;margin-top:8px">'
       +'<div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Click to insert placeholder at cursor</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:4px">'
-      +_FILE_PH.map(function(ph){ return '<button type="button" title="'+H(ph[1])+'" onclick="_fnInsert(\''+ph[0]+'\')" class="ph-btn">'+H(ph[0])+'</button>'; }).join('')
-      +(ST.mailPlaceholders&&ST.mailPlaceholders.length ? ST.mailPlaceholders.map(function(p){ return '<button type="button" title="'+H(p.label)+'" onclick="_fnInsert(\'{'+p.key+'}\')" class="ph-btn ph-btn-dim">'+H('{'+p.key+'}')+'</button>'; }).join('') : '')
+      +_FILE_PH.map(function(ph){ return String(html`<button type="button" title="${ph[1]}" onclick="_fnInsert('${safe(ph[0])}')" class="ph-btn">${ph[0]}</button>`); }).join('')
+      +(ST.mailPlaceholders&&ST.mailPlaceholders.length ? ST.mailPlaceholders.map(function(p){ return String(html`<button type="button" title="${p.label}" onclick="_fnInsert('{${safe(p.key)}}')" class="ph-btn ph-btn-dim">${'{'+p.key+'}'}</button>`); }).join('') : '')
       +'</div></div>'
       +(qds==='entries'
         ?'<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 0;white-space:nowrap;margin-bottom:2px"><input type="checkbox" id="csvq-currency" name="csvq-currency" '+(q.currencySymbol?'checked':'')+' onchange="A.csvQPref(\'currencySymbol\',this.checked)" class="u-ico">Include $ symbol</label>'
@@ -5652,8 +5551,8 @@ function buildSettings(){
       +'<h3>Firm Identity</h3>'
       +'<p class="u-desc-text">Your firm name and app display name used across exports, invoices, and the header.</p>'
       +'<div class="frow c2 u-mb12">'
-      +'<div class="fl"><label for="it-firmname">Firm Name</label><input type="text" id="it-firmname" value="'+H(fp.firmName||'')+'" placeholder="e.g. Smith &amp; Associates LLP" class="std-input" /></div>'
-      +'<div class="fl"><label for="pref-name">App Name</label><input type="text" id="pref-name" value="'+H(p2.appName||'SixMinuteLog.com')+'" placeholder="SixMinuteLog.com" class="std-input" /></div>'
+      +String(html`<div class="fl"><label for="it-firmname">Firm Name</label><input type="text" id="it-firmname" value="${fp.firmName||''}" placeholder="e.g. Smith &amp; Associates LLP" class="std-input" /></div>`)
+      +String(html`<div class="fl"><label for="pref-name">App Name</label><input type="text" id="pref-name" value="${p2.appName||'SixMinuteLog.com'}" placeholder="SixMinuteLog.com" class="std-input" /></div>`)
       +'</div>'
       +'<button class="btn btn-dk" onclick="A.saveAppName()">Save Firm Identity</button>'
       +'</div>'
@@ -5672,12 +5571,7 @@ function buildSettings(){
         +'<p style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.5">Users defined here appear as selectable profiles when a new user imports the firm profile. Each gets their own name, initials, role, rate, and ownership %.</p>'
         +(itUsers.length>0
           ? itUsers.map(function(u,i){
-              return '<div class="crow" style="margin-bottom:8px;background:var(--bg);border-radius:8px;padding:10px 14px">'
-                +'<div style="flex:1"><strong style="font-size:13px">'+H(u.name)+'</strong>'
-                +'<div class="u-fs11c3">'+H(u.initials||'')+(u.role?' | '+H(u.role):'')+(u.rate?' | $'+H(u.rate)+'/hr':'')+(u.ownPct!=null?' | '+H(String(u.ownPct))+'% share':'')+'</div></div>'
-                +'<button class="btn-ic" onclick="A.editITUser('+i+')" title="Edit">'+IC.edit+'</button>'
-                +'<button class="btn-ic" onclick="A.delITUser('+i+')" title="Delete">'+IC.trash+'</button>'
-                +'</div>';
+              return String(html`<div class="crow" style="margin-bottom:8px;background:var(--bg);border-radius:8px;padding:10px 14px"><div style="flex:1"><strong style="font-size:13px">${u.name}</strong><div class="u-fs11c3">${u.initials||''}${u.role?' | '+u.role:''}${u.rate?' | $'+u.rate+'/hr':''}${u.ownPct!=null?' | '+String(u.ownPct)+'% share':''}</div></div><button class="btn-ic" onclick="A.editITUser(${i})" title="Edit">${safe(IC.edit)}</button><button class="btn-ic" onclick="A.delITUser(${i})" title="Delete">${safe(IC.trash)}</button></div>`);
             }).join('')
           : buildEmptyState('','No users configured','','padding:16px')
         )
@@ -5715,7 +5609,7 @@ function buildSettings(){
       +'</div>'
       +'<h3>Layout Density</h3>'
       +'<div class="preset-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:0">'
-      +layouts.map(function(l){return '<button class="preset-btn'+(p.layout===l[0]?' on':'')+'" style="'+(p.layout===l[0]?'border-color:var(--ink);background:var(--bg)':'')+'" onclick="A.setLayout(\''+l[0]+'\')"><strong>'+H(l[1])+'</strong><span style="font-size:11px;color:var(--ink3);display:block;margin-top:2px">'+H(l[2])+'</span></button>';}).join('')
+      +layouts.map(function(l){return String(html`<button class="preset-btn${p.layout===l[0]?' on':''}" style="${safe(p.layout===l[0]?'border-color:var(--ink);background:var(--bg)':'')}" onclick="A.setLayout('${safe(l[0])}')" ><strong>${l[1]}</strong><span style="font-size:11px;color:var(--ink3);display:block;margin-top:2px">${l[2]}</span></button>`);}).join('')
       +'</div></div>';
   }
 
@@ -5725,8 +5619,8 @@ function buildSettings(){
       +'<p style="font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.6">These appear as clickable chips below description fields in the time entry form and Quick Log, letting you quickly select common descriptions.</p>'
       +(ST.descPresets.length>0
         ? ST.descPresets.map(function(p,i){
-          return '<div class="preset-item"><span>'+H(p)+'</span>'
-            +'<button title="Move up" onclick="A.moveDesc('+i+',-1)">'
+          return String(html`<div class="preset-item"><span>${p}</span>`
+            +safe('<button title="Move up" onclick="A.moveDesc('+i+',-1)">'
               +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>'
             +'</button>'
             +'<button title="Move down" onclick="A.moveDesc('+i+',1)">'
@@ -5734,7 +5628,7 @@ function buildSettings(){
             +'</button>'
             +'<button title="Edit" onclick="A.editDescPreset('+i+')" class="u-cbl">'+IC.edit+'</button>'
             +'<button title="Delete" onclick="A.delDesc('+i+')">'+IC.trash+'</button>'
-            +'</div>';
+            +'</div>'));
         }).join('')
         : buildEmptyState('','No descriptions yet','','padding:24px')
       )
@@ -5762,16 +5656,16 @@ function buildSettings(){
             +'<button class="btn-ic" onclick="A.delMailPreset('+i+')" title="Delete">'+IC.trash+'</button>'
             +'</div>'
             +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
-            +'<h4 style="margin:0">'+H(mp.name||'Preset '+(i+1))+'</h4>'
+            +'<h4 style="margin:0">'+String(html`${mp.name||'Preset '+(i+1)}`)+'</h4>'
             +'<span class="status-badge '+(({general:'s-neutral',invoice_client:'s-approved',billing_staff:'s-review',partner_approval:'s-pending'}[mp.purpose||'general']||'s-neutral')+'" style="font-size:10px;padding:2px 7px">'+purposeLabel(mp.purpose||'general')+'</span>')
             +(pri!=='normal'?'<span style="font-size:10px;font-weight:600;'+PRIO_STYLE[pri]+'">'+PRIO_LABEL[pri]+'</span>':'')
             +'</div>'
-            +(mp.to?'<p>To: '+H(mp.to)+'</p>':'<p class="u-fs11c3">To: auto-filled from context</p>')
-            +(mp.cc?'<p class="u-fs11">CC: '+H(mp.cc)+'</p>':'')
-            +(mp.bcc?'<p class="u-fs11">BCC: '+H(mp.bcc)+'</p>':'')
-            +(mp.replyTo?'<p class="u-fs11">Reply-To: '+H(mp.replyTo)+'</p>':'')
-            +(mp.subject?'<p>Subject: '+H(mp.subject)+'</p>':'')
-            +(mp.body?'<p style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;font-size:11px;color:var(--ink3)">'+H(mp.body)+'</p>':'')
+            +(mp.to?'<p>To: '+String(html`${mp.to}`)+'</p>':'<p class="u-fs11c3">To: auto-filled from context</p>')
+            +(mp.cc?'<p class="u-fs11">CC: '+String(html`${mp.cc}`)+'</p>':'')
+            +(mp.bcc?'<p class="u-fs11">BCC: '+String(html`${mp.bcc}`)+'</p>':'')
+            +(mp.replyTo?'<p class="u-fs11">Reply-To: '+String(html`${mp.replyTo}`)+'</p>':'')
+            +(mp.subject?'<p>Subject: '+String(html`${mp.subject}`)+'</p>':'')
+            +(mp.body?'<p style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;font-size:11px;color:var(--ink3)">'+String(html`${mp.body}`)+'</p>':'')
             +(mp.signature?'<p style="font-size:10px;color:var(--ink3);font-style:italic">\u2014 Signature attached</p>':'')
             +'<button class="btn btn-bl" style="margin-top:10px;font-size:12px" onclick="A.sendMailPreset('+i+')">'+IC.mail+' Send via Email</button>'
             +'</div>';
@@ -5796,9 +5690,9 @@ function buildSettings(){
       +'<div style="display:grid;grid-template-columns:auto 1fr auto;gap:0;border:1px solid var(--brd);border-radius:8px;overflow:hidden">'
       +BUILTIN_PH.map(function(p,i){
         var bg=i%2===0?'background:var(--bg)':'background:var(--white)';
-        return '<div style="'+bg+';padding:5px 10px;font-family:var(--font-mono);font-size:11px;color:var(--blue);border-bottom:1px solid var(--brd)">'+H(p[0])+'</div>'
-          +'<div style="'+bg+';padding:5px 10px;font-size:11px;color:var(--ink2);border-bottom:1px solid var(--brd)">'+H(p[1])+'<span style="color:var(--ink3);margin-left:6px;font-size:10px">'+H(p[3])+'</span></div>'
-          +'<div style="'+bg+';padding:5px 10px;font-size:10px;color:var(--ink3);border-bottom:1px solid var(--brd);white-space:nowrap">e.g. '+H(p[2])+'</div>';
+        return String(html`<div style="${safe(bg)};padding:5px 10px;font-family:var(--font-mono);font-size:11px;color:var(--blue);border-bottom:1px solid var(--brd)">${p[0]}</div>`)
+          +String(html`<div style="${safe(bg)};padding:5px 10px;font-size:11px;color:var(--ink2);border-bottom:1px solid var(--brd)">${p[1]}<span style="color:var(--ink3);margin-left:6px;font-size:10px">${p[3]}</span></div>`)
+          +String(html`<div style="${safe(bg)};padding:5px 10px;font-size:10px;color:var(--ink3);border-bottom:1px solid var(--brd);white-space:nowrap">e.g. ${p[2]}</div>`);
       }).join('')
       +'</div>'
       +'</div>'
@@ -5809,19 +5703,13 @@ function buildSettings(){
           +ST.mailPlaceholders.map(function(p,i){
             var bg=i%2===0?'background:var(--bg)':'background:var(--white)';
             var autoFill=p.linkedField
-              ? '<span class="badge-link">\uD83D\uDD17 '+H(_lfLabel(p.linkedField))+'</span>'
+              ? String(html`<span class="badge-link">\uD83D\uDD17 ${_lfLabel(p.linkedField)}</span>`)
               : '';
-            var defPart=(p.defaultValue)?'<span class="u-fs11c3">default: '+H(p.defaultValue)+'</span>':'';
+            var defPart=(p.defaultValue)?String(html`<span class="u-fs11c3">default: ${p.defaultValue}</span>`):'';
             var valueDisplay=(autoFill||defPart)
               ? '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:1px">'+autoFill+defPart+'</div>'
               : '<span class="u-fs11c3">(no default \u2014 assign per client/matter)</span>';
-            return '<div style="'+bg+';display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--brd)">'
-              +'<code style="font-size:12px;color:var(--blue);flex-shrink:0">{'+H(p.key)+'}</code>'
-              +'<div class="u-f1"><div style="font-size:12px;font-weight:500">'+H(p.label)+'</div>'
-              +'<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">'+valueDisplay+'</div></div>'
-              +'<button class="btn-ic" onclick="A.openMailPH('+i+')" title="Edit">'+IC.edit+'</button>'
-              +'<button class="btn-ic" onclick="A.delMailPH('+i+')" title="Delete" style="color:var(--red)">'+IC.trash+'</button>'
-              +'</div>';
+            return String(html`<div style="${safe(bg)};display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--brd)"><code style="font-size:12px;color:var(--blue);flex-shrink:0">{${p.key}}</code><div class="u-f1"><div style="font-size:12px;font-weight:500">${p.label}</div><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${safe(valueDisplay)}</div></div>${safe('<button class="btn-ic" onclick="A.openMailPH('+i+')" title="Edit">'+IC.edit+'</button><button class="btn-ic" onclick="A.delMailPH('+i+')" title="Delete" style="color:var(--red)">'+IC.trash+'</button>')}</div>`);
           }).join('')
           +'</div>'
         : buildEmptyState('','No custom placeholders yet','Add one to create reusable tokens like {my_firm_address} or {partner_name}','padding:14px')
@@ -5832,7 +5720,7 @@ function buildSettings(){
   if(stab==='advanced'){
     body+='<div class="set-section"><h3>Current User</h3>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);border-radius:8px;padding:12px 16px;margin-bottom:10px">'
-      +'<div><div style="font-weight:500;font-size:13px">'+H(ST.user?ST.user.name:'Not set')+'</div>'
+      +String(html`<div><div style="font-weight:500;font-size:13px">${ST.user?ST.user.name:'Not set'}</div>`)
       +'<div class="u-fs12c3">'+(ST.user&&ST.user.initials?ST.user.initials+' \u00b7 ':'')+( ST.prefs.revenueSplit&&ST.user&&ST.user.ownPct!=null?ST.user.ownPct+'% share\u00b7 ':'')+(ST.user?roleBadge(ST.user.role):'')+' '+'</div></div>'
       +'<div style="display:flex;gap:8px">'
       +'<button class="btn btn-gh" onclick="A.closeM();ST.prefs.contactsEnabled=true;savePrefs();A.setTab(\'contacts\')" style="font-size:13px">Manage Contacts</button>'
@@ -5882,24 +5770,17 @@ function buildSettings(){
                 // Live lookup — localName in the rule may be stale if record was renamed
                 var liveRec=localArr.find(function(x){return x.id===rule.localId;});
                 if(liveRec){
-                  target='<span style="color:var(--green);font-weight:500">→ '+H(liveRec.name)+'</span>';
+                  target=String(html`<span style="color:var(--green);font-weight:500">→ ${liveRec.name}</span>`);
                   if(rule.localName&&liveRec.name!==rule.localName){
-                    target+=' <span style="font-size:10px;color:var(--ink3)">(was: '+H(rule.localName)+')</span>';
+                    target+=String(html` <span style="font-size:10px;color:var(--ink3)">(was: ${rule.localName})</span>`);
                   }
                 } else {
                   isStale=true;
                   target='<span style="color:var(--red);font-weight:500">⚠ Record deleted</span>'
-                    +(rule.localName?' <span style="font-size:10px;color:var(--ink3)">(was: '+H(rule.localName)+')</span>':'');
+                    +(rule.localName?String(html` <span style="font-size:10px;color:var(--ink3)">(was: ${rule.localName})</span>`):'');
                 }
               }
-              html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:'+(isStale?'var(--red-bg,#fff5f5)':'var(--bg)')+';border:1px solid '+(isStale?'var(--red)':'var(--brd)')+';border-radius:8px;padding:9px 12px;margin-bottom:6px">'
-                +'<div style="flex:1;min-width:0;font-size:13px">'
-                +'<span class="u-c2">'+H(incomingName)+'</span> '+target
-                +(rule.savedAt?'<div style="font-size:10px;color:var(--ink4)">Saved '+(new Date(rule.savedAt)).toLocaleDateString()+'</div>':'')
-                +'</div>'
-                +(isStale?'<button class="btn btn-gh" style="font-size:11px;color:var(--red);border-color:var(--red);white-space:nowrap" onclick="A.deleteLinkageRule('+JSON.stringify(k)+')">Remove stale</button>':'')
-                +'<button class="btn-ic" title="Delete rule" onclick="A.deleteLinkageRule('+JSON.stringify(k)+')">'+IC.x+'</button>'
-                +'</div>';
+              html+=String(html`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:${safe(isStale?'var(--red-bg,#fff5f5)':'var(--bg)')};border:1px solid ${safe(isStale?'var(--red)':'var(--brd)')};border-radius:8px;padding:9px 12px;margin-bottom:6px"><div style="flex:1;min-width:0;font-size:13px"><span class="u-c2">${incomingName}</span> ${safe(target)}${rule.savedAt?html`<div style="font-size:10px;color:var(--ink4)">Saved ${safe(new Date(rule.savedAt).toLocaleDateString())}</div>`:''}</div>${safe(isStale?'<button class="btn btn-gh" style="font-size:11px;color:var(--red);border-color:var(--red);white-space:nowrap" onclick="A.deleteLinkageRule('+JSON.stringify(k)+')">Remove stale</button>':'')}<button class="btn-ic" title="Delete rule" onclick="A.deleteLinkageRule(${safe(JSON.stringify(k))})">${safe(IC.x)}</button></div>`);
             });
             html+='</div>';
           });
@@ -5933,20 +5814,16 @@ function buildITUserModal(){
     {v:'attorney',l:'Attorney'},
     {v:'partner',l:'Partner'},
     {v:'billing_staff',l:'Billing Staff'}
-  ].map(function(o){return '<option value="'+o.v+'"'+(f.role===o.v?' selected':'')+'>'+H(o.l)+'</option>';}).join('');
+  ].map(function(o){return String(html`<option value="${o.v}"${safe(f.role===o.v?' selected':'')}>${o.l}</option>`);}).join('');
   var body=''
-    +'<div class="fl u-mb14"><label for="itu-name">Name <span class="req">*</span></label>'
-    +'<input type="text" id="itu-name" value="'+H(f.name||'')+'" placeholder="e.g. Sarah Johnson" /></div>'
+    +String(html`<div class="fl u-mb14"><label for="itu-name">Name <span class="req">*</span></label><input type="text" id="itu-name" value="${f.name||''}" placeholder="e.g. Sarah Johnson" /></div>`)
     +'<div class="frow c2 u-mb14">'
-    +'<div class="fl"><label for="itu-ini">Initials</label><input type="text" id="itu-ini" value="'+H(f.initials||'')+'" maxlength="4" placeholder="SJ" />'
-    +'<div class="hint">Auto-generated if blank</div></div>'
+    +String(html`<div class="fl"><label for="itu-ini">Initials</label><input type="text" id="itu-ini" value="${f.initials||''}" maxlength="4" placeholder="SJ" /><div class="hint">Auto-generated if blank</div></div>`)
     +'<div class="fl"><label for="itu-role">Role</label><select id="itu-role">'+roleOpts+'</select></div>'
     +'</div>'
     +'<div class="frow c2 u-mb14">'
-    +'<div class="fl"><label for="itu-rate">Default Rate ($/hr)</label>'
-    +'<div class="pw"><span class="pfx">$</span><input type="text" id="itu-rate" value="'+H(f.rate||'')+'" placeholder="150.00" /></div></div>'
-    +(ST.prefs.revenueSplit?'<div class="fl"><label for="itu-pct">Attorney Share %</label>'
-    +'<div class="pw"><input type="number" id="itu-pct" min="0" max="100" step="1" value="'+H(f.ownPct!=null?String(f.ownPct):'100')+'" placeholder="100" /><span class="sfx">%</span></div></div>':'')
+    +String(html`<div class="fl"><label for="itu-rate">Default Rate ($/hr)</label><div class="pw"><span class="pfx">$</span><input type="text" id="itu-rate" value="${f.rate||''}" placeholder="150.00" /></div></div>`)
+    +(ST.prefs.revenueSplit?String(html`<div class="fl"><label for="itu-pct">Attorney Share %</label><div class="pw"><input type="number" id="itu-pct" min="0" max="100" step="1" value="${f.ownPct!=null?String(f.ownPct):'100'}" placeholder="100" /><span class="sfx">%</span></div></div>`):'')
     +'</div>';
   var footer=''
     +'<button class="btn btn-gh" onclick="A.closeITUser()">Cancel</button>'
@@ -5957,7 +5834,7 @@ function buildITUserModal(){
 
 // Shared: splash left-panel hero HTML
 function splashHero(steps,activeIdx){
-  var appName=H(ST.prefs.appName||'SixMinuteLog.com');
+  var appName=String(html`${ST.prefs.appName||'SixMinuteLog.com'}`);
   var stepsH=steps.map(function(s,i){
     var cls='splash-step'+(i<activeIdx?' done':i===activeIdx?' active':'');
     return '<div class="'+cls+'"><div class="splash-step-dot"></div><span>'+s+'</span></div>';
@@ -5979,7 +5856,7 @@ function buildProfileImport(){
     +splashHero(STEPS,0)
     +'<div class="splash-form">'
     +'<div class="splash-form-inner">'
-    +'<h2>Welcome to <strong>'+H(ST.prefs.appName||'SixMinuteLog.com')+'</strong></h2>'
+    +'<h2>Welcome to <strong>'+String(html`${ST.prefs.appName||'SixMinuteLog.com'}`)+'</strong></h2>'
     +'<p class="sub">Get started in seconds. If your firm administrator shared a profile file, import it to pre-load your clients, contacts, and settings. Otherwise, set up manually.</p>'
 
     +'<div class="splash-opt" onclick="document.getElementById(\'spl-prof-inp\').click()">'
@@ -6017,15 +5894,11 @@ function buildITUserSelect(){
   var STEPS=['Firm Setup','Your Profile'];
   var fp=ST._importedProfile||{};
   var users=fp.users||[];
-  var firmName=H(fp.firmName||fp.appName||ST.prefs.appName||'Your Firm');
+  var firmName=String(html`${fp.firmName||fp.appName||ST.prefs.appName||'Your Firm'}`);
   var userCards=users.map(function(u,i){
     var ini=u.initials||(u.name?getInitials(u.name):'?');
-    var roleLabel={attorney:'Attorney',partner:'Partner',billing_staff:'Billing Staff'}[u.role]||H(u.role||'');
-    return '<div class="splash-user-card" onclick="A.pickITUser('+i+')">'
-      +'<div class="splash-avatar">'+H(ini)+'</div>'
-      +'<div class="splash-user-info"><strong>'+H(u.name)+'</strong><span>'+roleLabel+(u.rate?' \u00b7 $'+H(String(u.rate))+'/hr':'')+'</span></div>'
-      +'<div class="splash-opt-arrow" style="margin-left:auto">'+IC.chevR+'</div>'
-      +'</div>';
+    var roleLabel={attorney:'Attorney',partner:'Partner',billing_staff:'Billing Staff'}[u.role]||String(html`${u.role||''}`);
+    return String(html`<div class="splash-user-card" onclick="A.pickITUser(${i})"><div class="splash-avatar">${ini}</div><div class="splash-user-info"><strong>${u.name}</strong><span>${safe(roleLabel)}${u.rate?html` · $${u.rate}/hr`:''}</span></div><div class="splash-opt-arrow" style="margin-left:auto">${safe(IC.chevR)}</div></div>`);
   }).join('');
   return '<div class="splash-ov">'
     +splashHero(STEPS,1)
@@ -6660,21 +6533,13 @@ function _mpPreview(){
   if(!map['{user}']) map['{user}']='Sarah Johnson';
   if(!map['{initials}']) map['{initials}']='SJ';
   // Custom placeholders show their configured value in preview
-  var rSubj=H(_applyPH(subj||'(no subject)', map));
-  var rBody=H(_applyPH(full||'(no body)', map)).replace(/\n/g,'<br>');
+  var rSubj=_applyPH(subj||'(no subject)', map);
+  var rBody=safe(H(_applyPH(full||'(no body)', map)).replace(/\n/g,'<br>'));
   var to=(document.getElementById('mp-to')||{value:''}).value||'client@example.com';
   var cc=(document.getElementById('mp-cc')||{value:''}).value;
   var bcc=(document.getElementById('mp-bcc')||{value:''}).value;
   var rt=(document.getElementById('mp-replyto')||{value:''}).value;
-  pv.innerHTML='<div style="font-size:11px;color:var(--ink3);font-family:var(--font-mono);line-height:1.8">'
-    +'<div><strong class="u-c2">To:</strong> '+H(to)+'</div>'
-    +(cc?'<div><strong class="u-c2">CC:</strong> '+H(cc)+'</div>':'')
-    +(bcc?'<div><strong class="u-c2">BCC:</strong> '+H(bcc)+'</div>':'')
-    +(rt?'<div><strong class="u-c2">Reply-To:</strong> '+H(rt)+'</div>':'')
-    +'<div><strong class="u-c2">Subject:</strong> '+rSubj+'</div>'
-    +'</div>'
-    +'<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">'
-    +'<div style="font-size:12px;color:var(--ink);line-height:1.7;white-space:pre-wrap">'+rBody+'</div>';
+  pv.innerHTML=String(html`<div style="font-size:11px;color:var(--ink3);font-family:var(--font-mono);line-height:1.8"><div><strong class="u-c2">To:</strong> ${to}</div>${cc?html`<div><strong class="u-c2">CC:</strong> ${cc}</div>`:safe('')}${bcc?html`<div><strong class="u-c2">BCC:</strong> ${bcc}</div>`:safe('')}${rt?html`<div><strong class="u-c2">Reply-To:</strong> ${rt}</div>`:safe('')}<div><strong class="u-c2">Subject:</strong> ${rSubj}</div></div><hr style="border:none;border-top:1px solid var(--border);margin:8px 0"><div style="font-size:12px;color:var(--ink);line-height:1.7;white-space:pre-wrap">${rBody}</div>`);
 }
 
 // Apply a quick-template to the form fields
@@ -6707,11 +6572,11 @@ function buildMailPreset(){
     +'<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Quick templates</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:5px">'
     +MAIL_QUICK_TEMPLATES.map(function(t,i){
-      return '<button type="button" class="btn btn-gh" style="font-size:11px;padding:4px 10px" onclick="_mpApplyTemplate('+i+')">'+H(t[0])+'</button>';
+      return String(html`<button type="button" class="btn btn-gh" style="font-size:11px;padding:4px 10px" onclick="_mpApplyTemplate(${i})">${t[0]}</button>`);
     }).join('')
     +'</div></div>'
     +'<div class="frow c2 u-mb12">'
-    +'<div class="fl"><label for="mp-name">Preset Name <span class="req">*</span></label><input type="text" id="mp-name" value="'+H(f.name||'')+'" placeholder="e.g. Invoice to Acme Corp" oninput="_mpPreview()" /></div>'
+    +String(html`<div class="fl"><label for="mp-name">Preset Name <span class="req">*</span></label><input type="text" id="mp-name" value="${f.name||''}" placeholder="e.g. Invoice to Acme Corp" oninput="_mpPreview()" /></div>`)
     +'<div class="fl"><label for="mp-purpose">Purpose</label>'
     +'<select id="mp-purpose" onchange="_mpPreview()">'
     +'<option value="general"'+(purp==='general'?' selected':'')+'>General</option>'
@@ -6722,25 +6587,25 @@ function buildMailPreset(){
     +'<div class="frow c2 u-mb12">'
     +'<div class="fl"><label for="mp-priority">Priority</label>'
     +'<select id="mp-priority" onchange="_mpPreview()">'
-    +priorityOpts.map(function(o){return '<option value="'+o[0]+'"'+(pri===o[0]?' selected':'')+'>'+H(o[1])+'</option>';}).join('')
+    +priorityOpts.map(function(o){return String(html`<option value="${o[0]}"${safe(pri===o[0]?' selected':'')}>${o[1]}</option>`);}).join('')
     +'</select></div>'
-    +'<div class="fl"><label for="mp-replyto">Reply-To <span class="u-fs11c3">(optional)</span></label><input type="email" id="mp-replyto" value="'+H(f.replyTo||'')+'" placeholder="billing@firm.com" oninput="_mpPreview()" /></div></div>'
+    +String(html`<div class="fl"><label for="mp-replyto">Reply-To <span class="u-fs11c3">(optional)</span></label><input type="email" id="mp-replyto" value="${f.replyTo||''}" placeholder="billing@firm.com" oninput="_mpPreview()" /></div>`)+'</div>'
     +'<div class="fl u-mb12"><label for="mp-to">To <span class="u-fs11c3">&mdash; leave blank to auto-fill from record</span></label>'
-    +'<input type="text" id="mp-to" value="'+H(f.to||'')+'" placeholder="client@example.com, partner@firm.com" oninput="_mpPreview()" />'
+    +String(html`<input type="text" id="mp-to" value="${f.to||''}" placeholder="client@example.com, partner@firm.com" oninput="_mpPreview()" />`)
     +'<div class="hint">Separate multiple addresses with commas.</div></div>'
     +'<div class="frow c2 u-mb12">'
-    +'<div class="fl"><label for="mp-cc">CC <span class="u-fs11c3">(optional)</span></label><input type="text" id="mp-cc" value="'+H(f.cc||'')+'" placeholder="manager@firm.com" oninput="_mpPreview()" /></div>'
-    +'<div class="fl"><label for="mp-bcc">BCC <span class="u-fs11c3">(optional)</span></label><input type="text" id="mp-bcc" value="'+H(f.bcc||'')+'" placeholder="archive@firm.com" oninput="_mpPreview()" /></div></div>'
-    +'<div class="fl u-mb12"><label for="mp-subj">Subject Line</label><input type="text" id="mp-subj" value="'+H(f.subject||'')+'" placeholder="Invoice #{invoice_num} \u2014 {client}" oninput="_mpPreview()" /></div>'
-    +'<div class="fl u-mb12"><label for="mp-body">Message Body</label><textarea id="mp-body" rows="6" oninput="_mpPreview()" placeholder="Dear {client},\n\nPlease find attached...">'+H(f.body||'')+'</textarea></div>'
+    +String(html`<div class="fl"><label for="mp-cc">CC <span class="u-fs11c3">(optional)</span></label><input type="text" id="mp-cc" value="${f.cc||''}" placeholder="manager@firm.com" oninput="_mpPreview()" /></div>`)
+    +String(html`<div class="fl"><label for="mp-bcc">BCC <span class="u-fs11c3">(optional)</span></label><input type="text" id="mp-bcc" value="${f.bcc||''}" placeholder="archive@firm.com" oninput="_mpPreview()" /></div>`)+'</div>'
+    +String(html`<div class="fl u-mb12"><label for="mp-subj">Subject Line</label><input type="text" id="mp-subj" value="${f.subject||''}" placeholder="Invoice #{invoice_num} \u2014 {client}" oninput="_mpPreview()" /></div>`)
+    +String(html`<div class="fl u-mb12"><label for="mp-body">Message Body</label><textarea id="mp-body" rows="6" oninput="_mpPreview()" placeholder="Dear {client},\n\nPlease find attached...">${f.body||''}</textarea></div>`)
     +'<div class="fl u-mb16">'
     +'<label for="mp-sig">Signature <span class="u-fs11c3">&mdash; auto-appended after double line-break</span></label>'
-    +'<textarea id="mp-sig" rows="3" oninput="_mpPreview()" placeholder="Best regards,\n{user}\n{firm}">'+H(f.signature||'')+'</textarea></div>'
+    +String(html`<textarea id="mp-sig" rows="3" oninput="_mpPreview()" placeholder="Best regards,\n{user}\n{firm}">${f.signature||''}</textarea>`)+'</div>'
     +'<div style="background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:4px">'
     +'<div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">Click to insert placeholder at cursor</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:4px">'
     +ALL_PH.map(function(ph){
-      return '<button type="button" title="'+H(ph[1])+'" onclick="_mpInsert(\''+ph[0]+'\')" class="ph-btn">'+H(ph[0])+'</button>';
+      return String(html`<button type="button" title="${ph[1]}" onclick="_mpInsert('${safe(ph[0])}')" class="ph-btn">${ph[0]}</button>`);
     }).join('')
     +'</div></div>'
     +'</div>'
@@ -6750,7 +6615,7 @@ function buildMailPreset(){
     +'<div id="mp-preview" style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:14px 16px;min-height:200px;word-break:break-word"></div>'
     +'<div style="margin-top:14px;font-size:11px;color:var(--ink3);line-height:1.7">'
     +'<strong style="display:block;margin-bottom:6px;color:var(--ink2)">Placeholder guide</strong>'
-    +ALL_PH.map(function(ph){return '<div><code style="font-size:10px;color:var(--blue)">'+H(ph[0])+'</code> &mdash; '+H(ph[1])+'</div>';}).join('')
+    +ALL_PH.map(function(ph){return String(html`<div><code style="font-size:10px;color:var(--blue)">${ph[0]}</code> &mdash; ${ph[1]}</div>`);}).join('')
     +'</div>'
     +'</div>';
   return buildModal({
@@ -6774,24 +6639,24 @@ function buildMailPH(){
   LINKED_FIELDS.forEach(function(x){if(!lfGroups[x[2]])lfGroups[x[2]]=[];lfGroups[x[2]].push(x);});
   var lfOpts='<option value="">None — use default value or per-client assignment</option>';
   Object.keys(lfGroups).forEach(function(grp){
-    lfOpts+='<optgroup label="'+H(grp)+'">';
-    lfGroups[grp].forEach(function(x){lfOpts+='<option value="'+H(x[0])+'"'+(f.linkedField===x[0]?' selected':'')+'>'+H(x[1])+'</option>';});
+    lfOpts+=String(html`<optgroup label="${grp}">`);
+    lfGroups[grp].forEach(function(x){lfOpts+=String(html`<option value="${x[0]}"${safe(f.linkedField===x[0]?' selected':'')}>${x[1]}</option>`);});
     lfOpts+='</optgroup>';
   });
   var lfHint=(f.linkedField&&LINKED_FIELD_HINTS[f.linkedField])
-    ? '<div style="font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:4px 8px;margin-top:4px">\u2139 '+H(LINKED_FIELD_HINTS[f.linkedField])+'</div>'
+    ? String(html`<div style="font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:4px 8px;margin-top:4px">\u2139 ${LINKED_FIELD_HINTS[f.linkedField]}</div>`)
     : '';
   var body=''
     +'<div class="fl u-mb14"><label>Token key <span class="req">*</span> <span class="u-fs11c3">\u2014 used as <code>{key}</code> in subject &amp; body</span></label>'
     +'<div style="display:flex;align-items:center;gap:4px">'
     +'<span style="font-family:var(--font-mono);font-size:14px;color:var(--ink3)">{</span>'
-    +'<input type="text" id="mph-key" aria-label="Token key" value="'+H(f.key||'')+'" placeholder="my_token" style="font-family:var(--font-mono)" oninput="this.value=this.value.replace(/[^a-z0-9_]/g,\'\')" />'
+    +String(html`<input type="text" id="mph-key" aria-label="Token key" value="${f.key||''}" placeholder="my_token" style="font-family:var(--font-mono)" oninput="this.value=this.value.replace(/[^a-z0-9_]/g,'')" />`)
     +'<span style="font-family:var(--font-mono);font-size:14px;color:var(--ink3)">}</span></div>'
-    +(keyErr?'<div class="note" style="margin-top:4px">'+H(keyErr)+'</div>':'')
+    +(keyErr?String(html`<div class="note" style="margin-top:4px">${keyErr}</div>`):'')
     +'<div class="u-hint4">Lowercase letters, numbers, underscores only.</div></div>'
     +'<div class="fl u-mb14"><label for="mph-label">Label <span class="req">*</span></label>'
-    +'<input type="text" id="mph-label" value="'+H(f.label||'')+'" placeholder="e.g. Invoice recipient" />'
-    +(labelErr?'<div class="note" style="margin-top:4px">'+H(labelErr)+'</div>':'')
+    +String(html`<input type="text" id="mph-label" value="${f.label||''}" placeholder="e.g. Invoice recipient" />`)
+    +(labelErr?String(html`<div class="note" style="margin-top:4px">${labelErr}</div>`):'')
     +'</div>'
     // Auto-fill: optional linked field
     +'<div class="fl u-mb14"><label for="mph-lf">Auto-fill from record <span style="font-size:11px;color:var(--ink3);font-weight:400">\u2014 optional</span></label>'
@@ -6800,7 +6665,7 @@ function buildMailPH(){
     +'<div class="u-hint4">When a client/matter is active, this field is read automatically. Per-client assignments (set in the client or matter form) take priority over this.</div></div>'
     // Default value: static fallback
     +'<div class="fl" style="margin-bottom:4px"><label for="mph-defval">Default value <span style="font-size:11px;color:var(--ink3);font-weight:400">\u2014 fallback when nothing else resolves</span></label>'
-    +'<input type="text" id="mph-defval" value="'+H(f.defaultValue||'')+'" placeholder="e.g. billing@example.com (optional)" />'
+    +String(html`<input type="text" id="mph-defval" value="${f.defaultValue||''}" placeholder="e.g. billing@example.com (optional)" />`)
     +'<div class="u-hint4">Used if no per-client assignment exists and auto-fill is blank.</div></div>'
     +'<div style="font-size:11px;color:var(--blue);background:rgba(59,130,246,.07);border-radius:5px;padding:6px 10px;margin-top:10px">\u2139 Resolution order: <strong>client/matter assignment</strong> \u203a <strong>auto-fill field</strong> \u203a <strong>default value</strong>. Assign per-client in each Client or Matter form.</div>';
   var footer=''
@@ -6816,9 +6681,7 @@ function buildMailSend(){
       +ST.mailPresets.map(function(mp,i){
         return '<div class="crow" style="cursor:pointer;margin-bottom:8px" onclick="A.sendMailPreset('+i+')">'
           +'<div style="width:32px;height:32px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">'+IC.mail+'</div>'
-          +'<div><strong style="font-size:13px;color:var(--ink)">'+H(mp.name||'Preset '+(i+1))+'</strong>'
-          +(mp.to?'<div class="u-fs11c3">To: '+H(mp.to)+'</div>':'')
-          +'</div></div>';
+          +String(html`<div><strong style="font-size:13px;color:var(--ink)">${mp.name||'Preset '+(i+1)}</strong>${mp.to?html`<div class="u-fs11c3">To: ${mp.to}</div>`:''}</div>`)+'</div>';
       }).join('')
     : buildEmptyState('','No email presets configured','Add presets in Settings \u2192 Email tab','padding:20px')
   );
@@ -6840,43 +6703,40 @@ function _buildMailPreview(ctx){
   // Tab state: 'edit' | 'preview'
   var tab=ctx._pvTab||'edit';
 
-  var bodyPreview=H(d.body||'').replace(/\n/g,'<br>');
+  var bodyPreview=String(html`${d.body||''}`).replace(/\n/g,'<br>');
 
   var editPanel='<div style="display:flex;flex-direction:column;gap:10px">'
     // To
     +'<div class="fl" style="margin:0">'
     +'<label for="mc-to" style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">To <span class="req">*</span></label>'
-    +'<input id="mc-to" type="email" value="'+H(d.to||'')+'" placeholder="recipient@example.com" oninput="A.mcLive()" />'
+    +String(html`<input id="mc-to" type="email" value="${d.to||''}" placeholder="recipient@example.com" oninput="A.mcLive()" />`)
     +'</div>'
     // Subject
     +'<div class="fl" style="margin:0">'
     +'<label for="mc-subj" style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Subject</label>'
-    +'<input id="mc-subj" type="text" value="'+H(d.subj||'')+'" placeholder="(no subject)" oninput="A.mcLive()" />'
+    +String(html`<input id="mc-subj" type="text" value="${d.subj||''}" placeholder="(no subject)" oninput="A.mcLive()" />`)
     +'</div>'
     // CC / BCC / Reply-To in a compact row
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
-    +'<div class="fl" style="margin:0"><label for="mc-cc" class="u-fs11c3">CC</label>'
-    +'<input id="mc-cc" type="text" value="'+H(d.cc||'')+'" placeholder="cc@example.com" oninput="A.mcLive()" /></div>'
-    +'<div class="fl" style="margin:0"><label for="mc-bcc" class="u-fs11c3">BCC</label>'
-    +'<input id="mc-bcc" type="text" value="'+H(d.bcc||'')+'" placeholder="bcc@example.com" oninput="A.mcLive()" /></div>'
-    +'<div class="fl" style="margin:0"><label for="mc-rt" class="u-fs11c3">Reply-To</label>'
-    +'<input id="mc-rt" type="email" value="'+H(d.replyTo||'')+'" placeholder="you@firm.com" oninput="A.mcLive()" /></div>'
+    +String(html`<div class="fl" style="margin:0"><label for="mc-cc" class="u-fs11c3">CC</label><input id="mc-cc" type="text" value="${d.cc||''}" placeholder="cc@example.com" oninput="A.mcLive()" /></div>`)
+    +String(html`<div class="fl" style="margin:0"><label for="mc-bcc" class="u-fs11c3">BCC</label><input id="mc-bcc" type="text" value="${d.bcc||''}" placeholder="bcc@example.com" oninput="A.mcLive()" /></div>`)
+    +String(html`<div class="fl" style="margin:0"><label for="mc-rt" class="u-fs11c3">Reply-To</label><input id="mc-rt" type="email" value="${d.replyTo||''}" placeholder="you@firm.com" oninput="A.mcLive()" /></div>`)
     +'</div>'
     // Body
     +'<div class="fl" style="margin:0">'
     +'<label for="mc-body" style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Body</label>'
-    +'<textarea id="mc-body" rows="12" style="font-family:inherit;font-size:13px;line-height:1.6;resize:vertical" oninput="A.mcLive()">'+H(d.body||'')+'</textarea>'
+    +String(html`<textarea id="mc-body" rows="12" style="font-family:inherit;font-size:13px;line-height:1.6;resize:vertical" oninput="A.mcLive()">${d.body||''}</textarea>`)
     +'</div>'
     +'</div>';
 
   var previewPanel='<div style="border:1px solid var(--brd);border-radius:8px;overflow:hidden">'
     // Header row mimicking an email header
     +'<div style="background:var(--bg);border-bottom:1px solid var(--brd);padding:12px 16px;display:flex;flex-direction:column;gap:4px;font-size:12px;font-family:var(--font-mono);color:var(--ink2)">'
-    +'<div><strong class="u-lbl52">To:</strong> '+H(d.to||'—')+'</div>'
-    +(d.cc?'<div><strong class="u-lbl52">CC:</strong> '+H(d.cc)+'</div>':'')
-    +(d.bcc?'<div><strong class="u-lbl52">BCC:</strong> '+H(d.bcc)+'</div>':'')
-    +(d.replyTo?'<div><strong class="u-lbl52">Reply-To:</strong> '+H(d.replyTo)+'</div>':'')
-    +'<div><strong class="u-lbl52">Subject:</strong> <strong style="color:var(--ink)">'+H(d.subj||'(no subject)')+'</strong></div>'
+    +String(html`<div><strong class="u-lbl52">To:</strong> ${d.to||'—'}</div>`)
+    +(d.cc?String(html`<div><strong class="u-lbl52">CC:</strong> ${d.cc}</div>`):'')
+    +(d.bcc?String(html`<div><strong class="u-lbl52">BCC:</strong> ${d.bcc}</div>`):'')
+    +(d.replyTo?String(html`<div><strong class="u-lbl52">Reply-To:</strong> ${d.replyTo}</div>`):'')
+    +String(html`<div><strong class="u-lbl52">Subject:</strong> <strong style="color:var(--ink)">${d.subj||'(no subject)'}</strong></div>`)
     +'</div>'
     // Body
     +'<div style="padding:18px 20px;font-size:13px;line-height:1.75;color:var(--ink);white-space:pre-wrap;word-break:break-word;min-height:180px;max-height:340px;overflow-y:auto">'+bodyPreview+'</div>'
@@ -6890,11 +6750,11 @@ function _buildMailPreview(ctx){
 
   // Context chips
   var ctxInfo='';
-  if(ctx.clientName) ctxInfo+='<span><strong>Client:</strong> '+H(ctx.clientName)+'</span> ';
-  if(ctx.invNum)     ctxInfo+='<span><strong>Invoice #:</strong> '+H(ctx.invNum)+'</span> ';
-  if(ctx.invAmount)  ctxInfo+='<span><strong>Amount:</strong> '+H(ctx.invAmount)+'</span> ';
-  if(ctx.entriesCount!=null) ctxInfo+='<span><strong>Entries:</strong> '+H(String(ctx.entriesCount))+'</span> ';
-  if(ctx.hoursTotal) ctxInfo+='<span><strong>Hours:</strong> '+H(ctx.hoursTotal)+'h</span>';
+  if(ctx.clientName) ctxInfo+=String(html`<span><strong>Client:</strong> ${ctx.clientName}</span> `);
+  if(ctx.invNum)     ctxInfo+=String(html`<span><strong>Invoice #:</strong> ${ctx.invNum}</span> `);
+  if(ctx.invAmount)  ctxInfo+=String(html`<span><strong>Amount:</strong> ${ctx.invAmount}</span> `);
+  if(ctx.entriesCount!=null) ctxInfo+=String(html`<span><strong>Entries:</strong> ${String(ctx.entriesCount)}</span> `);
+  if(ctx.hoursTotal) ctxInfo+=String(html`<span><strong>Hours:</strong> ${ctx.hoursTotal}h</span>`);
   var ctxBar=ctxInfo?'<div style="display:flex;gap:14px;flex-wrap:wrap;background:var(--bg);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--ink2);margin-bottom:12px">'+ctxInfo+'</div>':'';
 
   return buildModal({size:'lg',extraClass:'u-modht',
@@ -6918,17 +6778,14 @@ function _buildMailPicker(ctx){
     return (mp.purpose||'general')===purpose||(mp.purpose||'general')==='general';
   });
   var ctxInfo='';
-  if(ctx.clientName) ctxInfo+='<span><strong>Client:</strong> '+H(ctx.clientName)+'</span> ';
-  if(ctx.invNum)     ctxInfo+='<span><strong>Invoice #:</strong> '+H(ctx.invNum)+'</span> ';
-  if(ctx.invAmount)  ctxInfo+='<span><strong>Amount:</strong> '+H(ctx.invAmount)+'</span> ';
-  if(ctx.entriesCount!=null) ctxInfo+='<span><strong>Entries:</strong> '+H(String(ctx.entriesCount))+'</span> ';
-  if(ctx.hoursTotal) ctxInfo+='<span><strong>Hours:</strong> '+H(ctx.hoursTotal)+'h</span>';
+  if(ctx.clientName) ctxInfo+=String(html`<span><strong>Client:</strong> ${ctx.clientName}</span> `);
+  if(ctx.invNum)     ctxInfo+=String(html`<span><strong>Invoice #:</strong> ${ctx.invNum}</span> `);
+  if(ctx.invAmount)  ctxInfo+=String(html`<span><strong>Amount:</strong> ${ctx.invAmount}</span> `);
+  if(ctx.entriesCount!=null) ctxInfo+=String(html`<span><strong>Entries:</strong> ${String(ctx.entriesCount)}</span> `);
+  if(ctx.hoursTotal) ctxInfo+=String(html`<span><strong>Hours:</strong> ${ctx.hoursTotal}h</span>`);
   var _mpkBody=''
     +(ctxInfo?'<div style="display:flex;gap:16px;flex-wrap:wrap;background:var(--bg);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink2);margin-bottom:14px">'+ctxInfo+'</div>':'')
-    +(ctx.toEmail?'<div style="background:var(--bg);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink2);margin-bottom:14px">'
-      +'<strong>Recipient:</strong> <a href="mailto:'+H(ctx.toEmail)+'" style="color:var(--blue);font-family:var(--font-mono);text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(ctx.toEmail)+'</a>'
-      +'<span style="font-size:11px;color:var(--ink3);margin-left:8px">(auto-filled from record; preset &ldquo;To&rdquo; overrides if set)</span>'
-      +'</div>':'')
+    +(ctx.toEmail?String(html`<div style="background:var(--bg);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--ink2);margin-bottom:14px"><strong>Recipient:</strong> <a href="mailto:${ctx.toEmail}" style="color:var(--blue);font-family:var(--font-mono);text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${ctx.toEmail}</a><span style="font-size:11px;color:var(--ink3);margin-left:8px">(auto-filled from record; preset &ldquo;To&rdquo; overrides if set)</span></div>`):'')
     +(filtered.length>0
       ? '<div style="font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Choose a preset to review &amp; send</div>'
         +filtered.map(function(mp){
@@ -6937,13 +6794,13 @@ function _buildMailPicker(ctx){
           return '<div class="crow" style="cursor:pointer;margin-bottom:8px;align-items:flex-start" onclick="A.previewFromCompose('+realIdx+')">'
             +'<div style="width:36px;height:36px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;margin-top:2px">'+IC.mail+'</div>'
             +'<div class="u-f1">'
-            +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><strong style="font-size:13px;color:var(--ink)">'+H(mp.name||'Preset '+(realIdx+1))+'</strong>'
+            +String(html`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><strong style="font-size:13px;color:var(--ink)">${mp.name||'Preset '+(realIdx+1)}</strong>`)
             +'<span class="status-badge '+(({general:'s-neutral',invoice_client:'s-approved',billing_staff:'s-review',partner_approval:'s-pending'}[mp.purpose||'general']||'s-neutral'))+'" style="font-size:10px;padding:2px 7px">'+purposeLabel(mp.purpose||'general')+'</span>'
             +((mp.priority==='high')?'<span style="font-size:10px;color:var(--red);font-weight:600">\u25b2 High</span>':'')
             +'</div>'
-            +(toDisplay?'<div class="u-fs11c3">To: <a href="mailto:'+H(toDisplay)+'" style="color:inherit;text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+H(toDisplay)+'</a></div>':'')
-            +(mp.cc?'<div class="u-fs11c3">CC: '+H(mp.cc)+'</div>':'')
-            +(mp.subject?'<div style="font-size:11px;color:var(--ink3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:380px">Subj: '+H(mp.subject)+'</div>':'')
+            +(toDisplay?String(html`<div class="u-fs11c3">To: <a href="mailto:${toDisplay}" style="color:inherit;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${toDisplay}</a></div>`):'')
+            +(mp.cc?String(html`<div class="u-fs11c3">CC: ${mp.cc}</div>`):'')
+            +(mp.subject?String(html`<div style="font-size:11px;color:var(--ink3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:380px">Subj: ${mp.subject}</div>`):'')
             +(mp.signature?'<div style="font-size:10px;color:var(--ink3);font-style:italic">\u2014 Signature included</div>':'')
             +'</div></div>';
         }).join('')
@@ -7059,8 +6916,8 @@ function buildSubmitTimesheetModal(){
       pg.order.forEach(function(key){
         var grp=pg.groups[key];
         var pt=grp.partner;
-        var ptName=pt?H(pt.name):'<em>No Partner Assigned</em>';
-        var ptIni=pt?H(pt.initials||getInitials(pt.name)):'?';
+        var ptName=pt?String(html`${pt.name}`):'<em>No Partner Assigned</em>';
+        var ptIni=pt?String(html`${pt.initials||getInitials(pt.name)}`):'?';
         var ptId=pt?pt.id:'__none__';
         var gHrs=grp.entries.reduce(function(s,e){return s+Number(e.hours||0);},0);
         var gBill=grp.entries.reduce(function(s,e){return s+calcAmount(e.hours||0,e.rate||0,true);},0);
@@ -7072,12 +6929,12 @@ function buildSubmitTimesheetModal(){
           +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
           +avt(null,{ini:ptIni,size:32})
           +'<div><div style="font-weight:600;font-size:13px">'+ptName+'</div>'
-          +'<div class="u-fs11c3">'+(pt&&pt.role?H(pt.role):'No partner assigned')+'</div></div>'
+          +String(html`<div class="u-fs11c3">${pt&&pt.role?pt.role:'No partner assigned'}</div>`)+'</div>'
           +'<div style="margin-left:auto;text-align:right">'
           +'<div style="font-size:13px;font-weight:500">'+grp.entries.length+' entr'+(grp.entries.length===1?'y':'ies')+'</div>'
           +'<div class="u-fs11c3">'+$h(gHrs)+' &middot; '+$m(gBill)+'</div>'
           +'</div></div>'
-          +'<div style="font-size:11px;color:var(--ink3);margin-bottom:8px;font-family:var(--font-mono)">'+H(fnPrev)+'</div>'
+          +String(html`<div style="font-size:11px;color:var(--ink3);margin-bottom:8px;font-family:var(--font-mono)">${fnPrev}</div>`)
           +(pt?'<button class="btn btn-dk" style="width:100%;justify-content:center" onclick="A.doSubmitSaveFileByPartner('+ptId+')">💾 Save Package for '+ptName+'</button>'
                :'<button class="btn btn-gh" style="width:100%;justify-content:center" onclick="A.doSubmitSaveFileByPartner(\'__none__\')">💾 Save (Unassigned)</button>')
           +'</div>';
@@ -7095,13 +6952,13 @@ function buildSubmitTimesheetModal(){
       +'</div>'):'')
     +'<div style="'+cardStyle+'">'
     +'<div style="font-weight:600;font-size:13px">'+IC.mail+' Send Email</div>'
-    +'<div style="font-size:12px;color:var(--ink2);line-height:1.6">Compose an email to notify '+H(recipient)+' '+H(recipientRole)+'. You can attach the saved file manually.</div>'
+    +String(html`<div class="u-f1"><div style="font-size:12px;color:var(--ink2);line-height:1.6">Compose an email to notify ${recipient} ${recipientRole}. You can attach the saved file manually.</div>`)
     +'<button class="btn btn-gr" onclick="A.doSubmitEmail(\''+recipientRoleKey+'\')" style="margin-top:6px">Open Email</button>'
     +'</div>'
     +'</div>'
     +'<p style="font-size:11px;color:var(--ink3);margin-top:10px">You can save the file AND send the email \u2014 they work independently.</p>';
   return buildModal({size:'md',extraClass:'u-modht',
-    title:'\ud83d\udce4 Submit to '+H(recipient),titleClass:'u-fac8',
+    title:String(html`\ud83d\udce4 Submit to ${recipient}`),titleClass:'u-fac8',
     onClose:'A.closeM()',
     body:_stBody,
     footer:'<button class="btn btn-gh" onclick="A.closeM()">Close</button>'
@@ -7118,7 +6975,7 @@ function buildReceivePackageModal(){
     ?'Import a billing review package sent by your billing staff. Entries will be merged into your Approvals queue — your existing data is never deleted.'
     :'Import a timesheet submission package sent by an attorney. Their entries will be merged into your timesheet — your existing data is never deleted.';
   var body=''
-    +'<p style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:20px">'+H(desc)+'</p>'
+    +String(html`<p style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:20px">${desc}</p>`)
     +'<div style="border:2px dashed var(--border);border-radius:10px;padding:28px 20px;text-align:center;margin-bottom:16px">'
     +'<div style="font-size:2.5rem;margin-bottom:10px">📦</div>'
     +'<div style="font-weight:600;margin-bottom:6px">Select a package file (.json)</div>'
@@ -7129,7 +6986,7 @@ function buildReceivePackageModal(){
     +'<div style="font-size:11px;color:var(--ink3);line-height:1.7">'
     +'<strong>Smart merge:</strong> Existing entries, clients and matters are never deleted. New entries are added; matching entries are updated with any changes from the sender.'
     +'</div>';
-  return buildModal({size:'sm',title:'📥 '+H(title),titleClass:'u-fac8',onClose:'A.closeM()',
+  return buildModal({size:'sm',title:String(html`📥 ${title}`),titleClass:'u-fac8',onClose:'A.closeM()',
     body:body,footer:'<button class="btn btn-gh" onclick="A.closeM()">Cancel</button>',extraClass:'u-modht'});
 }
 
@@ -7142,15 +6999,15 @@ function buildBillingEditModal(){
   var body=''
     +'<div style="background:var(--bg2);border-radius:8px;padding:12px 14px;margin-bottom:16px">'
     +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:4px">Time Entry</div>'
-    +'<div class="u-fw5">'+$d(e.date)+' — '+H(cl.name||'?')+(mt.name?' / '+H(mt.name):'')+'</div>'
-    +'<div class="u-fs12c2">'+H(e.description||'—')+'</div>'
-    +'<div class="u-fs12c3">'+$h(e.hours)+' @ '+$m(e.rate)+' = <strong class="u-cgr">'+$m(calcAmount(e.hours,e.rate))+'</strong>'+(e.createdBy?' · by '+H(e.createdBy):'')+'</div>'
+    +String(html`<div class="u-fw5">${safe($d(e.date))} — ${cl.name||'?'}${mt.name?html` / ${mt.name}`:''}</div>`)
+    +String(html`<div class="u-fs12c2">${e.description||'—'}</div>`)
+    +String(html`<div class="u-fs12c3">${safe($h(e.hours)+' @ '+$m(e.rate)+' = <strong class="u-cgr">'+$m(calcAmount(e.hours,e.rate))+'</strong>')}${e.createdBy?html` · by ${e.createdBy}`:''}</div>`)
     +'</div>'
     +'<div class="frow"><label for="be-aba" style="display:block;font-size:12px;font-weight:600;margin-bottom:5px">ABA / UTBMS Task Code</label>'
     +'<select id="be-aba" style="width:100%;padding:9px 13px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink)">'
-    +abaOpts.map(function(o){return '<option value="'+H(o.v)+'"'+(e.abaCode===o.v?' selected':'')+'>'+H(o.l)+'</option>';}).join('')
+    +abaOpts.map(function(o){return String(html`<option value="${o.v}"${safe(e.abaCode===o.v?' selected':'')}>${o.l}</option>`);}).join('')
     +'</select></div>'
-    +(!mt.matterNumber?'<div class="frow u-mt10">'+field('Matter Number','be-mn',{ph:'e.g. 2024-001',val:'',hint:'Assign firm matter number to "'+H(mt.name||'this matter')+'"'})+'</div>':'')
+    +(!mt.matterNumber?'<div class="frow u-mt10">'+field('Matter Number','be-mn',{ph:'e.g. 2024-001',val:'',hint:String(html`Assign firm matter number to "${mt.name||'this matter'}"`)})+' </div>':'')
     +'<div class="frow u-mt10">'+field('Description','be-desc',{type:'textarea',rows:2,val:e.description||''})+'</div>';
   var footer=''
     +'<button class="btn btn-gh" onclick="A.closeF()">Cancel</button>'
@@ -7383,7 +7240,7 @@ function render(){
     :0;
   var hdrKey=ST.tab+'|'+pendingCount+'|'+role+'|'+(ST.user?ST.user.name:'')+'|'+ST.prefs.darkMode+'|'+(ST.prefs.appName||'')+'|'+(ST.prefs.contactsEnabled?1:0)+'|'+(ST.prefs.analyticsEnabled?1:0)+'|'+(ST.prefs.csvQuick&&ST.prefs.csvQuick.exportFormat||'csv');
   if(_rKeys.hdr!==hdrKey){
-    var appName=H(ST.prefs.appName||'SixMinuteLog.com');
+    var appName=String(html`${ST.prefs.appName||'SixMinuteLog.com'}`);
     var dmCur=ST.prefs.darkMode;
     var dmIcon=dmCur===true?IC.sun:IC.moon;
     var dmTitle=dmCur===null?'Theme: Auto (click for Dark)':dmCur===true?'Theme: Dark (click for Light)':'Theme: Light (click for Auto)';
@@ -7393,11 +7250,12 @@ function render(){
       var isActive=ST.tab===t.id;
       return '<button class="nav-btn'+(isActive?' on':'')+'" onclick="A.setTab(\''+t.id+'\')" aria-current="'+(isActive?'page':'false')+'">'+t.ic+' '+t.lbl+badge+'</button>';
     }).join('');
+    var userNameH=ST.user?String(html`${ST.user.name}`):'';
     morph(document.getElementById('z-hdr'),
       '<div class="header" role="banner">'
       +'<div class="header-inner">'
       +'<div class="logo"><div class="logo-mark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="5" x2="12" y2="12"/><line x1="12" y1="12" x2="17" y2="9"/></svg></div>'
-      +'<div class="logo-text"><h1>'+appName+'</h1>'+(ST.user?'<div class="logo-sub" style="display:flex;align-items:center;gap:5px"><button class="btn-link" onclick="A.chgUser()" title="Edit your profile" style="font-size:10px;color:var(--ink3);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px;letter-spacing:.03em">'+H(ST.user.name)+'</button> '+roleBadge(ST.user.role)+'</div>':'')+'</div></div>'
+      +'<div class="logo-text"><h1>'+appName+'</h1>'+(ST.user?'<div class="logo-sub" style="display:flex;align-items:center;gap:5px"><button class="btn-link" onclick="A.chgUser()" title="Edit your profile" style="font-size:10px;color:var(--ink3);background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px;letter-spacing:.03em">'+userNameH+'</button> '+roleBadge(ST.user.role)+'</div>':'')+'</div></div>'
       +'<div class="header-btns">'
       +'<button class="btn btn-gh" onclick="ST.modal=\'importData\';render()" title="Restore from backup">'+IC.ul+' Restore</button>'
       +'<button class="btn btn-gh" onclick="A.csvQuickExport()" title="Download '+(ST.prefs.csvQuick&&ST.prefs.csvQuick.exportFormat==='xlsx'?'Excel spreadsheet':'CSV')+' with your saved preset (configure in Settings → Export)">'+IC.dl+' '+(ST.prefs.csvQuick&&ST.prefs.csvQuick.exportFormat==='xlsx'?'Excel':'CSV')+'</button>'
@@ -8252,7 +8110,7 @@ var A={
     if(ST.editId){ST.entries=ST.entries.map(function(e){return e.id==ST.editId?entry:e;});
       if(_billingEditReverted) toast('Entry updated — returned to Pending for partner re-approval','warn');
       else toast('Entry updated');}
-    else{ST.entries=ST.entries.concat([entry]);toast(entRole==='billing_staff'?'Entry added on behalf of '+H(createdBy):entRole==='attorney'?'Entry submitted for approval':'Entry added');}
+    else{ST.entries=ST.entries.concat([entry]);toast(entRole==='billing_staff'?'Entry added on behalf of '+String(html`${createdBy}`):entRole==='attorney'?'Entry submitted for approval':'Entry added');}
     _patchEntry(entry);
     saveOne('entries',entry); A.closeF();
   },
@@ -9918,14 +9776,18 @@ var A={
       });
       return;
     }
-    var backup={
+    // --- Chunked JSON export ---
+    // Avoids V8 max-string-length crash (~512 MB) for large datasets (50k+ entries).
+    // Blob is constructed from an array of string parts; no single giant string is formed.
+    var CHUNK = 1000; // entries per chunk
+    var entries = _getExportPool();
+    var meta = {
       _version:1,
       _exported:new Date().toISOString(),
       user:ST.user,
       groups:ST.groups,
       clients:ST.clients,
       matters:ST.matters,
-      entries:_getExportPool(),
       contacts:ST.contacts,
       prefs:ST.prefs,
       settings:ST.settings,
@@ -9934,12 +9796,31 @@ var A={
       mailPlaceholders:ST.mailPlaceholders,
       linkageRules:ST.linkageRules
     };
-    var json=JSON.stringify(backup,null,2);
+    // Build blob parts: header object (minus entries), then entries array in chunks
+    var headerJson = JSON.stringify(meta, null, 2);
+    // Strip closing } so we can append "entries": [...]
+    headerJson = headerJson.slice(0, headerJson.lastIndexOf('}'));
+    var parts = [headerJson + ',\n  "entries": [\n'];
+    var len = entries.length;
+    for(var ci = 0; ci < len; ci += CHUNK){
+      var slice = entries.slice(ci, ci + CHUNK);
+      for(var si = 0; si < slice.length; si++){
+        var isLast = (ci + si === len - 1);
+        parts.push('    ' + JSON.stringify(slice[si]) + (isLast ? '\n' : ',\n'));
+      }
+    }
+    parts.push('  ]\n}');
     var now=new Date();
     var stamp=toIsoDate(now)+'_'+pad2(now.getHours())+pad2(now.getMinutes());
     var appSlug=(ST.prefs.appName||'backup').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
     var fname=appSlug+'_'+stamp+'.json';
-    A._dlData(json, fname, 'application/json');
+    var blob=new Blob(parts,{type:'application/json;charset=utf-8'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download=fname; a.style.display='none';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},2000);
     toast('Full backup downloaded: '+fname);
   },
 
@@ -10370,7 +10251,7 @@ tableRows,
     if(p.contacts&&p.contacts.length) replaceCollection('contacts','contacts', p.contacts);
     if(p.descPresets&&p.descPresets.length) ST.descPresets=p.descPresets;
     save();
-    toast('Firm profile applied: '+H(p.firmName||p.appName||'Profile'));
+    toast(String(html`Firm profile applied: ${p.firmName||p.appName||'Profile'}`));
   },
   pickITUser: function(idx){
     var p=ST._importedProfile;
@@ -10383,7 +10264,7 @@ tableRows,
     ST._importedProfile=null;
     ST._splashMode=false;
     ST.modal=null; render();
-    toast('Welcome, '+H(u.name)+' \ud83c\udf89');
+    toast(String(html`Welcome, ${u.name} \ud83c\udf89`));
   },
   skipProfileImport: function(){
     if(ST._importedProfile){ A._applyProfileData(ST._importedProfile); ST._importedProfile=null; }
@@ -10771,28 +10652,39 @@ function _detectImportConflicts(pkg){
   // Build a provisional client-ID map from the just-resolved clients so matter
   // matching can be scoped to the correct client (prevents "General" under Client A
   // from matching "General" under Client B).
+  // _provClMap[pkgClientId] = localClientId  (resolved)
+  // _provClMap[pkgClientId] = null           (forced-new — client will be created fresh)
+  // _provClMap has NO entry                  (client is still conflicted — unresolvable)
   var _provClMap={};
   (pkg.clients||[]).forEach(function(pc){
-    var resolvedId=resolved.clients[pc.id]; // may be localId or undefined (conflict)
-    if(resolvedId!=null){
-      // Already resolved (exact match or saved rule)
-      _provClMap[pc.id]=resolvedId;
-    } else if(resolved.clients.hasOwnProperty(pc.id)&&resolvedId===null){
-      // Forced-new — no existing local client to scope against yet
-    } else {
-      // Still conflicted — best effort: try exact match fallback for scoping only
-      var m=ST.clients.find(function(c){return sameStr(c.name,pc.name);});
-      if(m) _provClMap[pc.id]=m.id;
+    var resolvedId=resolved.clients[pc.id]; // may be localId, null, or undefined (conflict)
+    if(resolved.clients.hasOwnProperty(pc.id)){
+      // Either a real localId (resolved) or null (forced-new) — both are known states
+      _provClMap[pc.id]=resolvedId; // null means "will be added as new"
     }
+    // else: still conflicted — intentionally leave absent from _provClMap
   });
 
-  // Matter matching: scope by resolved client where possible
+  // Matter matching: scope strictly by resolved client.
+  // If the package client is still conflicted (absent from _provClMap), we CANNOT
+  // safely match the child matter to any local matter — doing so risks cross-pollinating
+  // matters across clients (e.g. "General / Client A" matching "General / Client B").
+  // Such orphaned matters are queued as conflicts so the user can resolve the parent
+  // client first, which will unlock correct matter scoping on re-import.
   (pkg.matters||[]).forEach(function(m){
-    var resolvedClientId=_provClMap[m.clientId]||'';
-    // Use a client-scoped local array when we know the client; otherwise all matters
+    var clientEntry=_provClMap.hasOwnProperty(m.clientId) ? _provClMap[m.clientId] : undefined;
+    if(typeof clientEntry === 'undefined'){
+      // Parent client unresolved — refuse to guess; surface as a conflict with no suggestions
+      conflicts.push({type:'matter',pkgId:m.id,incomingName:(m.name||'').trim(),
+        orphaned:true, // flag for UI: explain that parent client must be resolved first
+        suggestions:[]});
+      return;
+    }
+    // clientEntry is either a local client ID (string) or null (will be new client)
+    var resolvedClientId=clientEntry||'';
     var scopedArr=resolvedClientId
       ? ST.matters.filter(function(lm){return lm.clientId===resolvedClientId;})
-      : ST.matters;
+      : []; // forced-new client has no local matters yet — treat all its matters as new
     _process('matter', scopedArr, m.id, m.name||'');
   });
 
@@ -11091,21 +10983,21 @@ function buildLinkageReviewModal(){
       // Pre-select the single suggestion when there is exactly one — otherwise default to "Add as new"
       var preselId=c.suggestions&&c.suggestions.length===1?c.suggestions[0].id:'';
       var opts='<option value="__new__"'+(preselId?'':' selected')+'>➕ Add as new record</option>'
-        +localArr.map(function(x){return '<option value="'+H(x.id)+'"'+(x.id===preselId?' selected':'')+'>'+H(x.name)+'</option>';}).join('');
+        +localArr.map(function(x){return String(html`<option value="${x.id}"${safe(x.id===preselId?' selected':'')}>${x.name}</option>`);}).join('');
       var hint=c.isSender?'Package sender — not in your contacts':'';
       return '<div style="background:var(--bg);border:1px solid var(--brd);border-radius:10px;padding:14px 16px;margin-bottom:10px">'
         +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">'
         +'<div class="u-f1">'
         +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin-bottom:2px">'+label+(c.isSender?' · Sender':'')+'</div>'
-        +'<div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+H(c.incomingName)+'">📥 '+H(c.incomingName)+'</div>'
-        +(hint?'<div style="font-size:11px;color:var(--ink3);margin-top:2px">'+H(hint)+'</div>':'')
+        +String(html`<div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.incomingName}">📥 ${c.incomingName}</div>`)
+        +(hint?String(html`<div style="font-size:11px;color:var(--ink3);margin-top:2px">${hint}</div>`):'')
         +(c.staleRule?'<div style="font-size:11px;color:var(--red);margin-top:3px">⚠ Saved rule pointed to a deleted record — please re-link</div>':'')
-        +(c.suggestions&&c.suggestions.length?'<div style="font-size:11px;color:var(--amber);margin-top:3px">Similar: '+c.suggestions.map(function(s){return H(s.name);}).join(', ')+'</div>':'')
+        +(c.suggestions&&c.suggestions.length?'<div style="font-size:11px;color:var(--amber);margin-top:3px">Similar: '+c.suggestions.map(function(s){return String(html`${s.name}`);}).join(', ')+'</div>':'')
         +'</div>'
         +'<div style="font-size:22px;color:var(--ink4);line-height:1">🔗</div>'
         +'</div>'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
-        +'<select id="'+selId+'" aria-label="Map \''+H(c.incomingName)+'\' to existing record" data-lnk-type="'+H(type)+'" data-lnk-pkgid="'+H(c.pkgId)+'" data-lnk-name="'+H(c.incomingName)+'" style="flex:1;padding:8px 12px;border:1px solid var(--brd);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink)">'+opts+'</select>'
+        +String(html`<select id="${safe(selId)}" aria-label="${'Map \''+c.incomingName+'\' to existing record'}" data-lnk-type="${type}" data-lnk-pkgid="${c.pkgId}" data-lnk-name="${c.incomingName}" style="flex:1;padding:8px 12px;border:1px solid var(--brd);border-radius:8px;font-size:13px;background:var(--white);color:var(--ink)">${safe(opts)}</select>`)
         +'</div>'
         +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);cursor:pointer">'
         +'<input type="checkbox" id="'+chkId+'" data-lnk-rem="'+type+'-'+i+'" style="margin:0"> Remember this choice for future imports'
@@ -11120,7 +11012,7 @@ function buildLinkageReviewModal(){
 
   var _lnkBody=''
     +'<div style="border-left:3px solid '+color+';padding:10px 14px;background:var(--bg2);border-radius:0 8px 8px 0;margin-bottom:18px">'
-    +'<div style="font-size:13px;font-weight:600;margin-bottom:3px">From: '+H(pkg._fromUser||'Unknown')+(pkg._firmName?' \xb7 '+H(pkg._firmName):'')+'</div>'
+    +String(html`<div style="font-size:13px;font-weight:600;margin-bottom:3px">From: ${pkg._fromUser||'Unknown'}${pkg._firmName?html` · ${pkg._firmName}`:''}</div>`)
     +'<div class="u-fs12c2">'+d.conflicts.length+' item'+(d.conflicts.length!==1?'s':'')+' could not be automatically matched to your existing data. '
     +'Link each to an existing record or choose <strong>Add as new record</strong> to create it.</div>'
     +'</div>'
@@ -11156,11 +11048,9 @@ function buildWorkflowImportPreview(){
         var st=e.status||'pending';
         var stColor={approved:'var(--green)',pending:'var(--amber)',rejected:'var(--red)'}[st]||'var(--ink3)';
         return '<div style="padding:8px 12px;border-bottom:1px solid var(--brd);font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px">'
-          +'<div class="u-f1"><strong>'+H(e._clientName||'?')+'</strong>'+(e._matterName?' / '+H(e._matterName):'')
-          +(e._matterNumber?' <span style="font-family:var(--font-mono);font-size:10px;color:var(--blue)">#'+H(e._matterNumber)+'</span>':'')
-          +'<div style="color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+H(e.description||'—')+(e.abaCode?' <span style="color:var(--blue);font-family:var(--font-mono);font-size:10px">'+H(e.abaCode)+'</span>':'')+'</div></div>'
+          +String(html`<div class="u-f1"><strong>${e._clientName||'?'}</strong>${e._matterName?html` / ${e._matterName}`:''}${e._matterNumber?html`<span style="font-family:var(--font-mono);font-size:10px;color:var(--blue)">#${e._matterNumber}</span>`:''}<div style="color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.description||'—'}${e.abaCode?html`<span style="color:var(--blue);font-family:var(--font-mono);font-size:10px">${e.abaCode}</span>`:''}</div></div>`)
           +'<div style="text-align:right;white-space:nowrap"><strong>'+$h(e.hours)+'</strong>'
-          +'<div style="font-size:11px;color:'+stColor+'">'+H(st)+'</div>'
+          +String(html`<div style="font-size:11px;color:${safe(stColor)}">${st}</div>`)
           +'</div></div>';
       }).join('')
       +'</div>';
@@ -11169,11 +11059,11 @@ function buildWorkflowImportPreview(){
   }
   var _wipBody=''
     +'<div style="border:2px solid '+color+';border-radius:10px;padding:14px 16px;margin-bottom:14px">'
-    +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:'+color+';font-weight:700;margin-bottom:4px">'+H(pkg._label||pkg._type)+'</div>'
-    +'<div style="font-size:14px;font-weight:600">From: '+H(pkg._fromUser||'Unknown')+(pkg._fromRole?' <span class="u-fs11c3r">('+H(pkg._fromRole)+')</span>':'')+'</div>'
-    +(pkg._firmName?'<div style="font-size:12px;color:var(--ink2);margin-top:2px">'+H(pkg._firmName)+'</div>':'')
-    +'<div class="u-hint4">Exported: '+H(new Date(pkg._exportedAt).toLocaleString())+'</div>'
-    +(pkg._note?'<div style="margin-top:10px;padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:12px;color:var(--ink2);line-height:1.6"><strong>Note from sender:</strong> '+H(pkg._note)+'</div>':'')
+    +String(html`<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:${safe(color)};font-weight:700;margin-bottom:4px">${pkg._label||pkg._type}</div>`)
+    +String(html`<div style="font-size:14px;font-weight:600">From: ${pkg._fromUser||'Unknown'}${pkg._fromRole?html`<span class="u-fs11c3r">(${pkg._fromRole})</span>`:''}</div>`)
+    +(pkg._firmName?String(html`<div style="font-size:12px;color:var(--ink2);margin-top:2px">${pkg._firmName}</div>`):'')
+    +String(html`<div class="u-hint4">Exported: ${new Date(pkg._exportedAt).toLocaleString()}</div>`)
+    +(pkg._note?String(html`<div style="margin-top:10px;padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:12px;color:var(--ink2);line-height:1.6"><strong>Note from sender:</strong> ${pkg._note}</div>`):'')
     +'</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">'
     +[['Entries',(pkg.entries||[]).length],['Clients',(pkg.clients||[]).length],['Matters',(pkg.matters||[]).length],['Contacts',(pkg.contacts||[]).length]].map(function(x){
@@ -11991,6 +11881,138 @@ window.syncForm=syncForm; window.savePrefs=savePrefs;
 window._fnInsert=_fnInsert; window._mpInsert=_mpInsert;
 window._mpApplyTemplate=_mpApplyTemplate; window._mpPreview=_mpPreview;
 })(); // end APP IIFE
+</script>
+<!-- Sort worker — stored as a plain script tag so minifiers cannot corrupt the source.
+     _getSortWorker() reads textContent and wraps it in a Blob. -->
+<script type="text/javascript" id="worker-sort">
+self.onmessage=function(e){
+  var d=e.data,arr=d.slim,s=d.sort;
+  arr.sort(function(a,b){
+    if(s==="date-asc")  return a._ts-b._ts;
+    if(s==="client")    return a._cn.localeCompare(b._cn);
+    if(s==="hours")     return b._hr-a._hr;
+    if(s==="amount")    return b._am-a._am;
+    var dd=b._ts-a._ts; return dd!==0?dd:b._cat-a._cat;
+  });
+  var ids=new Array(arr.length);
+  for(var i=0;i<arr.length;i++) ids[i]=arr[i].id;
+  self.postMessage({key:d.key,ids:ids,hrs:d.hrs,bill:d.bill});
+};
+</script>
+
+<!-- Analytics worker — stored as a plain script tag so minifiers cannot corrupt the source.
+     _getAnalyticsWorker() reads textContent and wraps it in a Blob. -->
+<script type="text/javascript" id="worker-analytics">
+self.onmessage=function(ev){
+  var d=ev.data;
+  var fe=d.fe, clMap=d.clMap, clToGrp=d.clToGrp, groups=d.groups;
+  var splitCts=d.splitCts, ctIdSet=d.ctIdSet, userPct=d.userPct;
+  var anFilter=d.anFilter, nowMs=d.nowMs, key=d.key;
+  function rndHours(h){ var v=Number(h||0); return (Math.round((v+Number.EPSILON)*10)/10); }
+  function calcAmt(hours,rate){
+    var h=rndHours(hours);
+    var hUnits=Math.round(h*10000);
+    var rateCts=Math.round(Number(rate||0)*100);
+    return Math.round(hUnits*rateCts/10000)/100;
+  }
+  function salaryForPeriod(annual,f){
+    if(annual==null||annual==="") return null;
+    var a=Number(annual), now=new Date(nowMs);
+    if(f==="week")    return a/52;
+    if(f==="month")   return a/12;
+    if(f==="quarter") return a/4;
+    if(f==="year")    return a;
+    if(f==="this_month"){
+      var dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+      return (a/12)*(now.getDate()/dim);
+    }
+    if(f==="this_quarter"){
+      var qsm=Math.floor(now.getMonth()/3)*3;
+      var qs=new Date(now.getFullYear(),qsm,1);
+      var qe=new Date(now.getFullYear(),qsm+3,0);
+      var qd=(qe-qs)/86400000+1;
+      var el=Math.floor((now-qs)/86400000)+1;
+      return (a/4)*(el/qd);
+    }
+    if(f==="this_year"){
+      var yr=now.getFullYear();
+      var isLeap=(yr%4===0&&yr%100!==0)||(yr%400===0);
+      var yd=isLeap?366:365;
+      var j1=new Date(yr,0,1);
+      var el2=Math.floor((now-j1)/86400000)+1;
+      return a*(el2/yd);
+    }
+    return null;
+  }
+  var totHrs=0, totBill=0;
+  for(var i=0;i<fe.length;i++){
+    totHrs+=Number(fe[i].hours);
+    totBill+=calcAmt(fe[i].hours,fe[i].rate);
+  }
+  var clAcc={};
+  for(var i=0;i<fe.length;i++){
+    var e=fe[i]; if(!e.clientId) continue;
+    if(!clAcc[e.clientId]) clAcc[e.clientId]={hrs:0,bill:0};
+    clAcc[e.clientId].hrs=Math.round((clAcc[e.clientId].hrs+Number(e.hours))*10000)/10000;
+    clAcc[e.clientId].bill=Math.round((clAcc[e.clientId].bill+calcAmt(e.hours,e.rate))*100)/100;
+  }
+  var byClient=[], cids=Object.keys(clAcc);
+  for(var i=0;i<cids.length;i++){
+    var cid=cids[i];
+    if(clAcc[cid].hrs>0) byClient.push({name:clMap[cid]||"Unknown",hrs:clAcc[cid].hrs,bill:clAcc[cid].bill});
+  }
+  byClient.sort(function(a,b){return b.bill-a.bill;});
+  var grpAcc={};
+  for(var i=0;i<fe.length;i++){
+    var e=fe[i]; var gid=clToGrp[e.clientId]; if(!gid) continue;
+    if(!grpAcc[gid]) grpAcc[gid]={hrs:0,bill:0};
+    grpAcc[gid].hrs=Math.round((grpAcc[gid].hrs+Number(e.hours))*10000)/10000;
+    grpAcc[gid].bill=Math.round((grpAcc[gid].bill+calcAmt(e.hours,e.rate))*100)/100;
+  }
+  var byGroup=[];
+  for(var i=0;i<groups.length;i++){
+    var g=groups[i], a=grpAcc[g.id]||{hrs:0,bill:0};
+    if(a.hrs>0) byGroup.push({name:g.name,hrs:a.hrs,bill:a.bill});
+  }
+  byGroup.sort(function(a,b){return b.bill-a.bill;});
+  var ctAcc={};
+  for(var i=0;i<fe.length;i++){
+    var e=fe[i];
+    var k=(e.contactId&&ctIdSet[e.contactId])?e.contactId:"__unassigned";
+    if(!ctAcc[k]) ctAcc[k]={hrs:0,bill:0};
+    ctAcc[k].hrs=Math.round((ctAcc[k].hrs+Number(e.hours))*10000)/10000;
+    ctAcc[k].bill=Math.round((ctAcc[k].bill+calcAmt(e.hours,e.rate))*100)/100;
+  }
+  var contactSplit=[];
+  for(var i=0;i<splitCts.length;i++){
+    var c=splitCts[i], acc=ctAcc[c.id]||{hrs:0,bill:0};
+    if(acc.hrs<=0) continue;
+    var pct=c.ownPct!=null?Number(c.ownPct):100;
+    var own=acc.bill*pct/100;
+    var annSal=c.salary!=null&&c.salary!==""?Number(c.salary):null;
+    var perSal=salaryForPeriod(annSal,anFilter);
+    var net=perSal!=null?own-perSal:null;
+    contactSplit.push({id:c.id,name:c.name,hrs:acc.hrs,bill:acc.bill,ownPct:pct,
+      own:own,firm:acc.bill*(100-pct)/100,annualSalary:annSal,periodSalary:perSal,net:net});
+  }
+  var unacc=ctAcc["__unassigned"]||{hrs:0,bill:0};
+  if(unacc.hrs>0){
+    var uOwn=unacc.bill*userPct/100;
+    contactSplit.push({id:"__unassigned",name:"(Unassigned)",hrs:unacc.hrs,bill:unacc.bill,
+      ownPct:userPct,own:uOwn,firm:unacc.bill*(100-userPct)/100,
+      annualSalary:null,periodSalary:null,net:null});
+  }
+  var totalOwn=0, totalFirm=0;
+  for(var i=0;i<contactSplit.length;i++){totalOwn+=contactSplit[i].own;totalFirm+=contactSplit[i].firm;}
+  self.postMessage({
+    key:key,
+    totals:{hrs:totHrs,bill:totBill},
+    byClient:byClient,
+    byGroup:byGroup,
+    split:{contactSplit:contactSplit,totalOwn:totalOwn,totalFirm:totalFirm,
+           uHrs:unacc.hrs,uBill:unacc.bill,userPct:userPct,rawCtAcc:ctAcc}
+  });
+};
 </script>
 </body>
 </html>
