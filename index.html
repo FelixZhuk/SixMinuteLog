@@ -3024,8 +3024,15 @@ function _getAnalyticsWorker(){
   _anCalcWorker=new Worker(URL.createObjectURL(blob));
   _anCalcWorker.onmessage=function(ev){
     var res=ev.data;
-    // Discard stale results (filter changed while worker was running)
-    if(res.key!==_anCalcPendingKey) return;
+    // Discard stale results (filter changed while worker was running).
+    // Still call render() so vAnalytics can re-dispatch with the current key —
+    // without this the "Computing analytics…" spinner hangs permanently when
+    // markLuDirty() clears _anCalcPendingKey mid-flight.
+    if(res.key!==_anCalcPendingKey){
+      _anCalcLoading=false;
+      render();
+      return;
+    }
     _anCalcResult=res;
     _anCalcLoading=false;
     _anCalcPendingKey=null;
@@ -7280,6 +7287,10 @@ function render(){
   var mainKey=ST.tab+'|'+_dataVer
     +'|'+(ST.tsFilter||'')+(ST.tsClientFilter||'')+(ST.tsMatterFilter||'')+(ST.tsContactFilter||'')+ST.tsSort+ST.tsPage
     +'|'+(ST.anFilter||'')+'|an'+_anFetchVer
+    // anc: analytics computation state — changes on dispatch (10), result arrival (01),
+    // and result invalidation (00).  Without this, skipMain swallows the post-worker
+    // render() call and "Computing analytics\u2026" hangs permanently.
+    +'|anc'+(_anCalcLoading?'1':'0')+(_anCalcResult?'1':'0')
     +'|'+(ST.clSearch||'')+(ST.clSort||'')+(ST.clGrpFilter||'')+(ST.clGrpsOpen?'1':'0')+(ST.maSearch||'')+(ST.maSort||'')+(ST.maGroup?'1':'0')+(ST.maClientFilter||'')+(ST.ctSearch||'')+(ST.ctSort||'')
     +'|'+(ST.rowTmr?'t'+ST.rowTmr.entId:'')
     +'|tsAll'+(_tsPageResult===null?'N':_tsPageResult.key||'0')
