@@ -713,6 +713,39 @@ html,body{overflow-x:hidden;max-width:100vw}
 /* === WCAG 2.4.1 Skip Navigation link === */
 .skip-nav{position:absolute;top:-100%;left:8px;z-index:99999;background:var(--ink);color:var(--white);padding:10px 18px;border-radius:0 0 var(--r) var(--r);font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap;transition:top .1s}
 .skip-nav:focus{top:0}
+/* === Segment (billing hours breakdown) panel === */
+.seg-wrap{margin:10px 0 4px}
+.seg-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.seg-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.seg-title{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)}
+.seg-hd-btns{display:flex;gap:5px}
+.seg-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.seg-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.seg-tbl th{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding:4px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.seg-tbl td{padding:5px 8px;border-bottom:1px solid var(--border-l);vertical-align:middle}
+.seg-tbl tbody tr:last-child td{border-bottom:none}
+.seg-tbl tfoot td{border-top:1px solid var(--border);padding:5px 8px}
+.seg-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;white-space:nowrap}
+.seg-tmr{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
+.seg-man{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.seg-inp{padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--white);color:var(--ink);font-family:var(--font-mono)}
+.seg-inp:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.seg-num{width:46px;text-align:center}
+.seg-dur{white-space:nowrap;font-family:var(--font-mono);color:var(--ink)}
+.seg-hms{display:flex;gap:3px;align-items:center}
+.seg-unit{font-size:11px;color:var(--ink3)}
+.seg-dash{color:var(--ink3);font-size:12px}
+.seg-del{font-size:15px;padding:1px 5px;color:var(--ink3);line-height:1}
+.seg-del:hover{color:var(--red)}
+.seg-total td{background:var(--bg)}
+.seg-empty{font-size:12px;color:var(--ink3);margin:4px 0 0;font-style:italic}
+.seg-note{font-size:11px;color:var(--ink3);margin:6px 0 0}
+.seg-auto-lbl{font-size:11px;color:var(--blue);font-weight:400;margin-left:4px}
+.seg-auto-hint{color:var(--blue)!important}
+input.seg-lock{background:var(--bg2)!important;color:var(--ink2)!important;cursor:default}
+body.dark .seg-panel{background:var(--bg2);border-color:var(--border)}
+body.dark .seg-inp{background:var(--bg);color:var(--ink);border-color:var(--border)}
+body.dark input.seg-lock{background:var(--border)!important;color:var(--ink3)!important}
 </style>
 </head>
 <body>
@@ -1671,7 +1704,7 @@ function toPreciseHours(val,decimals){var d=decimals===undefined?5:decimals;var 
 function msToHours(ms){return toPreciseHours((ms||0)/3600000);}
 function addPreciseHours(h1,h2){return toPreciseHours(Number(h1||0)+Number(h2||0));}
 function $d(s){if(!s)return '';var d=new Date(s+'T00:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
-function H(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function H(s){if(s==null)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 // ── html tagged template literal ────────────────────────────────────────────
 // Tiny zero-dep template engine. No external libs. Fully offline.
@@ -2992,6 +3025,83 @@ function buildModal(o){
     +'</div></div>';
 }
 
+// === SEGMENT HELPERS (billing hours breakdown)
+
+// Sum all segments → decimal hours
+function efSegsToHours(segs){
+  return (segs||[]).reduce(function(s,seg){
+    return s+(seg.type==='timer'?msToHours(seg.ms||0):Number(seg.hours||0));
+  },0);
+}
+// Epoch ms → "HH:MM" local time string
+function fmtSegTime(ms){
+  if(!ms) return '';
+  var d=new Date(ms),h=d.getHours(),m=d.getMinutes();
+  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+}
+// "YYYY-MM-DD" + "HH:MM" → epoch ms (local)
+function parseSegTime(dateStr,timeStr){
+  if(!timeStr||!dateStr) return 0;
+  var t=timeStr.split(':');
+  var d=new Date(dateStr+'T'+(t[0]||'00')+':'+(t[1]||'00')+':00');
+  return isNaN(d.getTime())?0:d.getTime();
+}
+// ms → "Xh Ym" readable duration
+function fmtSegDuration(ms){
+  if(!ms||ms<=0) return '0m';
+  var h=Math.floor(ms/3600000),m=Math.round((ms%3600000)/60000);
+  if(m>=60){h++;m=0;}
+  return (h>0?h+'h ':'')+m+'m';
+}
+// Build the Time Breakdown panel HTML for the entry form
+function efSegPanel(f){
+  var segs=f.segments||[];
+  var hasSegs=segs.length>0;
+  var dateStr=f.date||today();
+  var rowsH=segs.map(function(seg,i){
+    if(seg.type==='timer'){
+      var st=fmtSegTime(seg.startMs),sp=fmtSegTime(seg.stopMs),dur=fmtSegDuration(seg.ms||0);
+      return String(html`<tr>
+        <td><span class="seg-badge seg-tmr">&#9201; Timer</span></td>
+        <td><input type="time" class="seg-inp" value="${st}" oninput="A.efSegStart(${i},this.value)" title="Start time"></td>
+        <td><input type="time" class="seg-inp" value="${sp}" oninput="A.efSegStop(${i},this.value)" title="Stop time"></td>
+        <td class="seg-dur">${dur}</td>
+        <td><button type="button" class="btn-ic seg-del" onclick="A.efDelSeg(${i})" title="Remove row">&times;</button></td>
+      </tr>`);
+    }
+    // Manual segment: hh + mm inputs
+    var _p=parseHHMM(String(Number(seg.hours||0)));
+    return String(html`<tr>
+      <td><span class="seg-badge seg-man">&#9998; Manual</span></td>
+      <td colspan="2" class="seg-dash">—</td>
+      <td class="seg-dur"><div class="seg-hms">
+        <input type="number" class="seg-inp seg-num" value="${_p.hh}" min="0" step="1" placeholder="0" oninput="A.efSegManualHrs(${i},this.value)">
+        <span class="seg-unit">h</span>
+        <input type="number" class="seg-inp seg-num" value="${_p.mm}" min="0" max="59" step="1" placeholder="0" oninput="A.efSegManualMins(${i},this.value)">
+        <span class="seg-unit">m</span>
+      </div></td>
+      <td><button type="button" class="btn-ic seg-del" onclick="A.efDelSeg(${i})" title="Remove row">&times;</button></td>
+    </tr>`);
+  }).join('');
+  var totalH='';
+  if(hasSegs){
+    var tot=efSegsToHours(segs),_tp=parseHHMM(String(toPreciseHours(tot)));
+    totalH='<tfoot><tr class="seg-total"><td colspan="3"></td><td class="seg-dur"><strong>'+_tp.hh+'h'+(_tp.mm>0?' '+_tp.mm+'m':'')+'</strong></td><td></td></tr></tfoot>';
+  }
+  var tableH=hasSegs
+    ?'<div class="seg-scroll"><table class="seg-tbl"><thead><tr><th>Type</th><th>Start</th><th>Stop</th><th>Duration</th><th></th></tr></thead><tbody>'+rowsH+'</tbody>'+totalH+'</table></div>'
+    :'<p class="seg-empty">No breakdown recorded yet. Timer sessions and manual rows will appear here.</p>';
+  return '<div class="seg-panel">'
+    +'<div class="seg-hd"><span class="seg-title">Time Breakdown</span>'
+    +'<div class="seg-hd-btns">'
+    +(hasSegs?'<button type="button" class="btn btn-gh" style="font-size:11px;padding:3px 9px" onclick="A.efClearSegs()">Clear all</button>':'')
+    +'<button type="button" class="btn btn-gh" style="font-size:11px;padding:3px 9px" onclick="A.efAddManualSeg()">+ Add row</button>'
+    +'</div></div>'
+    +tableH
+    +(hasSegs?'<p class="seg-note">&#9432; Hours above auto-calculated from this breakdown.</p>':'')
+    +'</div>';
+}
+
 // === VIEWS
 
 // == Timesheet ==
@@ -3332,7 +3442,7 @@ function vTimesheet(){
         ><td data-label="Matter" class="u-c2">${mt?mt.name:'General'}${mnDisplay}</td
         ><td data-label="Description" style="color:var(--ink2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.description||''}">${e.description||'\u2014'}${abaDisplay}${e.partnerComment?html`<span title="Partner note: ${e.partnerComment}" style="margin-left:4px;font-size:11px;color:var(--amber);cursor:help">&#128172;</span>`:''
         }${e.partnerEdited?safe('<span title="Partner adjusted this entry" style="margin-left:2px;font-size:10px;color:var(--amber);cursor:help">✎</span>'):''}</td
-        ><td data-label="Hours">${e.rawMs!=null?html`<span title="Timer: ${safe(msToHMS(e.rawMs))}" style="cursor:help;border-bottom:1px dotted var(--ink3)">${safe($h(e.hours))}</span>`:safe($h(e.hours))}</td
+        ><td data-label="Hours">${e.rawMs!=null?html`<span title="Timer: ${safe(msToHMS(e.rawMs))}" style="cursor:help;border-bottom:1px dotted var(--ink3)">${safe($h(e.hours))}</span>`:safe($h(e.hours))}${(e.segments&&e.segments.length>0)?html`<span title="${e.segments.length} breakdown row${e.segments.length!==1?'s':''} — click edit to review" style="margin-left:4px;font-size:10px;color:var(--blue);cursor:help;vertical-align:middle">&#8801;</span>`:''}</td
         ><td data-label="Rate" class="u-c2">${safe($m(e.rate))}</td
         ><td data-label="Amount" style="color:var(--green);font-weight:500">${safe($m(amt))}</td
         >${byCell}<td>${actionsH}</td></tr>`;
@@ -3462,7 +3572,8 @@ function entryForm(){
     +'<h3>'+(ST.editId?'Edit Entry':'New Time Entry')+(role==='billing_staff'?' <span class="chip" style="background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border);vertical-align:middle;margin-left:6px">Billing Entry</span>':'')+'</h3>'
     +statusNotice
     +byRow
-    +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d,sf:'ef.date'})+(function(){var _p=parseHHMM(f.hours);var _hh=f.hours?String(_p.hh):'';var _mm=f.hours?String(_p.mm):'';return String(html`<div class="fl"><label>Hours <span class="req">*</span></label><div style="display:flex;gap:6px;align-items:center"><input type="number" inputmode="numeric" id="ef-hh" aria-label="Hours" min="0" step="1" value="${_hh}" placeholder="0" style="width:72px;flex:none" oninput="A.efHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">hr</span><input type="number" inputmode="numeric" id="ef-mm" aria-label="Minutes" min="0" max="59" step="1" value="${_mm}" placeholder="0" style="width:72px;flex:none" oninput="A.efHrsInput()"><span style="font-size:13px;color:var(--ink3);white-space:nowrap">min</span></div>${f.errs&&f.errs.h?html`<div class="ferr">${f.errs.h}</div>`:safe('<div class="fhint">Enter whole hours and minutes</div>')}</div>`);})()+'</div>'
+    +'<div class="frow c2">'+field('Date','ef-d',{type:'date',val:f.date||today(),req:true,err:f.errs&&f.errs.d,sf:'ef.date'})+(function(){var _segsLocked=(f.segments&&f.segments.length>0);var _p=parseHHMM(f.hours);var _hh=f.hours?String(_p.hh):'';var _mm=f.hours?String(_p.mm):'';var _lockAttr=_segsLocked?' readonly class="seg-lock"':'';var _hintTxt=_segsLocked?'<span class="seg-auto-lbl">&#9432; auto from breakdown</span>':'';var _oninput=_segsLocked?'':'oninput="A.efHrsInput()"';return String(html`<div class="fl"><label>Hours <span class="req">*</span>${safe(_hintTxt)}</label><div style="display:flex;gap:6px;align-items:center"><input type="number" inputmode="numeric" id="ef-hh" aria-label="Hours" min="0" step="1" value="${_hh}" placeholder="0" style="width:72px;flex:none" ${safe(_lockAttr)} ${safe(_oninput)}><span style="font-size:13px;color:var(--ink3);white-space:nowrap">hr</span><input type="number" inputmode="numeric" id="ef-mm" aria-label="Minutes" min="0" max="59" step="1" value="${_mm}" placeholder="0" style="width:72px;flex:none" ${safe(_lockAttr)} ${safe(_oninput)}><span style="font-size:13px;color:var(--ink3);white-space:nowrap">min</span></div>${f.errs&&f.errs.h?html`<div class="ferr">${f.errs.h}</div>`:safe('<div class="fhint">Enter whole hours and minutes</div>')}</div>`);})()+'</div>'
+    +'<div class="seg-wrap">'+safe(efSegPanel(f))+'</div>'
     +'<div class="frow c2">'
     +(f.newCl
       ?field('Client','ef-ncn',{req:true,type:'inline-action',val:f.newClName||'',ph:'New client name',
@@ -8065,7 +8176,14 @@ var A={
     f.contactId=(entRole==='billing_staff')?f.byContactId:(entRole==='attorney'?f.contactId:g('ef-ct'));
     // Partner: if contactId still blank (team-member dropdown left empty), default to own contact record
     if(entRole==='partner'&&!f.contactId&&ST.user){var _pSelf=ST.contacts.find(function(c){return c.isUser||(c.name&&ST.user.name&&c.name===ST.user.name);});if(_pSelf)f.contactId=String(_pSelf.id);}
-    var _eh=document.getElementById('ef-hh'),_em=document.getElementById('ef-mm');var _hv=_eh?parseInt(_eh.value,10):0,_mv=_em?parseInt(_em.value,10):0;if(isNaN(_hv))_hv=0;if(isNaN(_mv))_mv=0;f.hours=String(toPreciseHours(hhmmToDec(_hv,_mv)));f.rate=fmtCur(g('ef-r')||'');f.description=g('ef-desc');f.abaCode=g('ef-aba')||'';
+    var _eh=document.getElementById('ef-hh'),_em=document.getElementById('ef-mm');var _hv=_eh?parseInt(_eh.value,10):0,_mv=_em?parseInt(_em.value,10):0;if(isNaN(_hv))_hv=0;if(isNaN(_mv))_mv=0;
+    // When segments exist, hours are auto-derived from the breakdown (inputs are locked/readonly)
+    if(f.segments&&f.segments.length>0){
+      f.hours=String(toPreciseHours(efSegsToHours(f.segments)));
+    } else {
+      f.hours=String(toPreciseHours(hhmmToDec(_hv,_mv)));
+    }
+    f.rate=fmtCur(g('ef-r')||'');f.description=g('ef-desc');f.abaCode=g('ef-aba')||'';
     // (entRole already set above)
     // Billing staff: read & validate the "Logged By" attorney selector
     if(entRole==='billing_staff'){
@@ -8123,7 +8241,10 @@ var A={
       billingEditedBy:_billingEditReverted&&ST.user?ST.user.name:(existingEntry?existingEntry.billingEditedBy:undefined),
       billingEditedAt:_billingEditReverted?today():(existingEntry?existingEntry.billingEditedAt:undefined),
       status:entStatus,finalized:existingEntry?existingEntry.finalized:false,
-      createdAt:existingEntry?(existingEntry.createdAt||0):Date.now()};
+      createdAt:existingEntry?(existingEntry.createdAt||0):Date.now(),
+      // Preserve time breakdown segments (timer sessions + manual rows)
+      segments:(f.segments&&f.segments.length>0)?f.segments:undefined,
+      rawMs:(f.segments&&f.segments.length>0)?Math.round(efSegsToHours(f.segments)*3600000):(existingEntry?existingEntry.rawMs:undefined)};
     if(ST.editId){ST.entries=ST.entries.map(function(e){return e.id==ST.editId?entry:e;});
       if(_billingEditReverted) toast('Entry updated — returned to Pending for partner re-approval','warn');
       else toast('Entry updated');}
@@ -8987,7 +9108,9 @@ var A={
       createdBy:createdBy,createdByIni:createdByIni,
       enteredBy:(entRole==='billing_staff'&&ST.user)?ST.user.name:undefined,
       enteredByRole:entRole==='billing_staff'?'billing_staff':undefined,
-      status:entStatus,finalized:existingEntry?existingEntry.finalized:false};
+      status:entStatus,finalized:existingEntry?existingEntry.finalized:false,
+      segments:(f.segments&&f.segments.length>0)?f.segments:existingEntry?(existingEntry.segments||undefined):undefined,
+      rawMs:existingEntry?existingEntry.rawMs:undefined};
     if(ST.editId){ST.entries=ST.entries.map(function(e){return e.id==ST.editId?entry:e;});}
     else{ST.entries=ST.entries.concat([entry]);}
     _patchEntry(entry);
@@ -9054,6 +9177,85 @@ var A={
     ST.ef.hours=dec>0?String(toPreciseHours(dec)):'';
     render();
   },
+  // === Segment (time breakdown) actions ===
+  _efSegsRecalc:function(){
+    // Recompute locked hours field and update ef-hh/ef-mm displays without full render
+    if(!ST.ef.segments||!ST.ef.segments.length) return;
+    var tot=efSegsToHours(ST.ef.segments);
+    ST.ef.hours=String(toPreciseHours(tot));
+    var _p=parseHHMM(String(toPreciseHours(tot)));
+    var hhEl=document.getElementById('ef-hh'),mmEl=document.getElementById('ef-mm');
+    if(hhEl) hhEl.value=String(_p.hh);
+    if(mmEl) mmEl.value=String(_p.mm);
+  },
+  efAddManualSeg:function(){
+    syncForm();
+    if(!ST.ef.segments) ST.ef.segments=[];
+    ST.ef.segments=ST.ef.segments.concat([{type:'manual',hours:'0'}]);
+    A._efSegsRecalc();
+    render();
+  },
+  efDelSeg:function(idx){
+    syncForm();
+    if(!ST.ef.segments) return;
+    ST.ef.segments=ST.ef.segments.filter(function(_,i){return i!==idx;});
+    A._efSegsRecalc();
+    render();
+  },
+  efClearSegs:function(){
+    syncForm();
+    A.confirm_('Remove all breakdown rows? The total hours will also be cleared.',function(){
+      ST.ef.segments=[];
+      ST.ef.hours='';
+      var hhEl=document.getElementById('ef-hh'),mmEl=document.getElementById('ef-mm');
+      if(hhEl) hhEl.value='';
+      if(mmEl) mmEl.value='';
+      render();
+    },{title:'Clear Breakdown',okLabel:'Clear'});
+  },
+  efSegStart:function(idx,val){
+    // val is "HH:MM" from time input; combine with entry date to get epoch ms
+    if(!ST.ef.segments||!ST.ef.segments[idx]) return;
+    var seg=ST.ef.segments[idx];
+    var startMs=parseSegTime(ST.ef.date||today(),val);
+    var stopMs=seg.stopMs||0;
+    var ms=(stopMs&&startMs&&stopMs>startMs)?stopMs-startMs:seg.ms||0;
+    ST.ef.segments[idx]=Object.assign({},seg,{startMs:startMs,ms:ms});
+    A._efSegsRecalc();
+    render();
+  },
+  efSegStop:function(idx,val){
+    if(!ST.ef.segments||!ST.ef.segments[idx]) return;
+    var seg=ST.ef.segments[idx];
+    var stopMs=parseSegTime(ST.ef.date||today(),val);
+    var startMs=seg.startMs||0;
+    var ms=(stopMs&&startMs&&stopMs>startMs)?stopMs-startMs:seg.ms||0;
+    ST.ef.segments[idx]=Object.assign({},seg,{stopMs:stopMs,ms:ms});
+    A._efSegsRecalc();
+    render();
+  },
+  efSegManualHrs:function(idx,val){
+    if(!ST.ef.segments||!ST.ef.segments[idx]) return;
+    var seg=ST.ef.segments[idx];
+    var _p=parseHHMM(String(Number(seg.hours||0)));
+    var hh=parseInt(val,10)||0;
+    var mm=_p.mm||0;
+    var newHrs=String(toPreciseHours(hhmmToDec(hh,mm)));
+    ST.ef.segments[idx]=Object.assign({},seg,{hours:newHrs});
+    A._efSegsRecalc();
+    // Don't re-render — oninput, keep focus; recalc already updated hh/mm els
+  },
+  efSegManualMins:function(idx,val){
+    if(!ST.ef.segments||!ST.ef.segments[idx]) return;
+    var seg=ST.ef.segments[idx];
+    var _p=parseHHMM(String(Number(seg.hours||0)));
+    var hh=_p.hh||0;
+    var mm=Math.min(59,parseInt(val,10)||0);
+    var newHrs=String(toPreciseHours(hhmmToDec(hh,mm)));
+    ST.ef.segments[idx]=Object.assign({},seg,{hours:newHrs});
+    A._efSegsRecalc();
+  },
+
   efCancelNew:function(which){syncForm();if(which==='cl'){ST.ef.newCl=false;ST.ef.newClName='';}else{ST.ef.newMa=false;ST.ef.newMaName='';}render();},
   efCreateClient:function(){
     syncForm();
@@ -9204,9 +9406,12 @@ var A={
     var baseMs=Math.round((target.hours||0)*3600000);
     var newRawMs=baseMs+elapsed;
     var newHrs=msToHours(newRawMs);
+    // Append a timer segment for this start→stop session
+    var newSeg={type:'timer',startMs:rt.startMs,stopMs:Date.now(),ms:elapsed};
+    var updatedSegs=(target.segments||[]).concat([newSeg]);
     var updated;
     ST.entries=ST.entries.map(function(x){
-      if(String(x.id)===String(rt.entId)){updated=Object.assign({},x,{hours:newHrs,rawMs:newRawMs});return updated;}
+      if(String(x.id)===String(rt.entId)){updated=Object.assign({},x,{hours:newHrs,rawMs:newRawMs,segments:updatedSegs});return updated;}
       return x;
     });
     if(updated){_patchEntry(updated);saveOne('entries',updated);}
